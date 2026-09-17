@@ -219,16 +219,117 @@ final class BuiltInKeyTests: XCTestCase {
         XCTAssertEqual(state.aiKey, Secrets.builtIn?.key ?? "")
     }
 
-    func testTheKeyShippedWithTheAppLooksLikeAnAPIKeyAndNotAnAccessToken() {
+    func testTheKeyShippedWithTheAppLooksLikeAKeyAndNotAPlaceholder() {
         guard let builtIn = Secrets.builtIn else { return }     // nothing pasted yet
         switch builtIn.provider {
         case .gemini:
-            XCTAssertTrue(builtIn.key.hasPrefix("AIza"),
-                          "a Gemini API key starts with AIza; AQ./ya29. are short-lived OAuth tokens")
+            // Google issues both shapes: the older AIza… keys and, from late 2026, AQ.…
+            XCTAssertTrue(builtIn.key.hasPrefix("AIza") || builtIn.key.hasPrefix("AQ."),
+                          "a Gemini API key begins AIza or AQ.")
+            XCTAssertGreaterThan(builtIn.key.count, 20)
         case .claude:
             XCTAssertTrue(builtIn.key.hasPrefix("sk-ant-"))
         case .none:
             XCTFail("builtIn should never report .none")
         }
+    }
+
+    func testTheModelsAskedForAreOnesGoogleStillServes() {
+        // the 2.5 generation answers new keys with "no longer available to new users"
+        XCTAssertFalse(AIClient.geminiModels.contains { $0.hasPrefix("gemini-2.") },
+                       "a retired model would make every call fall through to offline")
+        XCTAssertEqual(AIClient.geminiModels.first, "gemini-3.6-flash")
+        XCTAssertGreaterThan(AIClient.geminiModels.count, 1, "there must be something to fall back to")
+    }
+}
+
+/// The exact case from the screenshot: "A domani!" answered with `ertagacha`, which the
+/// course does not list and which is perfectly good Uzbek.
+final class MineIsRightTooTests: XCTestCase {
+
+    private let aDomani = Pair(it: "A domani!", uz: "Ertaga ko'rishguncha!")
+
+    private func question() -> Exercise {
+        Exercise(kind: .type, pair: aDomani,
+                 prompt: aDomani.it, promptLanguage: .it,
+                 answer: aDomani.uz, answerLanguage: .uz)
+    }
+
+    override func setUp() {
+        super.setUp()
+        Glossary.prime(with: [aDomani])       // a course that has never met "ertagacha"
+    }
+
+    func testTheCourseAloneCannotAcceptAWordingItHasNeverSeen() {
+        let ex = question()
+        XCTAssertFalse(AnswerJudge.courseAgrees("ertagacha", with: ex))
+        XCTAssertNil(AnswerJudge.offline("ertagacha", for: ex, remembered: []),
+                     "nothing offline can vouch for it the first time round")
+    }
+
+    func testSayingItIsRightAcceptsIt_GivesTheHeartBackAndRemembersItForGood() {
+        let state = AppState(persistent: false)
+        state.chooseCourse(native: .it)
+        state.settings.unlimitedResources = false          // so hearts actually move
+        let before = state.hearts
+
+        let ex = question()
+        let engine = LessonEngine(exercises: [ex])
+        engine.typed = "ertagacha"
+
+        // marked wrong, as it is today
+        engine.commit(engine.grade())
+        state.loseHeart()
+        XCTAssertEqual(engine.verdict, .wrong(aDomani.uz))
+        XCTAssertEqual(engine.mistakePairs.count, 1)
+        XCTAssertEqual(state.hearts, before - 1)
+
+        // she taps "anche la mia è giusta"
+        state.rememberAlternative(engine.givenAnswer, for: ex.answer)
+        state.gradePair(ex.pair, correct: true)
+        state.regainHeart()
+        engine.acceptAnswerAnyway()
+
+        XCTAssertEqual(engine.verdict, .alternative(canonical: aDomani.uz, note: nil))
+        XCTAssertTrue(engine.mistakePairs.isEmpty, "it is no longer a mistake")
+        XCTAssertEqual(engine.accuracy, 1)
+        XCTAssertEqual(state.hearts, before, "the heart comes back")
+
+        // and from now on it is simply right, offline, with no one to ask
+        let later = question()
+        XCTAssertNotNil(AnswerJudge.offline("ertagacha", for: later,
+                                            remembered: state.alternatives(for: later.answer)))
+        XCTAssertNotNil(AnswerJudge.offline("ERTAGACHA!", for: later,
+                                            remembered: state.alternatives(for: later.answer)),
+                        "however she types it next time")
+    }
+
+    func testAnAcceptedAnswerIsNotAskedAgainLaterInTheSameLesson() {
+        let ex = question()
+        let engine = LessonEngine(exercises: [ex])
+        engine.typed = "ertagacha"
+        engine.commit(engine.grade())
+        engine.acceptAnswerAnyway()
+        engine.advance()
+        XCTAssertTrue(engine.finished, "a wrong answer comes back later; an accepted one does not")
+    }
+
+    func testTheOfferIsOnlyMadeWhereMoreThanOneAnswerIsPossible() {
+        // the button appears on a written translation…
+        XCTAssertTrue(AnswerJudge.isOpen(.type))
+        // …and never on dictation or on a question with buttons for answers
+        XCTAssertFalse(AnswerJudge.isOpen(.listenType))
+        XCTAssertFalse(AnswerJudge.isOpen(.choice))
+    }
+
+    func testSayingItIsRightDoesNothingWhenTheAnswerWasNotMarkedWrong() {
+        let ex = question()
+        let engine = LessonEngine(exercises: [ex])
+        engine.typed = aDomani.uz
+        engine.commit(engine.grade())
+        XCTAssertEqual(engine.verdict, .correct)
+        engine.acceptAnswerAnyway()
+        XCTAssertEqual(engine.verdict, .correct, "there is nothing to take back")
+        XCTAssertEqual(engine.accuracy, 1)
     }
 }

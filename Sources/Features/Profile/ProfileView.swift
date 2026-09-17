@@ -5,6 +5,7 @@ struct ProfileView: View {
     @State private var showReset = false
     @State private var showCourseSwitch = false
     @State private var aiTest: AITestState = .idle
+    @State private var cacheBump = 0
 
     enum AITestState: Equatable {
         case idle, running, ok(String), failed(String)
@@ -325,6 +326,22 @@ struct ProfileView: View {
                         Text(S.approximateVoice[state.native])
                             .font(.plain(11.5)).foregroundStyle(Palette.inkFaint)
                             .fixedSize(horizontal: false, vertical: true)
+                    } else if SpeechService.shared.hasRealVoice(for: state.target) {
+                        Label(S.realVoice[state.native], systemImage: "checkmark.seal.fill")
+                            .font(.heading(11.5)).foregroundStyle(Palette.green)
+                            .fixedSize(horizontal: false, vertical: true)
+                        HStack(spacing: 8) {
+                            Text(S.voiceCached[state.native] + " " + cacheLabel)
+                                .font(.plain(11)).foregroundStyle(Palette.inkFaint)
+                            Button {
+                                Feedback.tap(); VoiceCache.empty(); cacheBump += 1
+                            } label: {
+                                Text(S.emptyVoiceCache[state.native])
+                                    .font(.heading(11)).foregroundStyle(Palette.brand)
+                            }
+                            .buttonStyle(.plain)
+                            Spacer(minLength: 0)
+                        }
                     }
                 }
                 .padding(.horizontal, 12).padding(.vertical, 8)
@@ -333,6 +350,14 @@ struct ProfileView: View {
             .background(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous).fill(Palette.card))
             .overlay(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous).stroke(Palette.stroke, lineWidth: 2))
         }
+    }
+
+    /// Recomputed when the cache is emptied, so the figure on screen is never stale.
+    private var cacheLabel: String {
+        _ = cacheBump
+        let bytes = VoiceCache.size
+        guard bytes > 0 else { return "0 KB" }
+        return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
     }
 
     @ViewBuilder

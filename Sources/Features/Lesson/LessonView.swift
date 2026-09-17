@@ -333,6 +333,24 @@ struct LessonView: View {
                     Text(note).font(.plain(12.5)).foregroundStyle(Palette.inkSoft)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+
+                // The course knows one wording; she may well know another. One tap and
+                // it is accepted, the heart comes back, and it counts from then on.
+                if let ex, case .wrong = v, AnswerJudge.isOpen(ex.kind),
+                   !engine.givenAnswer.trimmingCharacters(in: .whitespaces).isEmpty {
+                    Button {
+                        acceptAnyway(engine, ex: ex)
+                    } label: {
+                        Label(S.mineIsRightToo[state.native], systemImage: "checkmark.circle.fill")
+                            .font(.heading(12.5))
+                            .foregroundStyle(Palette.greenDeep)
+                            .padding(.horizontal, 11).padding(.vertical, 6)
+                            .background(Capsule().fill(Palette.greenSoft))
+                            .overlay(Capsule().stroke(Palette.green.opacity(0.45), lineWidth: 1.5))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 3)
+                }
                 if let ex, ex.kind == .speak, let score = engine.speechScore {
                     Text("\(Int(score * 100))%")
                         .font(.plain(12)).foregroundStyle(Palette.inkSoft)
@@ -427,6 +445,21 @@ struct LessonView: View {
                                        rate: state.settings.speechRate)
         case .almost, .wrong:
             break
+        }
+    }
+
+    /// She says her wording is good too. It is learnt for good, here and in every later
+    /// lesson, and the question stops counting against her.
+    private func acceptAnyway(_ engine: LessonEngine, ex: Exercise) {
+        Feedback.success(); Feedback.dingCorrect()
+        state.rememberAlternative(engine.givenAnswer, for: ex.answer)
+        state.gradePair(ex.pair, correct: true)
+        if request.consumesHearts { state.regainHeart() }
+        outOfHearts = false
+        withAnimation(.easeOut(duration: 0.18)) { engine.acceptAnswerAnyway() }
+        if ex.answerLanguage == state.target {
+            SpeechService.shared.speak(engine.givenAnswer, language: state.target,
+                                       rate: state.settings.speechRate)
         }
     }
 

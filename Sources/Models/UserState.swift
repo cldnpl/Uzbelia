@@ -443,6 +443,14 @@ final class AppState {
         save()
     }
 
+    /// Gives back a heart taken for an answer that turned out to be right.
+    func regainHeart() {
+        guard !unlimited else { return }
+        normaliseHearts()
+        s.hearts = min(Self.heartCap, s.hearts + 1)
+        save()
+    }
+
     func refillHearts(costingGems: Bool) -> Bool {
         if unlimited {
             s.hearts = Self.heartCap; s.heartsStamp = .now; save(); return true

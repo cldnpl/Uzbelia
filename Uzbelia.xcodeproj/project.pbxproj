@@ -17,6 +17,7 @@
 		2BA740FC3061ACF6AF9F7178 /* CallPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38A2598CD8309E4390F77163 /* CallPlanner.swift */; };
 		2E377BA8B9B728DEA9623C80 /* SessionFocus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A15FEBFC9C588786F0E3128 /* SessionFocus.swift */; };
 		2E8B35A5F99A7FEA1F650C0F /* PlacementTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC887DBF0DCFB22C56175ECD /* PlacementTest.swift */; };
+		2F9FF35F01B292A9CB65A242 /* AzureSpeech.swift in Sources */ = {isa = PBXBuildFile; fileRef = 658B619D8F7723BB8F86E7D0 /* AzureSpeech.swift */; };
 		31A9C9A8AA082B7B9964CE54 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8AA52BB7E23CE732CD74E063 /* Assets.xcassets */; };
 		3426B219D7DE84C4855BDB0A /* GrammarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC86E04668C37A25C735DBF3 /* GrammarView.swift */; };
 		37F70295F857B27E66F5B8F7 /* PlacementTestTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CFF04605EF3B56A31FEC6DE /* PlacementTestTests.swift */; };
@@ -31,6 +32,8 @@
 		56E567D0BB17B679569745B5 /* CallReviewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B772792E29F45F4B401E0F /* CallReviewer.swift */; };
 		576892007BC7F49AE20F21DA /* b2.json in Resources */ = {isa = PBXBuildFile; fileRef = D10F6C9C5797A382C2A87A37 /* b2.json */; };
 		583F213F18D412F24511E5B4 /* EngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C32E91EE2077DD240E094FA /* EngineTests.swift */; };
+		5C5BF5BEECCE58704F1CB1A1 /* VoiceCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = F005079A0772970864FBC275 /* VoiceCache.swift */; };
+		635652F078564FC72A9AC03E /* VoiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C856BC398535971FCBF43D2 /* VoiceTests.swift */; };
 		63AA1C1A25411EC6C41812B5 /* ResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF5B37F9152CBE552B3A3C26 /* ResultsView.swift */; };
 		6493B2AD9DC00DBAA57DBA44 /* CallQuestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44C326874ED478B37CC35BCB /* CallQuestions.swift */; };
 		65548BEAC1AE354F48AE2F6E /* CallTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 491E63F0B58FD10F21DFED48 /* CallTests.swift */; };
@@ -54,6 +57,7 @@
 		C345167F61CAC1D65CA90AF6 /* UserState.swift in Sources */ = {isa = PBXBuildFile; fileRef = C08B178BA372FBD3D6EF9047 /* UserState.swift */; };
 		C9CF6CCA9BF62AC6FDD87BFF /* LessonEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEE05C34F066A66D1F38BD9A /* LessonEngine.swift */; };
 		D7B2C5F4D9621E8AD737D403 /* b1.json in Resources */ = {isa = PBXBuildFile; fileRef = CBFFBD1668FF2990C3FACF44 /* b1.json */; };
+		E314679259D7DA2E438D4CC5 /* EdgeVoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42095AEB590B324B6BCAB94A /* EdgeVoice.swift */; };
 		EA768C52FF0EE7725D4FB2A3 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BA065E339E75F41B185AEC4 /* Components.swift */; };
 		EBCF5C37C2124193BD3A482A /* ExerciseFactoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C1174B38BDA81EF71CB5DA8 /* ExerciseFactoryTests.swift */; };
 		EF63E4900DE16723492C338D /* GuidebookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30C352261B542C0BA7035A6 /* GuidebookView.swift */; };
@@ -79,10 +83,12 @@
 		145F22F4DC3559237BFBC392 /* Speakable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Speakable.swift; sourceTree = "<group>"; };
 		1A201481C3A10357C8871BA5 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		1A881D63828D95E260B6603D /* questions.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = questions.json; sourceTree = "<group>"; };
+		1C856BC398535971FCBF43D2 /* VoiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceTests.swift; sourceTree = "<group>"; };
 		21BB2822DFE9DD6F263D1F3A /* UzbeliaTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = UzbeliaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2A15FEBFC9C588786F0E3128 /* SessionFocus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionFocus.swift; sourceTree = "<group>"; };
 		38A2598CD8309E4390F77163 /* CallPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallPlanner.swift; sourceTree = "<group>"; };
 		3CB602D167605E0D98C64062 /* PathView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathView.swift; sourceTree = "<group>"; };
+		42095AEB590B324B6BCAB94A /* EdgeVoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeVoice.swift; sourceTree = "<group>"; };
 		44C326874ED478B37CC35BCB /* CallQuestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallQuestions.swift; sourceTree = "<group>"; };
 		4513E6C80F16CC3CEFE34BE6 /* Uzbelia.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Uzbelia.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		485D464EF9EC9E2F59EF0B2B /* CallEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallEngine.swift; sourceTree = "<group>"; };
@@ -91,6 +97,7 @@
 		49288725747879F1F2370462 /* RecognizerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecognizerService.swift; sourceTree = "<group>"; };
 		4CFF04605EF3B56A31FEC6DE /* PlacementTestTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacementTestTests.swift; sourceTree = "<group>"; };
 		511B75B4EDCC56F297AACCB9 /* Curriculum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Curriculum.swift; sourceTree = "<group>"; };
+		658B619D8F7723BB8F86E7D0 /* AzureSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AzureSpeech.swift; sourceTree = "<group>"; };
 		65C922762AF1E7BBDDE38142 /* CurriculumTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurriculumTests.swift; sourceTree = "<group>"; };
 		67B0007B70030747E257A8D8 /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
 		6C2DEB648BE2E1E489CBACE2 /* SpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechService.swift; sourceTree = "<group>"; };
@@ -127,6 +134,7 @@
 		EB98A70AB66AE48B5192E70F /* StoryReadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryReadingView.swift; sourceTree = "<group>"; };
 		EEE05C34F066A66D1F38BD9A /* LessonEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonEngine.swift; sourceTree = "<group>"; };
 		EF1E44B4AE428DB72EC95104 /* ContentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentStore.swift; sourceTree = "<group>"; };
+		F005079A0772970864FBC275 /* VoiceCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCache.swift; sourceTree = "<group>"; };
 		FDE0561C5A0F90066F779513 /* AlternativesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlternativesTests.swift; sourceTree = "<group>"; };
 		FE7113516DBD7E2D3D9E64B0 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
 		FFE8F11B682D5C80A77073AB /* CallHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallHubView.swift; sourceTree = "<group>"; };
@@ -163,6 +171,7 @@
 				7C1174B38BDA81EF71CB5DA8 /* ExerciseFactoryTests.swift */,
 				9412A430EBF62CCF60189DA0 /* GlossaryTests.swift */,
 				4CFF04605EF3B56A31FEC6DE /* PlacementTestTests.swift */,
+				1C856BC398535971FCBF43D2 /* VoiceTests.swift */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -234,11 +243,14 @@
 			isa = PBXGroup;
 			children = (
 				489971617D71A67579B5AAFE /* AIClient.swift */,
+				658B619D8F7723BB8F86E7D0 /* AzureSpeech.swift */,
+				42095AEB590B324B6BCAB94A /* EdgeVoice.swift */,
 				13DD609D1D0DF9862B869BEF /* Feedback.swift */,
 				49288725747879F1F2370462 /* RecognizerService.swift */,
 				8766040A028E27FB333C1ABF /* Reminders.swift */,
 				FE7113516DBD7E2D3D9E64B0 /* Secrets.swift */,
 				6C2DEB648BE2E1E489CBACE2 /* SpeechService.swift */,
+				F005079A0772970864FBC275 /* VoiceCache.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -455,6 +467,7 @@
 				EBCF5C37C2124193BD3A482A /* ExerciseFactoryTests.swift in Sources */,
 				BDFD7E96A11E2704575EC5C4 /* GlossaryTests.swift in Sources */,
 				37F70295F857B27E66F5B8F7 /* PlacementTestTests.swift in Sources */,
+				635652F078564FC72A9AC03E /* VoiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -464,6 +477,7 @@
 			files = (
 				B149FC5CB8B35B351FAC8FB4 /* AIClient.swift in Sources */,
 				557612C1A7673848BFE59463 /* AnswerJudge.swift in Sources */,
+				2F9FF35F01B292A9CB65A242 /* AzureSpeech.swift in Sources */,
 				44A9DA5FBBCD2B327FE6D0DA /* CallEngine.swift in Sources */,
 				A2E654C79B52B1FB6BEFE313 /* CallHubView.swift in Sources */,
 				2BA740FC3061ACF6AF9F7178 /* CallPlanner.swift in Sources */,
@@ -472,6 +486,7 @@
 				EA768C52FF0EE7725D4FB2A3 /* Components.swift in Sources */,
 				891C034E93FC46A69BEDBE0C /* ContentStore.swift in Sources */,
 				959392380A5CD60D27005E7A /* Curriculum.swift in Sources */,
+				E314679259D7DA2E438D4CC5 /* EdgeVoice.swift in Sources */,
 				5308E0828A1F2A2244A55331 /* Exercise.swift in Sources */,
 				441CC8A883C78006BB2AA826 /* ExerciseFactory.swift in Sources */,
 				3B5A3BC4CDF4AD295D4A4089 /* ExerciseViews.swift in Sources */,
@@ -501,6 +516,7 @@
 				C345167F61CAC1D65CA90AF6 /* UserState.swift in Sources */,
 				0560A2030E9E7E5E73A89113 /* UzbeliaApp.swift in Sources */,
 				00791BBEAB3313744A4F7B27 /* VideoCallView.swift in Sources */,
+				5C5BF5BEECCE58704F1CB1A1 /* VoiceCache.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

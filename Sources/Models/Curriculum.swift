@@ -12,6 +12,8 @@ enum Language: String, Codable, CaseIterable, Hashable {
 
     /// Best-effort BCP-47 locale for speech synthesis / recognition.
     var speechLocale: String { self == .it ? "it-IT" : "uz-UZ" }
+    /// What a remote recogniser should be told the recording is in.
+    var recognitionLocale: String { speechLocale }
     /// Ordered fallbacks when the system has no voice/recogniser for the language.
     var speechFallbacks: [String] {
         self == .it ? ["it-IT", "it-CH"] : ["uz-UZ", "tr-TR", "az-AZ", "ru-RU"]

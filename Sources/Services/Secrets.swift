@@ -29,6 +29,22 @@ enum Secrets {
     /// A Claude key, if you would rather use that one. Same rules.
     static let claudeKey = ""
 
+    /// ↓ and the Azure Speech key here ↓
+    ///
+    /// This one is what gives Uzbek a real voice (`uz-UZ-MadinaNeural`) instead of the
+    /// Turkish stand-in iOS falls back to, and real Uzbek ears for the pronunciation
+    /// exercises. It is a different key from the Gemini one, from a different company.
+    ///
+    /// Where to get it: `portal.azure.com` → Create a resource → *Speech* → pricing
+    /// tier **F0** (free: 500.000 caratteri di voce e 5 ore di ascolto al mese) →
+    /// once created, *Keys and Endpoint* gives you KEY 1 and the Location/Region.
+    /// The region is the short name shown there, like `westeurope` or `italynorth`.
+    static let azureSpeechKey = ""
+    static let azureSpeechRegion = ""
+
+    /// Which of the two Uzbek voices reads the course.
+    static let uzbekVoice = AzureSpeech.Voice.madina
+
     /// Which assistant the app ships with, if any.
     static var builtIn: (provider: AIProvider, key: String)? {
         if !trimmed(geminiKey).isEmpty { return (.gemini, trimmed(geminiKey)) }

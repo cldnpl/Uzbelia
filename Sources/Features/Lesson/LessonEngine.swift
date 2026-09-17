@@ -138,6 +138,22 @@ final class LessonEngine {
         if ok { completed.insert(ex.id) }
     }
 
+    /// Takes back the miss just recorded, because the answer was right after all.
+    ///
+    /// The course lists one wording; she is allowed to know another. Nothing here is
+    /// guesswork — she has looked at the two versions side by side and said hers is
+    /// good too, and the app believes her.
+    func acceptAnswerAnyway(note: String? = nil) {
+        guard let ex = current, case .wrong = verdict else { return }
+        if let last = mistakes.lastIndex(of: ex.pair) { mistakes.remove(at: last) }
+        hits += 1
+        var bucket = perSkill[ex.trainsSkill] ?? (0, 0)
+        bucket.hit += 1
+        perSkill[ex.trainsSkill] = bucket
+        completed.insert(ex.id)
+        verdict = .alternative(canonical: ex.answer, note: note)
+    }
+
     /// Records a matching-game result without the check/continue cycle.
     func registerMatch(pair: Pair, correct: Bool) {
         attempts += 1

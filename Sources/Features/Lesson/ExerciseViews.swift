@@ -510,6 +510,12 @@ struct SpeakExercise: View {
                 if recognizer.status == .listening {
                     Text(S.listening[state.native])
                         .font(.heading(14)).foregroundStyle(Palette.pink)
+                } else if recognizer.isTranscribing {
+                    HStack(spacing: 7) {
+                        ProgressView().tint(Palette.pink).scaleEffect(0.8)
+                        Text(S.transcribing[state.native])
+                            .font(.heading(14)).foregroundStyle(Palette.pink)
+                    }
                 } else if !recognizer.transcript.isEmpty {
                     VStack(spacing: 4) {
                         Text(S.heardYou[state.native]).font(.plain(12)).foregroundStyle(Palette.inkFaint)
@@ -556,7 +562,7 @@ struct SpeakExercise: View {
             }
         }
         .buttonStyle(.plain)
-        .disabled(engine.verdict != nil)
+        .disabled(engine.verdict != nil || recognizer.isTranscribing)
     }
 
     private func startRecording() {
@@ -567,10 +573,10 @@ struct SpeakExercise: View {
 
     private func stopRecording() {
         recording = false
-        recognizer.stop()
-        // the recogniser often delivers its last words just after the tap, so give
-        // it a moment before scoring
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        // waits for the on-device recogniser's last words, or for the Uzbek transcript
+        // to come back — either way the score is only computed once the words are in
+        Task {
+            await recognizer.stopAndTranscribe()
             let score = Grader.pronunciationScore(transcript: recognizer.transcript,
                                                   expected: ex.answer)
             // a stand-in recogniser mangles sounds it does not have; be a little kinder

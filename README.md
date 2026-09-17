@@ -278,6 +278,7 @@ sbagliata l'app prova tre strade, dalla più economica alla più costosa:
 | **Il corso stesso** | se quella forma è insegnata altrove come traduzione della stessa frase, è accettata subito, offline |
 | **La tua storia** | una forma già accettata in passato vale per sempre, senza nessuna richiesta di rete |
 | **L'assistente** | con una chiave configurata, il modello decide se è un modo naturale di dire la stessa cosa |
+| **Tu** | se nessuno dei tre la riconosce, sotto l'errore c'è **«Anche la mia è giusta»**: un tocco e viene accettata, il cuore torna indietro e la forma è imparata per sempre |
 
 L'esaminatore è **severo sul significato e generoso sul registro**: colloquiale,
 abbreviato, regionale o più formale vanno tutti bene; viene rifiutato solo ciò che
@@ -289,7 +290,53 @@ sempre**, anche offline.
 Vale per gli esercizi di traduzione libera (scrittura e banco di parole). Il dettato e
 le scelte multiple hanno una risposta sola, e restano tali.
 
-Senza chiave restano attive le prime due strade: il corso e la tua storia.
+Senza chiave restano attive le altre tre strade: il corso, la tua storia e il pulsante.
+Il pulsante compare solo dove più di una risposta è davvero possibile — traduzione
+scritta e banco di parole — e mai sul dettato o sulle scelte multiple.
+
+## La voce uzbeka
+
+iOS non ha una voce uzbeka né un riconoscitore uzbeko: da solo leggerebbe l'uzbeko con
+una voce **turca** e valuterebbe la pronuncia contro una trascrizione turca, che è
+grosso modo buona quanto sembra.
+
+**La voce vera è attiva da subito, senza chiavi e senza account.** Microsoft Edge ha una
+funzione *Leggi ad alta voce* servita dalle stesse voci neurali che Azure vende, fra cui
+`uz-UZ-MadinaNeural` e `uz-UZ-SardorNeural`. Il browser ci parla via WebSocket con un
+token che chiunque può calcolare, quindi l'app chiede lo stesso audio senza registrarsi
+da nessuna parte (`EdgeVoice.swift`, nessuna dipendenza esterna).
+
+> È un endpoint **non documentato**: Microsoft potrebbe cambiarlo o chiuderlo senza
+> preavviso. Per questo non regge niente di essenziale — ogni errore ricade da solo
+> sulla voce turca di iOS, esattamente come prima.
+
+Con una chiave **Azure Speech** (facoltativa) si passa alla via contrattuale, che aggiunge
+anche l'ascolto:
+
+| | |
+|---|---|
+| **Voce** | identica: `uz-UZ-MadinaNeural` o `uz-UZ-SardorNeural` |
+| **Ascolto** | riconoscimento vocale `uz-UZ` invece del turco approssimato |
+| **Costo** | piano **F0**: 500.000 caratteri e 5 ore al mese, gratis — ma la registrazione Azure chiede una carta |
+
+Chiave e regione si incollano in `Secrets.swift`, da `portal.azure.com` → *Create a
+resource* → **Speech** → tier **F0** → *Keys and Endpoint*.
+
+### E il riconoscimento, senza carta?
+
+Lo fa **Gemini**, con la stessa chiave gratuita delle videochiamate (AI Studio non chiede
+nessuna carta). L'app registra a 16 kHz e manda l'audio al modello, che scrive quello che
+ha sentito. L'ordine è: Azure se c'è la chiave, altrimenti Gemini, altrimenti il turco
+approssimato di iOS come è sempre stato.
+
+**L'audio viene messo in cache su disco**, per voce e per velocità: un corso ripete di
+continuo le stesse parole, quindi dopo il primo passaggio su un capitolo non esce quasi
+più niente dal telefono. In *Profilo → Voce* vedi quanto è grande la cache e puoi
+svuotarla.
+
+Se la rete cade o un servizio smette di rispondere, si torna **da sola** alla voce turca
+di iOS: l'audio non smette mai di funzionare, peggiora e basta. E l'avviso «pronuncia
+approssimata» compare solo quando lo è davvero.
 
 ## Ogni parola si può ascoltare
 

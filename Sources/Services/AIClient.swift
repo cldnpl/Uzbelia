@@ -23,10 +23,12 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// Google has issued both shapes: the older `AIza…` keys and, since late 2026,
+    /// keys beginning `AQ.`. Both are API keys and both work.
     var keyPrefixHint: String {
         switch self {
         case .none: return ""
-        case .gemini: return "AIza…"
+        case .gemini: return "AIza… o AQ.…"
         case .claude: return "sk-ant-…"
         }
     }
@@ -35,8 +37,10 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable {
 /// One thin client for both providers: same prompts, same JSON contract.
 enum AIClient {
 
-    /// Tried in order, so the app survives a model being retired.
-    static let geminiModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]
+    /// Tried in order, so the app survives a model being retired or being busy.
+    /// The 2.5 generation is gone for keys issued from late 2026 onwards: Google answers
+    /// them with "no longer available to new users", which is why the newest comes first.
+    static let geminiModels = ["gemini-3.6-flash", "gemini-flash-latest", "gemini-3.5-flash"]
     static let claudeModel = "claude-sonnet-5"
 
     enum Failure: LocalizedError {
@@ -195,6 +199,74 @@ enum AIClient {
         let reaction = bilingual(decoded.reaction)
         guard !reaction.it.isEmpty, !reaction.uz.isEmpty else { throw Failure.empty }
         return Turn(reaction: reaction, question: decoded.question.map(bilingual))
+    }
+
+    // MARK: - Hearing Uzbek
+
+    private struct Transcription: Decodable {
+        struct Candidate: Decodable {
+            struct Content: Decodable {
+                struct Part: Decodable { let text: String? }
+                let parts: [Part]?
+            }
+            let content: Content?
+        }
+        let candidates: [Candidate]?
+    }
+
+    /// Writes down what was said, for a language iOS cannot hear.
+    ///
+    /// Gemini takes audio directly, so the key that writes the video calls also gives
+    /// the pronunciation exercises real Uzbek ears — and an AI Studio key is free and
+    /// asks for no card, which is the whole point.
+    static func transcribe(wav: Data,
+                           language: Language,
+                           provider: AIProvider,
+                           key: String) async throws -> String {
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard provider == .gemini, !trimmed.isEmpty else { throw Failure.notConfigured }
+        let languageName = language == .it ? "Italian" : "Uzbek"
+
+        let body: [String: Any] = [
+            "system_instruction": ["parts": [["text":
+                "You transcribe short recordings of a language learner reading one sentence aloud. "
+                + "Write down exactly the \(languageName) words you hear, in Latin script, with no "
+                + "punctuation you did not hear and no commentary. If the recording has no speech, "
+                + "reply with nothing at all. Never translate, never correct, never complete a "
+                + "half-said word: the recording is being marked on pronunciation, so a tidied-up "
+                + "transcript would hide the very mistakes it is meant to catch."]]],
+            "contents": [["role": "user", "parts": [
+                ["text": "Transcribe this \(languageName) recording."],
+                ["inline_data": ["mime_type": "audio/wav", "data": wav.base64EncodedString()]],
+            ]]],
+            "generationConfig": ["maxOutputTokens": 200, "temperature": 0],
+        ]
+
+        var lastError: Error = Failure.empty
+        for model in geminiModels {
+            let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent")!
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.timeoutInterval = 45
+            request.setValue(trimmed, forHTTPHeaderField: "x-goog-api-key")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                try check(response, data)
+                guard let decoded = try? JSONDecoder().decode(Transcription.self, from: data) else {
+                    throw Failure.decoding
+                }
+                let text = decoded.candidates?.first?.content?.parts?.compactMap(\.text).joined() ?? ""
+                return text.trimmingCharacters(in: .whitespacesAndNewlines)
+            } catch Failure.http(let code, let body) where code == 404 || code == 503 {
+                lastError = Failure.http(code, body)     // retired or busy: try the next
+                continue
+            } catch {
+                throw error
+            }
+        }
+        throw lastError
     }
 
     // MARK: - Is this another way of saying it?
@@ -433,8 +505,9 @@ enum AIClient {
                     throw Failure.decoding
                 }
                 return text
-            } catch Failure.http(404, let body) {
-                lastError = Failure.http(404, body)     // model retired: try the next name
+            } catch Failure.http(let code, let body) where code == 404 || code == 503 {
+                // retired, or busy right now: either way the next name may work
+                lastError = Failure.http(code, body)
                 continue
             } catch {
                 throw error
