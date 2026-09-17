@@ -575,6 +575,7 @@ struct SpeakExercise: View {
                                                   expected: ex.answer)
             // a stand-in recogniser mangles sounds it does not have; be a little kinder
             engine.speechScore = approximate ? min(1, score * 1.25) : score
+            engine.spoken = recognizer.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         }
     }
 }

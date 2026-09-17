@@ -26,6 +26,14 @@ final class CallEngine {
     private(set) var startedAt: Date?
     private(set) var review: CallReview?
     private(set) var reaction: Bilingual?
+    /// True while Anorcha is writing her next turn.
+    private(set) var thinking = false
+
+    /// What the assistant knows about this learner. Set once the plan is built.
+    var context: CallContext?
+    /// Whether Anorcha writes each turn as the call goes instead of reading a script.
+    /// Off without a key, and it switches itself off after a failed request.
+    var live = false
 
     var showSubtitles = true
     var showTranslation = false
@@ -71,7 +79,10 @@ final class CallEngine {
                                       seconds: max(0, seconds),
                                       typed: isTyped))
         self.typed = ""
-        reaction = text.trimmingCharacters(in: .whitespaces).isEmpty ? nil : Self.reactions.randomElement()
+        // in a live call the reaction is written from what she just said, so it arrives
+        // a moment later; offline, one of the canned ones does the job at once
+        let saidSomething = !text.trimmingCharacters(in: .whitespaces).isEmpty
+        reaction = (live || !saidSomething) ? nil : Self.reactions.randomElement()
         phase = .reacting
     }
 
@@ -85,20 +96,56 @@ final class CallEngine {
         phase = index < plan.questions.count ? .anorchaSpeaking : .reviewing
     }
 
+    /// Writes Anorcha's next turn from the conversation so far: a reaction to what was
+    /// actually said, and the question that follows from it.
+    ///
+    /// Everything here is best-effort. No key, no network, a mangled reply — the call
+    /// simply carries on with the planned question and a canned "capisco".
+    func composeNextTurn(provider: AIProvider, apiKey: String) async {
+        guard phase == .reacting, reaction == nil, !thinking else { return }
+        guard live, let context, let last = records.last,
+              !last.answer.trimmingCharacters(in: .whitespaces).isEmpty,
+              AIClient.isConfigured(provider: provider, key: apiKey) else { return }
+
+        thinking = true
+        defer { thinking = false }
+        let slot = index + 1
+        do {
+            let turn = try await AIClient.nextTurn(provider: provider, key: apiKey,
+                                                   context: context, history: records,
+                                                   target: target, native: native,
+                                                   closing: slot >= plan.questions.count)
+            reaction = turn.reaction
+            // the last planned line says goodbye: never overwrite it with a new question
+            if let question = turn.question, slot < plan.questions.count - 1 {
+                plan.questions[slot] = CallQuestion(text: question, origin: .generated)
+            }
+        } catch {
+            live = false                       // one failure is enough: stop paying for more
+            reaction = Self.reactions.randomElement()
+        }
+    }
+
+    /// Every question actually put to the learner, in the language she is learning.
+    /// Fed back into the next call so Anorcha does not ask the same things again.
+    func askedQuestions() -> [String] {
+        records.map { $0.question[target] }
+    }
+
     func hangUp() {
         phase = records.isEmpty ? .ended : .reviewing
     }
 
     // MARK: - The report
 
-    func buildReview(curriculum: Curriculum, apiKey: String) async {
+    func buildReview(curriculum: Curriculum, provider: AIProvider, apiKey: String) async {
         let local = CallReviewer.review(turns: records, native: native,
                                         curriculum: curriculum, level: level)
-        if ClaudeClient.isConfigured(apiKey), !records.isEmpty {
+        if AIClient.isConfigured(provider: provider, key: apiKey), !records.isEmpty {
             do {
-                let remote = try await ClaudeClient.review(key: apiKey, turns: records,
-                                                           target: target, native: native,
-                                                           level: level)
+                let remote = try await AIClient.review(provider: provider, key: apiKey,
+                                                       turns: records, target: target,
+                                                       native: native, level: level)
                 await MainActor.run { self.review = remote; self.phase = .ended }
                 return
             } catch {

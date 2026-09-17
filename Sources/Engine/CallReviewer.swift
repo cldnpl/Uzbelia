@@ -60,7 +60,7 @@ struct CallStats: Hashable {
 }
 
 struct CallReview {
-    enum Source: String { case local, claude }
+    enum Source: String { case local, ai }
     var turns: [TurnReview]
     var stats: CallStats
     var headline: Bilingual

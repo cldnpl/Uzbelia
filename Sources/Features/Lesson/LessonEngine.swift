@@ -35,6 +35,7 @@ final class LessonEngine {
     var matchRight: String?
     var matchWrong: Bool = false
     var speechScore: Double?
+    var spoken = ""                 // what the recogniser heard on a .speak question
     var skippedSpeaking = false
 
     // stats
@@ -71,6 +72,19 @@ final class LessonEngine {
     var builtSentence: String {
         guard let ex = current else { return "" }
         return built.compactMap { ex.tokens.indices.contains($0) ? ex.tokens[$0] : nil }.joined(separator: " ")
+    }
+
+    /// What the learner actually gave for the current question, whatever the format.
+    /// The feedback banner translates it back, so a wrong pick still teaches something.
+    var givenAnswer: String {
+        guard let ex = current else { return "" }
+        switch ex.kind {
+        case .choice, .listenChoice, .fillBlank: return chosen ?? ""
+        case .type, .listenType: return typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .wordBank: return builtSentence
+        case .speak: return spoken
+        case .match: return ""
+        }
     }
 
     // MARK: - Checking
@@ -166,6 +180,7 @@ final class LessonEngine {
         matchRight = nil
         matchWrong = false
         speechScore = nil
+        spoken = ""
     }
 
     // MARK: - Rewards

@@ -46,14 +46,14 @@ struct VideoCallView: View {
     private func prepare() async {
         guard engine == nil else { return }
         var plan = CallPlanner.plan(level: level, state: state)
+        let context = CallPlanner.context(for: plan, level: level, state: state, target: target)
 
-        let key = state.settings.claudeAPIKey
-        if ClaudeClient.isConfigured(key), let unit = plan.focusUnit {
-            let vocab = unit.allPairs.prefix(60).map { $0[target] }
-            let topics = unit.lessons.map { $0.title[target] }
-            if let generated = try? await ClaudeClient.questions(
-                key: key, level: level, unitTitle: unit.title[target],
-                topics: topics, vocabulary: vocab,
+        let key = state.settings.aiKey
+        let provider = state.settings.aiProvider
+        let configured = AIClient.isConfigured(provider: provider, key: key)
+        if configured {
+            if let generated = try? await AIClient.questions(
+                provider: provider, key: key, context: context,
                 target: target, native: state.native, count: 8),
                generated.count >= 4 {
                 plan.questions = generated.map { CallQuestion(text: $0, origin: .generated) }
@@ -62,6 +62,8 @@ struct VideoCallView: View {
         }
 
         let built = CallEngine(level: level, native: state.native, plan: plan)
+        built.context = context
+        built.live = configured
         await MainActor.run {
             engine = built
             preparing = false
@@ -156,11 +158,17 @@ struct VideoCallView: View {
                 while SpeechService.shared.isSpeaking { try? await Task.sleep(for: .milliseconds(150)) }
                 withAnimation { engine.anorchaFinishedSpeaking() }
             case .reacting:
+                // in a live call this is where Anorcha reads what was just said and
+                // writes her answer; offline it returns at once
+                await engine.composeNextTurn(provider: state.settings.aiProvider,
+                                             apiKey: state.settings.aiKey)
                 if let reaction = engine.reaction {
                     SpeechService.shared.speak(reaction[target], language: target,
                                                rate: state.settings.speechRate)
+                    try? await Task.sleep(for: .milliseconds(350))
+                    while SpeechService.shared.isSpeaking { try? await Task.sleep(for: .milliseconds(150)) }
                 }
-                try? await Task.sleep(for: .milliseconds(1100))
+                try? await Task.sleep(for: .milliseconds(500))
                 withAnimation { engine.advance() }
             default:
                 break
@@ -248,6 +256,13 @@ struct VideoCallView: View {
                 Text(reaction[target])
                     .font(.body(17)).foregroundStyle(Palette.green)
                     .padding(.top, 12)
+            } else if engine.phase == .reacting, engine.thinking {
+                HStack(spacing: 7) {
+                    ProgressView().tint(Palette.pink).scaleEffect(0.8)
+                    Text(S.callThinking[state.native])
+                        .font(.plain(13)).foregroundStyle(.white.opacity(0.6))
+                }
+                .padding(.top, 12)
             } else if let q = engine.question, engine.showSubtitles {
                 VStack(spacing: 6) {
                     Text(q.text[target])
@@ -432,8 +447,11 @@ struct VideoCallView: View {
         }
         .task {
             await engine.buildReview(curriculum: state.curriculum,
-                                     apiKey: state.settings.claudeAPIKey)
+                                     provider: state.settings.aiProvider,
+                                     apiKey: state.settings.aiKey)
             state.addXP(engine.xpEarned, minutes: max(1, engine.records.count / 3))
+            // so the next call knows where it has already been
+            state.rememberCallQuestions(engine.askedQuestions())
             state.save()
         }
     }
@@ -449,8 +467,8 @@ struct VideoCallView: View {
                         .font(.display(24)).foregroundStyle(.white)
                         .multilineTextAlignment(.center)
                     if let source = engine.review?.source {
-                        Label(source == .claude ? S.callAIOn[state.native] : S.callAIOff[state.native],
-                              systemImage: source == .claude ? "sparkles" : "iphone.gen3")
+                        Label(source == .ai ? S.callAIOn[state.native] : S.callAIOff[state.native],
+                              systemImage: source == .ai ? "sparkles" : "iphone.gen3")
                             .font(.heading(11)).foregroundStyle(.white.opacity(0.5))
                     }
                 }

@@ -31,8 +31,27 @@ Test (contenuti + motore degli esercizi):
 xcodebuild -project Uzbelia.xcodeproj -scheme Uzbelia -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 17 Pro' test
 ```
 
+### Installarla sul telefono
+
+1. Collega l'iPhone al Mac e sbloccalo.
+2. In Xcode: **Uzbelia** (icona blu in alto a sinistra) → **Signing & Capabilities** →
+   **Team**: scegli il tuo Apple ID. Se non c'è, aggiungilo da **Xcode → Settings →
+   Accounts → +**; se compare un errore di login, rifai il login lì (serve la password
+   dell'Apple ID e il codice a due fattori).
+3. Se Xcode dice che il bundle identifier non è disponibile, cambialo in
+   **Signing & Capabilities → Bundle Identifier** con qualcosa di unico, tipo
+   `com.tuonome.uzbelia`.
+4. In alto seleziona il tuo iPhone al posto del simulatore e premi ⌘R.
+5. La prima volta il telefono rifiuta l'app: **Impostazioni → Generali → VPN e gestione
+   dispositivo → Apple Development: (tua mail) → Autorizza**.
+
+Con un Apple ID gratuito l'app **scade dopo 7 giorni** e va reinstallata da Xcode; con un
+account Apple Developer a pagamento dura un anno.
+
 Il progetto Xcode è generato da [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 Se modifichi `project.yml` (o aggiungi cartelle di sorgenti), rigeneralo con `xcodegen generate`.
+La firma è **automatica** e il campo Team è volutamente vuoto, così Xcode ti fa scegliere
+il tuo.
 
 Requisiti: Xcode 16+, iOS 17.0 o successivo. Nessuna dipendenza esterna, nessun account,
 nessuna rete: **funziona interamente offline**.
@@ -187,16 +206,27 @@ solo perché differiscono di una lettera: un cambio di iniziale non è un refuso
 
 ### Con una chiave IA (facoltativo)
 
-In *Profilo → Impostazioni* c'è un campo per una **chiave Anthropic**. Se la inserisci,
-domande e correzione finale le scrive **Claude**, con conversazione davvero libera e
-correzioni argomentate; l'interfaccia è identica e in alto compare ✨. Senza chiave —
-il caso normale — l'app resta **completamente offline** e usa il generatore e il
-correttore descritti sopra.
+In *Profilo → Impostazioni → Assistente IA* puoi scegliere fra tre opzioni:
 
-> Nota onesta: il percorso offline è quello che ho potuto provare end-to-end. Il percorso
-> con la chiave API è scritto e compila, ma non l'ho potuto eseguire contro l'API vera
-> (non ho una chiave); se qualcosa non va, la chiamata ricade automaticamente sul
-> generatore offline senza interrompersi.
+| | |
+|---|---|
+| **Nessuna** (default) | tutto offline: domande dal corso, correzione con regole e corpus |
+| **Gemini (gratis)** | chiave da `aistudio.google.com/apikey`, ha un piano gratuito |
+| **Claude (a pagamento)** | chiave da `console.anthropic.com`, richiede credito prepagato |
+
+Con una chiave, **domande e correzione finale le scrive il modello**: conversazione
+davvero libera e correzioni argomentate. L'interfaccia è identica e compare ✨.
+C'è un pulsante **Prova la chiave** che fa una richiesta vera e ti dice subito se
+funziona o qual è l'errore.
+
+Se la chiamata al modello fallisce (chiave sbagliata, quota finita, niente rete), la
+videochiamata **non si interrompe**: ricade sul generatore e sul correttore offline.
+
+> Stato delle verifiche: il percorso offline è provato end-to-end. Del percorso IA ho
+> potuto verificare che la richiesta a Gemini è formata correttamente — l'ho eseguita con
+> una chiave finta e Google ha risposto rifiutando **solo la chiave** (400 «API key not
+> valid»), il che dimostra che endpoint, header e corpo sono giusti. Non ho potuto provare
+> una risposta completa perché non ho una chiave vera.
 
 ## Gamification
 
@@ -303,7 +333,7 @@ python3 content/build.py
 
 Il compilatore rifiuta il contenuto se trova lati vuoti, caratteri cirillici finiti per
 sbaglio nel testo uzbeko, apostrofi tipografici, id duplicati o lezioni troppo povere.
-Dopo la ricompilazione, i **62 test** Xcode rigenerano sessioni su tutte le unità in
+Dopo la ricompilazione, i **70 test** Xcode rigenerano sessioni su tutte le unità in
 entrambe le direzioni e verificano che ogni domanda sia risolvibile: risposta sempre
 presente tra le opzioni, nessun doppione, word bank sempre in grado di ricostruire la
 frase, nessun distrattore segnaposto, e nessuna domanda con due risposte giuste (parole

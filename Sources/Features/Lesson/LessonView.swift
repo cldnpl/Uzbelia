@@ -57,6 +57,9 @@ struct LessonView: View {
         } else {
             list = []
         }
+        Glossary.prime(with: state.curriculum.allPairs)
+        // story lines are built on the fly and live in no curriculum file
+        Glossary.learn(list.map(\.pair))
         engine = LessonEngine(exercises: list)
     }
 
@@ -220,8 +223,53 @@ struct LessonView: View {
         }
     }
 
+    /// One line of the banner: what was said, and what it means.
+    private struct FeedbackLine {
+        var label: String?
+        var text: String
+        var meaning: Glossary.Gloss?
+    }
+
+    /// The right answer, always read back with its translation — a correct pick the
+    /// learner half-guessed should still tell her what she just said.
+    private func solutionLine(_ v: Verdict, ex: Exercise) -> FeedbackLine? {
+        let text: String
+        if case .almost(let fix) = v, ex.kind != .fillBlank { text = fix } else { text = ex.solution }
+        guard !text.isEmpty else { return nil }
+        return FeedbackLine(text: text, meaning: ex.meaning(of: text))
+    }
+
+    /// What she actually answered, translated too — but only when it differs from
+    /// the solution, so a clean hit stays a single line.
+    private func givenLine(ex: Exercise, engine: LessonEngine) -> FeedbackLine? {
+        let raw = engine.givenAnswer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else { return nil }
+        let key = Grader.normalise(raw)
+        let accepted = Grader.alternatives(ex.answer).map(Grader.normalise)
+        guard !accepted.contains(key), key != Grader.normalise(ex.solution) else { return nil }
+        return FeedbackLine(label: ex.kind == .speak ? S.heardYou[state.native] : S.yourAnswer[state.native],
+                            text: raw,
+                            meaning: ex.meaning(of: raw))
+    }
+
+    private func render(_ line: FeedbackLine, size: CGFloat, tint: Color) -> Text {
+        var out = Text("")
+        if let label = line.label {
+            out = out + Text(label + " ").font(.plain(size - 3)).foregroundStyle(Palette.inkSoft)
+        }
+        out = out + Text(line.text).font(.body(size)).foregroundStyle(tint)
+        if let meaning = line.meaning {
+            let quoted = (meaning.literal ? "\u{2248} " : "") + "\u{201C}" + meaning.text + "\u{201D}"
+            out = out + Text("  " + quoted).font(.plain(size - 2.5)).foregroundStyle(Palette.inkSoft)
+        }
+        return out
+    }
+
     @ViewBuilder
     private func feedbackBanner(_ v: Verdict, engine: LessonEngine) -> some View {
+        let ex = engine.current
+        let solution = ex.flatMap { solutionLine(v, ex: $0) }
+        let given = ex.flatMap { givenLine(ex: $0, engine: engine) }
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: {
                 switch v {
@@ -238,25 +286,35 @@ struct LessonView: View {
                 case .correct:
                     Text(S.correct[state.native])
                         .font(.heading(17)).foregroundStyle(Palette.greenDeep)
-                case .almost(let fix):
+                case .almost:
                     Text(S.almost[state.native]).font(.heading(15)).foregroundStyle(Palette.greenDeep)
-                    Text(fix).font(.body(16)).foregroundStyle(Palette.ink)
-                case .wrong(let expected):
+                case .wrong:
                     Text(S.wrong[state.native]).font(.heading(15)).foregroundStyle(Palette.redDeep)
-                    Text(expected).font(.body(16)).foregroundStyle(Palette.ink)
                 }
-                if let ex = engine.current, ex.kind == .speak, let score = engine.speechScore {
+
+                if let solution {
+                    render(solution, size: 16, tint: Palette.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let given {
+                    render(given, size: 13.5, tint: Palette.inkSoft)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if let ex, ex.kind == .speak, let score = engine.speechScore {
                     Text("\(Int(score * 100))%")
                         .font(.plain(12)).foregroundStyle(Palette.inkSoft)
                 }
-                if let ex = engine.current, let hint = ex.hint, ex.kind != .speak,
-                   case .wrong = v {
-                    Text(hint).font(.plain(13)).foregroundStyle(Palette.inkSoft)
+                // the note only earns its line when it says something the
+                // translation above has not already said
+                if let ex, let hint = ex.hint, ex.kind != .speak,
+                   hint != solution?.meaning?.text, case .wrong = v {
+                    Text(hint).font(.plain(13)).foregroundStyle(Palette.inkFaint)
                 }
             }
             Spacer(minLength: 0)
 
-            if let ex = engine.current, let audio = ex.audioText ?? (ex.answerLanguage == state.target ? ex.answer : nil) {
+            if let ex, let audio = ex.audioText ?? (ex.answerLanguage == state.target ? ex.answer : nil) {
                 Button {
                     SpeechService.shared.speak(audio, language: state.target, rate: state.settings.speechRate)
                 } label: {

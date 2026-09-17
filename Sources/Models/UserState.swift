@@ -53,8 +53,9 @@ struct Settings: Codable, Hashable {
     var reminderMinute = 0
     /// Hearts and gems never run out. On by default: this build is a gift, not a shop.
     var unlimitedResources = true
-    /// Optional Anthropic key. Empty = the video call uses the offline generator.
-    var claudeAPIKey = ""
+    /// Optional AI assistant for the video call. `none` = fully offline.
+    var aiProvider = AIProvider.none
+    var aiKey = ""
 }
 
 // MARK: - The whole persisted blob
@@ -75,6 +76,8 @@ struct PersistedState: Codable {
     var settings = Settings()
     var onboarded = false
     var mistakesBank: [Pair] = []
+    /// Questions Anorcha has already asked, so a generated call can steer around them.
+    var recentCallQuestions: [String] = []
 }
 
 // MARK: - Observable app state
@@ -105,6 +108,7 @@ final class AppState {
     var records: [String: LessonRecord] { s.records }
     var unlockedLevels: Set<String> { s.unlockedLevels }
     var mistakesBank: [Pair] { s.mistakesBank }
+    var recentCallQuestions: [String] { s.recentCallQuestions }
 
     /// When true the UI shows ∞ instead of counters and nothing is ever consumed.
     var unlimited: Bool { s.settings.unlimitedResources }
@@ -444,6 +448,21 @@ final class AppState {
 
     func clearMistakes() { s.mistakesBank.removeAll(); save() }
 
+    /// Keeps the last few dozen things Anorcha asked. The generator is shown this list
+    /// and told to go elsewhere, which is what stops the tenth call sounding like the
+    /// first one.
+    func rememberCallQuestions(_ asked: [String]) {
+        var list = s.recentCallQuestions
+        for question in asked {
+            let clean = question.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !clean.isEmpty, !list.contains(clean) else { continue }
+            list.append(clean)
+        }
+        if list.count > 60 { list.removeFirst(list.count - 60) }
+        s.recentCallQuestions = list
+        save()
+    }
+
     // MARK: - Reset
 
     func resetEverything() {
@@ -490,7 +509,8 @@ final class AppState {
 extension Settings {
     enum CodingKeys: String, CodingKey {
         case sounds, haptics, speakingExercises, listeningExercises, speechRate, dailyGoal, largeText
-        case reminderOn, reminderHour, reminderMinute, unlimitedResources, claudeAPIKey
+        case reminderOn, reminderHour, reminderMinute, unlimitedResources
+        case aiProvider, aiKey, claudeAPIKey
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -505,7 +525,32 @@ extension Settings {
         reminderHour = try c.decodeIfPresent(Int.self, forKey: .reminderHour) ?? 19
         reminderMinute = try c.decodeIfPresent(Int.self, forKey: .reminderMinute) ?? 0
         unlimitedResources = try c.decodeIfPresent(Bool.self, forKey: .unlimitedResources) ?? true
-        claudeAPIKey = try c.decodeIfPresent(String.self, forKey: .claudeAPIKey) ?? ""
+        aiKey = try c.decodeIfPresent(String.self, forKey: .aiKey) ?? ""
+        aiProvider = try c.decodeIfPresent(AIProvider.self, forKey: .aiProvider) ?? .none
+        // migrate the earlier Claude-only field
+        if aiKey.isEmpty, let old = try c.decodeIfPresent(String.self, forKey: .claudeAPIKey), !old.isEmpty {
+            aiKey = old
+            aiProvider = .claude
+        }
+    }
+
+    /// Written explicitly because `claudeAPIKey` is read-only legacy: it is migrated on
+    /// load and never written again.
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(sounds, forKey: .sounds)
+        try c.encode(haptics, forKey: .haptics)
+        try c.encode(speakingExercises, forKey: .speakingExercises)
+        try c.encode(listeningExercises, forKey: .listeningExercises)
+        try c.encode(speechRate, forKey: .speechRate)
+        try c.encode(dailyGoal, forKey: .dailyGoal)
+        try c.encode(largeText, forKey: .largeText)
+        try c.encode(reminderOn, forKey: .reminderOn)
+        try c.encode(reminderHour, forKey: .reminderHour)
+        try c.encode(reminderMinute, forKey: .reminderMinute)
+        try c.encode(unlimitedResources, forKey: .unlimitedResources)
+        try c.encode(aiProvider, forKey: .aiProvider)
+        try c.encode(aiKey, forKey: .aiKey)
     }
 }
 
@@ -536,6 +581,7 @@ extension PersistedState {
     enum CodingKeys: String, CodingKey {
         case nativeLanguage, xp, gems, hearts, heartsStamp, streak, lastPracticeDay, freezes
         case records, srs, history, unlockedLevels, settings, onboarded, mistakesBank
+        case recentCallQuestions
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -554,5 +600,6 @@ extension PersistedState {
         settings = try c.decodeIfPresent(Settings.self, forKey: .settings) ?? Settings()
         onboarded = try c.decodeIfPresent(Bool.self, forKey: .onboarded) ?? false
         mistakesBank = try c.decodeIfPresent([Pair].self, forKey: .mistakesBank) ?? []
+        recentCallQuestions = try c.decodeIfPresent([String].self, forKey: .recentCallQuestions) ?? []
     }
 }

@@ -6,7 +6,9 @@ struct CallHubView: View {
     @Environment(AppState.self) private var state
     @State private var active: CallLaunch?
 
-    private var aiOn: Bool { ClaudeClient.isConfigured(state.settings.claudeAPIKey) }
+    private var aiOn: Bool {
+        AIClient.isConfigured(provider: state.settings.aiProvider, key: state.settings.aiKey)
+    }
 
     var body: some View {
         VStack(spacing: 0) {

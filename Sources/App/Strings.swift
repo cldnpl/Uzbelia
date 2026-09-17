@@ -91,6 +91,7 @@ enum S {
     static let callWriteInstead = t("Scrivi la risposta", "Javobni yozing")
     static let callSkipTurn   = t("Non so rispondere", "Javob bera olmayman")
     static let callBuilding   = t("Sto rileggendo la conversazione…", "Suhbatni ko'rib chiqyapman…")
+    static let callThinking   = t("Anorcha sta rispondendo…", "Anorcha javob yozyapti…")
     static let callAgain      = t("Nuova chiamata", "Yangi qo'ng'iroq")
     static let callNotReal    = t("Anorcha compone le domande dal capitolo a cui sei arrivata: cambiano a ogni chiamata.", "Anorcha savollarni siz yetgan bo'lim asosida tuzadi: har qo'ng'iroqda o'zgaradi.")
     static let callAIOn       = t("Domande e correzione scritte dall'IA", "Savollar va tuzatishlar sun'iy intellektdan")
@@ -114,9 +115,15 @@ enum S {
     static let recapInstead   = t("invece di", "o'rniga")
 
     // Settings: optional AI
-    static let apiKeyTitle    = t("Chiave IA (facoltativa)", "Sun'iy intellekt kaliti (ixtiyoriy)")
-    static let apiKeyNote     = t("Incolla una chiave Anthropic per far scrivere domande e correzioni a Claude. Senza chiave l'app resta completamente offline.", "Claude savol va tuzatishlarni yozishi uchun Anthropic kalitini joylashtiring. Kalitsiz ilova butunlay oflayn ishlaydi.")
-    static let apiKeyPlaceholder = t("sk-ant-…", "sk-ant-…")
+    static let aiTitle        = t("Assistente IA (facoltativo)", "Sun'iy intellekt (ixtiyoriy)")
+    static let aiService      = t("Servizio", "Xizmat")
+    static let aiKeyWhere     = t("Prendi la chiave su", "Kalitni bu yerdan oling:")
+    static let aiKeyField     = t("Incolla qui la chiave", "Kalitni shu yerga joylashtiring")
+    static let aiTest         = t("Prova la chiave", "Kalitni sinash")
+    static let aiTesting      = t("Provo…", "Sinayapman…")
+    static let aiWorks        = t("Funziona!", "Ishlayapti!")
+    static let aiNote         = t("Con una chiave, domande e correzioni della videochiamata le scrive l'IA. Senza chiave l'app resta completamente offline.", "Kalit bilan videoqo'ng'iroq savollari va tuzatishlarni sun'iy intellekt yozadi. Kalitsiz ilova butunlay oflayn ishlaydi.")
+    static let aiFreeHint     = t("Gemini ha un piano gratuito. Claude richiede credito a pagamento.", "Geminida bepul reja bor. Claude uchun pullik kredit kerak.")
 
     // Unlimited
     static let unlimited      = t("Illimitati", "Cheksiz")
@@ -133,6 +140,7 @@ enum S {
     static let tapToSpeak     = t("Tocca e parla", "Bosing va gapiring")
     static let listening      = t("Ti ascolto…", "Eshityapman…")
     static let heardYou       = t("Ho sentito:", "Men eshitdim:")
+    static let yourAnswer     = t("La tua risposta:", "Sizning javobingiz:")
     static let typeHere       = t("Scrivi qui…", "Bu yerga yozing…")
     static let quitLesson     = t("Vuoi uscire dalla lezione?", "Darsdan chiqmoqchimisiz?")
     static let quitLessonMsg  = t("Perderai i progressi di questa lezione.", "Ushbu darsdagi yutuqlar yo'qoladi.")

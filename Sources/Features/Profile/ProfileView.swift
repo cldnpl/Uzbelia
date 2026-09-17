@@ -4,6 +4,11 @@ struct ProfileView: View {
     @Environment(AppState.self) private var state
     @State private var showReset = false
     @State private var showCourseSwitch = false
+    @State private var aiTest: AITestState = .idle
+
+    enum AITestState: Equatable {
+        case idle, running, ok(String), failed(String)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -304,23 +309,7 @@ struct ProfileView: View {
 
                 Divider().overlay(Palette.stroke)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Label(S.apiKeyTitle[state.native], systemImage: "sparkles")
-                        .font(.body(14)).foregroundStyle(Palette.ink)
-                    SecureField(S.apiKeyPlaceholder[state.native],
-                                text: Binding(get: { st.settings.claudeAPIKey },
-                                              set: { st.settings.claudeAPIKey = $0 }))
-                        .font(.plain(13))
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .padding(9)
-                        .background(RoundedRectangle(cornerRadius: 9).fill(Palette.bg))
-                        .overlay(RoundedRectangle(cornerRadius: 9).stroke(Palette.stroke, lineWidth: 1.5))
-                    Text(S.apiKeyNote[state.native])
-                        .font(.plain(11.5)).foregroundStyle(Palette.inkFaint)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(.horizontal, 12).padding(.vertical, 8)
+                aiSection(st)
 
                 Divider().overlay(Palette.stroke)
 
@@ -343,6 +332,86 @@ struct ProfileView: View {
             .padding(.vertical, 6)
             .background(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous).fill(Palette.card))
             .overlay(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous).stroke(Palette.stroke, lineWidth: 2))
+        }
+    }
+
+    @ViewBuilder
+    private func aiSection(_ st: AppState) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(S.aiTitle[state.native], systemImage: "sparkles")
+                .font(.body(14)).foregroundStyle(Palette.ink)
+
+            Picker("", selection: Binding(get: { st.settings.aiProvider },
+                                          set: { st.settings.aiProvider = $0; aiTest = .idle })) {
+                ForEach(AIProvider.allCases) { provider in
+                    Text(provider.label[state.native]).tag(provider)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            if st.settings.aiProvider != .none {
+                SecureField(S.aiKeyField[state.native],
+                            text: Binding(get: { st.settings.aiKey },
+                                          set: { st.settings.aiKey = $0; aiTest = .idle }))
+                    .font(.plain(13))
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .padding(9)
+                    .background(RoundedRectangle(cornerRadius: 9).fill(Palette.bg))
+                    .overlay(RoundedRectangle(cornerRadius: 9).stroke(Palette.stroke, lineWidth: 1.5))
+
+                Text("\(S.aiKeyWhere[state.native]) \(st.settings.aiProvider.console) · \(st.settings.aiProvider.keyPrefixHint)")
+                    .font(.plain(11.5)).foregroundStyle(Palette.brand)
+                    .textSelection(.enabled)
+
+                HStack(spacing: 10) {
+                    Button {
+                        Feedback.tap()
+                        runAITest(provider: st.settings.aiProvider, key: st.settings.aiKey)
+                    } label: {
+                        Text(aiTest == .running ? S.aiTesting[state.native] : S.aiTest[state.native])
+                            .font(.heading(13))
+                    }
+                    .buttonStyle(.chunky(Palette.purple, Palette.purpleDeep, height: 38, stretch: false))
+                    .disabled(st.settings.aiKey.trimmingCharacters(in: .whitespaces).isEmpty
+                              || aiTest == .running)
+
+                    switch aiTest {
+                    case .ok(let reply):
+                        VStack(alignment: .leading, spacing: 1) {
+                            Label(S.aiWorks[state.native], systemImage: "checkmark.circle.fill")
+                                .font(.heading(12)).foregroundStyle(Palette.green)
+                            Text(reply).font(.plain(10.5)).foregroundStyle(Palette.inkFaint)
+                                .lineLimit(2)
+                        }
+                    case .failed(let message):
+                        Text(message)
+                            .font(.plain(11)).foregroundStyle(Palette.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                    default:
+                        EmptyView()
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+
+            Text(st.settings.aiProvider == .none ? S.aiNote[state.native] : S.aiFreeHint[state.native])
+                .font(.plain(11.5)).foregroundStyle(Palette.inkFaint)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+    }
+
+    private func runAITest(provider: AIProvider, key: String) {
+        aiTest = .running
+        Task {
+            do {
+                let reply = try await AIClient.test(provider: provider, key: key)
+                await MainActor.run { aiTest = .ok(reply) }
+            } catch {
+                let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                await MainActor.run { aiTest = .failed(message) }
+            }
         }
     }
 
