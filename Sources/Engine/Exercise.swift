@@ -29,6 +29,9 @@ struct Exercise: Identifiable, Hashable {
     var audioLanguage: Language?
     var blankIndex: Int?          // word index removed in .fillBlank
     var hint: String?
+    /// True when this question is coming round again because it was missed earlier
+    /// in the same session.
+    var isRetry: Bool = false
 
     var instruction: Bilingual {
         switch kind {

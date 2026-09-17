@@ -325,10 +325,16 @@ sbagliata l'app prova tre strade, dalla più economica alla più costosa:
 
 L'esaminatore è **severo sul significato e generoso sul registro**: colloquiale,
 abbreviato, regionale o più formale vanno tutti bene; viene rifiutato solo ciò che
-significa altro, è in un'altra lingua o non è grammaticale. Se passa, vedi *«Va bene
-anche così!»*, la tua forma con la sua traduzione, la versione del corso come
-riferimento e una riga che spiega la sfumatura — e la forma resta **imparata per
-sempre**, anche offline.
+significa altro, è in un'altra lingua o non è grammaticale.
+
+Quando passa, **non è un errore corretto: è una risposta giusta**. Spunta verde,
+*«Corretto!»*, la tua forma con la sua traduzione — e solo sotto, in piccolo, *«Nel corso
+te l'avrei detta così, ma la tua va benissimo»* con la versione del libro. La forma resta
+**imparata per sempre**, anche offline.
+
+Le prime tre strade sono istantanee o quasi. Il pulsante è l'ultima spiaggia, per quando
+nessuno può decidere: **con una chiave configurata non lo vedi quasi mai**, perché il
+giudizio arriva da solo prima del verdetto.
 
 Vale per gli esercizi di traduzione libera (scrittura e banco di parole). Il dettato e
 le scelte multiple hanno una risposta sola, e restano tali.
@@ -381,7 +387,42 @@ Se la rete cade o un servizio smette di rispondere, si torna **da sola** alla vo
 di iOS: l'audio non smette mai di funzionare, peggiora e basta. E l'avviso «pronuncia
 approssimata» compare solo quando lo è davvero.
 
-## Ogni parola si può ascoltare
+## Tocca una parola per il significato
+
+Dentro un esercizio, un tocco su una parola apre sotto una piccola carta con **che cosa
+vuol dire quella parola** — e, quando la riga è un'espressione che il corso insegna
+intera, anche **che cosa vuol dire tutta l'espressione**, perché `ertaga ko'rishguncha`
+non è «domani fino-a-vederci».
+
+Da dove esce il significato, dal più economico al più caro:
+
+| | |
+|---|---|
+| **Il corso** | se la parola è insegnata da sola, o la frase è una voce sua, è istantaneo e offline |
+| **La tua cronologia** | ogni significato già cercato è tenuto per sempre: una parola si cerca una volta sola nella vita dell'app |
+| **L'assistente** | con una chiave, gliela chiede — ed è quasi sempre lui, per il motivo qui sotto |
+
+Il corso insegna da sola solo una parola su cinque (**22%** in uzbeko, 35% in italiano):
+tutte le altre compaiono soltanto dentro le frasi. Senza chiave quindi il tocco funziona
+in una minoranza dei casi; con la chiave funziona quasi sempre, e ogni risultato resta
+sul telefono.
+
+Si può spegnere da *Profilo → «Tocca una parola per il significato»*: su una domanda
+come «Che cosa significa…?» il suggerimento ti dà in mano la risposta, e potresti non
+volerlo.
+
+## Parole nuove ed errori che tornano
+
+Sopra l'esercizio compare una targhetta quando c'è qualcosa da sapere:
+
+- **NUOVA** — è la prima volta in assoluto che il corso ti mette davanti quella parola.
+- **ERRORE PRECEDENTE** — arancione quando la domanda sta tornando perché l'hai appena
+  sbagliata in questa sessione, rossa quando è una parola che avevi già sbagliato in una
+  sessione passata.
+
+Una domanda sbagliata **torna prima della fine della lezione** e non se ne va finché non
+la fai giusta. Una risposta accettata con «Anche la mia è giusta» invece non torna: non
+era un errore.
 
 Qualunque cosa scritta nella lingua che stai imparando si tocca e si sente: le opzioni
 di risposta, le tessere dell'abbinamento, i chip del banco di parole, le parole chiave

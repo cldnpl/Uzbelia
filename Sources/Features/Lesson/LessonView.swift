@@ -75,10 +75,13 @@ struct LessonView: View {
             if let ex = engine.current {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
-                        Text(ex.instruction[state.native])
-                            .font(.heading(21))
-                            .foregroundStyle(Palette.ink)
-                            .padding(.top, 14)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(ex.instruction[state.native])
+                                .font(.heading(21))
+                                .foregroundStyle(Palette.ink)
+                            badges(for: ex)
+                        }
+                        .padding(.top, 14)
 
                         ExerciseHost(exercise: ex, engine: engine)
                             .id(ex.id)
@@ -96,6 +99,40 @@ struct LessonView: View {
         .onChange(of: engine.finished) { _, done in
             if done { finish(engine) }
         }
+    }
+
+    /// Says what this question is, when it is something worth knowing: a word she has
+    /// never met, or one she got wrong and is meeting again.
+    @ViewBuilder
+    private func badges(for ex: Exercise) -> some View {
+        let isNew = ex.kind != .match && state.isNew(ex.pair)
+        let isOldMistake = !ex.isRetry && ex.kind != .match && state.isPastMistake(ex.pair)
+        if ex.isRetry || isNew || isOldMistake {
+            HStack(spacing: 7) {
+                if ex.isRetry {
+                    badge(S.previousMistake[state.native], icon: "arrow.uturn.left", tint: Palette.amberDeep,
+                          fill: Palette.amber.opacity(0.18))
+                } else if isOldMistake {
+                    badge(S.previousMistake[state.native], icon: "bandage.fill", tint: Palette.redDeep,
+                          fill: Palette.red.opacity(0.14))
+                }
+                if isNew {
+                    badge(S.newWord[state.native], icon: "sparkles", tint: Palette.teal,
+                          fill: Palette.teal.opacity(0.18))
+                }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    private func badge(_ text: String, icon: String, tint: Color, fill: Color) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon).font(.system(size: 9.5, weight: .black))
+            Text(text).font(.heading(10)).kerning(0.6)
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 8).padding(.vertical, 4)
+        .background(Capsule().fill(fill))
     }
 
     private func topBar(_ engine: LessonEngine) -> some View {
@@ -270,6 +307,7 @@ struct LessonView: View {
         if case .alternative(let canonical, _) = v {
             guard !canonical.isEmpty,
                   Grader.normalise(canonical) != Grader.normalise(engine.givenAnswer) else { return nil }
+            // not "the right answer is" — hers was right; this is only the book's version
             return FeedbackLine(label: S.courseSays[state.native], text: canonical,
                                 meaning: ex.meaning(of: canonical))
         }
@@ -283,9 +321,24 @@ struct LessonView: View {
                             meaning: ex.meaning(of: raw))
     }
 
-    private func render(_ line: FeedbackLine, size: CGFloat, tint: Color) -> Text {
+    @ViewBuilder
+    private func render(_ line: FeedbackLine, size: CGFloat, tint: Color) -> some View {
+        // a short label sits in front of the answer; a whole sentence of a label gets
+        // its own line, so the answer itself stays easy to find
+        if let label = line.label, label.count > 24 {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(label).font(.plain(size - 3)).foregroundStyle(Palette.inkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
+                body(of: line, size: size, tint: tint)
+            }
+        } else {
+            body(of: line, size: size, tint: tint, label: line.label)
+        }
+    }
+
+    private func body(of line: FeedbackLine, size: CGFloat, tint: Color, label: String? = nil) -> Text {
         var out = Text("")
-        if let label = line.label {
+        if let label {
             out = out + Text(label + " ").font(.plain(size - 3)).foregroundStyle(Palette.inkSoft)
         }
         out = out + Text(line.text).font(.body(size)).foregroundStyle(tint)
@@ -305,7 +358,7 @@ struct LessonView: View {
             Image(systemName: {
                 switch v {
                 case .correct: return "checkmark.circle.fill"
-                case .alternative: return "checkmark.circle.badge.questionmark.fill"
+                case .alternative: return "checkmark.circle.fill"
                 case .almost: return "exclamationmark.circle.fill"
                 case .wrong: return "xmark.circle.fill"
                 }
@@ -321,6 +374,7 @@ struct LessonView: View {
                 case .alternative:
                     Text(S.alsoRight[state.native])
                         .font(.heading(17)).foregroundStyle(Palette.greenDeep)
+                        .accessibilityLabel(S.alsoRight[state.native])
                 case .almost:
                     Text(S.almost[state.native]).font(.heading(15)).foregroundStyle(Palette.greenDeep)
                 case .wrong:

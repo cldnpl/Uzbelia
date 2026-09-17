@@ -20,6 +20,7 @@
 		2F9FF35F01B292A9CB65A242 /* AzureSpeech.swift in Sources */ = {isa = PBXBuildFile; fileRef = 658B619D8F7723BB8F86E7D0 /* AzureSpeech.swift */; };
 		31A9C9A8AA082B7B9964CE54 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8AA52BB7E23CE732CD74E063 /* Assets.xcassets */; };
 		3426B219D7DE84C4855BDB0A /* GrammarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC86E04668C37A25C735DBF3 /* GrammarView.swift */; };
+		37156D36AD5A0C3F31657894 /* HintsAndMarkersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D39146365919D6589F3438 /* HintsAndMarkersTests.swift */; };
 		37F70295F857B27E66F5B8F7 /* PlacementTestTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CFF04605EF3B56A31FEC6DE /* PlacementTestTests.swift */; };
 		3B5A3BC4CDF4AD295D4A4089 /* ExerciseViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FF376E95BFEA87762ED6343 /* ExerciseViews.swift */; };
 		401573FC1064D6A733F7B5EB /* LevelFinder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A076CDEAF99DCED886A58C6F /* LevelFinder.swift */; };
@@ -100,6 +101,7 @@
 		49288725747879F1F2370462 /* RecognizerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecognizerService.swift; sourceTree = "<group>"; };
 		4CFF04605EF3B56A31FEC6DE /* PlacementTestTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacementTestTests.swift; sourceTree = "<group>"; };
 		511B75B4EDCC56F297AACCB9 /* Curriculum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Curriculum.swift; sourceTree = "<group>"; };
+		52D39146365919D6589F3438 /* HintsAndMarkersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HintsAndMarkersTests.swift; sourceTree = "<group>"; };
 		658B619D8F7723BB8F86E7D0 /* AzureSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AzureSpeech.swift; sourceTree = "<group>"; };
 		65C922762AF1E7BBDDE38142 /* CurriculumTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurriculumTests.swift; sourceTree = "<group>"; };
 		67B0007B70030747E257A8D8 /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
@@ -174,6 +176,7 @@
 				8C32E91EE2077DD240E094FA /* EngineTests.swift */,
 				7C1174B38BDA81EF71CB5DA8 /* ExerciseFactoryTests.swift */,
 				9412A430EBF62CCF60189DA0 /* GlossaryTests.swift */,
+				52D39146365919D6589F3438 /* HintsAndMarkersTests.swift */,
 				4CFF04605EF3B56A31FEC6DE /* PlacementTestTests.swift */,
 				3FB8AB2177DE5E1032847522 /* SnoozeAndPlacementTests.swift */,
 				1C856BC398535971FCBF43D2 /* VoiceTests.swift */,
@@ -472,6 +475,7 @@
 				583F213F18D412F24511E5B4 /* EngineTests.swift in Sources */,
 				EBCF5C37C2124193BD3A482A /* ExerciseFactoryTests.swift in Sources */,
 				BDFD7E96A11E2704575EC5C4 /* GlossaryTests.swift in Sources */,
+				37156D36AD5A0C3F31657894 /* HintsAndMarkersTests.swift in Sources */,
 				37F70295F857B27E66F5B8F7 /* PlacementTestTests.swift in Sources */,
 				9B32CB6C3BDE7BD166B00E31 /* SnoozeAndPlacementTests.swift in Sources */,
 				635652F078564FC72A9AC03E /* VoiceTests.swift in Sources */,

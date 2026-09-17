@@ -194,6 +194,7 @@ final class LessonEngine {
     func advance(requeue: Bool = true) {
         if requeue, let ex = current, case .wrong = verdict {
             var again = ex
+            again.isRetry = true
             if ex.kind == .speak {
                 // a missed pronunciation comes back as a written translation, asked
                 // from the other language so the answer is not sitting on screen

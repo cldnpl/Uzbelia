@@ -201,6 +201,56 @@ enum AIClient {
         return Turn(reaction: reaction, question: decoded.question.map(bilingual))
     }
 
+    // MARK: - What does this word mean?
+
+    private struct GeneratedGloss: Decodable {
+        let word: String
+        let expression: String?
+    }
+
+    /// The meaning of one word, read inside the line it appears in.
+    ///
+    /// The course teaches barely a fifth of its words as standalone vocabulary — the
+    /// rest only ever appear inside sentences — so without this a tap on most words
+    /// would come back empty. Answers are kept for good, so a word is looked up once
+    /// in the life of the app.
+    static func wordMeaning(of word: String,
+                            inside sentence: String,
+                            language: Language,
+                            native: Language,
+                            provider: AIProvider,
+                            key: String) async throws -> (word: String, expression: String?) {
+        let languageName = language == .it ? "Italian" : "Uzbek"
+        let nativeName = native == .it ? "Italian" : "Uzbek"
+        let system = """
+        You gloss single words for a language learner, the way a dictionary footnote does.
+        Give the meaning of the one \(languageName) word asked about, as it is used in the \
+        sentence given, written in \(nativeName). At most four words, no sentence, no \
+        explanation, no repetition of the word itself. Give the dictionary form's sense, \
+        and mention the grammatical ending only if it changes the meaning.
+        If — and only if — the whole sentence is an idiom or a set phrase whose meaning is \
+        not the sum of its words, also give what the whole thing means in \(nativeName). \
+        For an ordinary sentence, leave that out.
+        Reply with JSON only: {"word": "<meaning>", "expression": "<meaning of the whole \
+        phrase, or null>"}.
+        """
+        let prompt = """
+        Sentence: "\(sentence)"
+        Word to gloss: "\(word)"
+        """
+        let text = try await complete(provider: provider, key: key, system: system,
+                                      prompt: prompt, maxTokens: 300, json: true,
+                                      temperature: 0)
+        guard let decoded = try? JSONDecoder().decode(GeneratedGloss.self,
+                                                      from: Data(extractJSON(text).utf8)) else {
+            throw Failure.decoding
+        }
+        let meaning = decoded.word.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !meaning.isEmpty else { throw Failure.empty }
+        let whole = decoded.expression?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (meaning, (whole?.isEmpty ?? true) ? nil : whole)
+    }
+
     // MARK: - Hearing Uzbek
 
     private struct Transcription: Decodable {

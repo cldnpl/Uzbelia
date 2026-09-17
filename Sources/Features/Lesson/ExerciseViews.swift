@@ -686,7 +686,8 @@ struct FillBlankExercise: View {
                 SpeechBubble {
                     VStack(alignment: .leading, spacing: 8) {
                         SpeakableText(text: displaySentence, language: ex.answerLanguage,
-                                      font: .body(20))
+                                      font: .body(20),
+                                      glossaryText: ex.pair[ex.answerLanguage])
                         if let hint = ex.hint {
                             Text(hint).font(.plain(13)).foregroundStyle(Palette.inkSoft)
                         }

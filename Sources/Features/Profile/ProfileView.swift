@@ -246,6 +246,9 @@ struct ProfileView: View {
                 toggleRow(S.speakingOn[state.native], icon: "mic.fill",
                           isOn: Binding(get: { st.settings.speakingExercises },
                                         set: { st.settings.speakingExercises = $0 }))
+                toggleRow(S.wordHintsOn[state.native], icon: "hand.tap.fill",
+                          isOn: Binding(get: { st.settings.wordHints },
+                                        set: { st.settings.wordHints = $0 }))
                 toggleRow(S.listeningOn[state.native], icon: "ear.fill",
                           isOn: Binding(get: { st.settings.listeningExercises },
                                         set: { st.settings.listeningExercises = $0 }))

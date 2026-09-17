@@ -45,6 +45,9 @@ struct Settings: Codable, Hashable {
     var haptics = true
     var speakingExercises = true
     var listeningExercises = true
+    /// Tap a word inside an exercise to see what it means. On by default: a hint that
+    /// sometimes hands over the answer still teaches more than a blank stare.
+    var wordHints = true
     var speechRate: Double = 0.44     // AVSpeechUtterance rate
     var dailyGoal: Int = 50           // xp
     var largeText = false
@@ -78,6 +81,8 @@ struct PersistedState: Codable {
     var mistakesBank: [Pair] = []
     /// Questions Anorcha has already asked, so a generated call can steer around them.
     var recentCallQuestions: [String] = []
+    /// Meanings looked up for single words, kept for good: "<lang>|<word>" → meaning.
+    var wordGlosses: [String: String] = [:]
     /// Skills put on hold until a given moment — "I can't speak right now".
     var skillSnoozes: [String: Date] = [:]
     /// Wordings the course does not list but that turned out to be perfectly good:
@@ -524,6 +529,31 @@ final class AppState {
 
     func strength(of pair: Pair) -> Double { s.srs[pair.id]?.strength ?? 0 }
 
+    /// True the first time an item is put in front of her: the course has never
+    /// graded it, so it is genuinely new rather than merely forgotten.
+    func isNew(_ pair: Pair) -> Bool { s.srs[pair.id] == nil }
+
+    // MARK: - Word meanings looked up once and kept
+
+    private func glossKey(_ text: String, _ language: Language) -> String {
+        "\(language.rawValue)|\(Grader.normalise(text))"
+    }
+
+    func cachedGloss(_ text: String, language: Language) -> String? {
+        s.wordGlosses[glossKey(text, language)]
+    }
+
+    func rememberGloss(_ meaning: String, for text: String, language: Language) {
+        let clean = meaning.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty, !Grader.normalise(text).isEmpty else { return }
+        s.wordGlosses[glossKey(text, language)] = clean
+        if s.wordGlosses.count > 4000 { s.wordGlosses.removeAll() }   // a runaway cache helps nobody
+        save()
+    }
+
+    /// True when she has got this one wrong before, in an earlier session.
+    func isPastMistake(_ pair: Pair) -> Bool { s.mistakesBank.contains(pair) }
+
     /// Pairs that are due for review, weakest first.
     func duePairs(limit: Int = 40) -> [Pair] {
         let all = curriculum.allPairs
@@ -599,7 +629,8 @@ final class AppState {
 
 extension Settings {
     enum CodingKeys: String, CodingKey {
-        case sounds, haptics, speakingExercises, listeningExercises, speechRate, dailyGoal, largeText
+        case sounds, haptics, speakingExercises, listeningExercises, wordHints
+        case speechRate, dailyGoal, largeText
         case reminderOn, reminderHour, reminderMinute, unlimitedResources
         case aiProvider, aiKey, claudeAPIKey
     }
@@ -609,6 +640,7 @@ extension Settings {
         haptics = try c.decodeIfPresent(Bool.self, forKey: .haptics) ?? true
         speakingExercises = try c.decodeIfPresent(Bool.self, forKey: .speakingExercises) ?? true
         listeningExercises = try c.decodeIfPresent(Bool.self, forKey: .listeningExercises) ?? true
+        wordHints = try c.decodeIfPresent(Bool.self, forKey: .wordHints) ?? true
         speechRate = try c.decodeIfPresent(Double.self, forKey: .speechRate) ?? 0.44
         dailyGoal = try c.decodeIfPresent(Int.self, forKey: .dailyGoal) ?? 50
         largeText = try c.decodeIfPresent(Bool.self, forKey: .largeText) ?? false
@@ -633,6 +665,7 @@ extension Settings {
         try c.encode(haptics, forKey: .haptics)
         try c.encode(speakingExercises, forKey: .speakingExercises)
         try c.encode(listeningExercises, forKey: .listeningExercises)
+        try c.encode(wordHints, forKey: .wordHints)
         try c.encode(speechRate, forKey: .speechRate)
         try c.encode(dailyGoal, forKey: .dailyGoal)
         try c.encode(largeText, forKey: .largeText)
@@ -672,7 +705,7 @@ extension PersistedState {
     enum CodingKeys: String, CodingKey {
         case nativeLanguage, xp, gems, hearts, heartsStamp, streak, lastPracticeDay, freezes
         case records, srs, history, unlockedLevels, settings, onboarded, mistakesBank
-        case recentCallQuestions, acceptedAlternatives, skillSnoozes
+        case recentCallQuestions, acceptedAlternatives, skillSnoozes, wordGlosses
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -695,5 +728,6 @@ extension PersistedState {
         acceptedAlternatives = try c.decodeIfPresent([String: [String]].self,
                                                      forKey: .acceptedAlternatives) ?? [:]
         skillSnoozes = try c.decodeIfPresent([String: Date].self, forKey: .skillSnoozes) ?? [:]
+        wordGlosses = try c.decodeIfPresent([String: String].self, forKey: .wordGlosses) ?? [:]
     }
 }
