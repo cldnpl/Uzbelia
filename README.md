@@ -45,8 +45,23 @@ xcodebuild -project Uzbelia.xcodeproj -scheme Uzbelia -sdk iphonesimulator -dest
 5. La prima volta il telefono rifiuta l'app: **Impostazioni → Generali → VPN e gestione
    dispositivo → Apple Development: (tua mail) → Autorizza**.
 
-Con un Apple ID gratuito l'app **scade dopo 7 giorni** e va reinstallata da Xcode; con un
-account Apple Developer a pagamento dura un anno.
+### Per quanto resta installata
+
+Non dipende da come la installi, ma da **con quale account la firmi**:
+
+| Account | Quanto dura | Come si rinnova |
+|---|---|---|
+| Apple ID gratuito | **7 giorni** | ricollegare l'iPhone e rifare ⌘R |
+| Apple Developer a pagamento | **1 anno** | uguale, una volta l'anno |
+| TestFlight | **90 giorni per build** | caricare una build nuova ogni tre mesi |
+| App Store | per sempre | pubblicazione e revisione Apple |
+
+Il progetto è già impostato sul team a pagamento (`DEVELOPMENT_TEAM` in `project.yml`),
+quindi **un'installazione dura un anno**: è la via più lunga che esista senza pubblicare
+sull'App Store, e non richiede né TestFlight né revisioni.
+
+Per il secondo telefono basta collegarlo e rifare ⌘R: la firma automatica lo registra
+da sola (il piano a pagamento ne consente fino a 100 all'anno).
 
 Il progetto Xcode è generato da [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 Se modifichi `project.yml` (o aggiungi cartelle di sorgenti), rigeneralo con `xcodegen generate`.

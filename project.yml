@@ -9,9 +9,11 @@ settings:
   base:
     SWIFT_VERSION: "5.0"
     # Automatic signing, so the app can be installed on a real iPhone.
-    # Leave DEVELOPMENT_TEAM empty and pick your team once in Xcode:
-    # target Uzbelia > Signing & Capabilities > Team.
-    DEVELOPMENT_TEAM: ""
+    # This is the paid team: it is what gives the installed app a provisioning
+    # profile good for a year, instead of the seven days a free Apple ID grants.
+    # To build under a different account, change it here (or in Xcode:
+    # target Uzbelia > Signing & Capabilities > Team) and run `xcodegen generate`.
+    DEVELOPMENT_TEAM: "H4M7KJL5DT"
     CODE_SIGN_STYLE: Automatic
     ENABLE_USER_SCRIPT_SANDBOXING: "YES"
     SWIFT_EMIT_LOC_STRINGS: "YES"

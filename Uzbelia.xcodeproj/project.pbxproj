@@ -93,7 +93,7 @@
 		3FB8AB2177DE5E1032847522 /* SnoozeAndPlacementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnoozeAndPlacementTests.swift; sourceTree = "<group>"; };
 		42095AEB590B324B6BCAB94A /* EdgeVoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeVoice.swift; sourceTree = "<group>"; };
 		44C326874ED478B37CC35BCB /* CallQuestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallQuestions.swift; sourceTree = "<group>"; };
-		4513E6C80F16CC3CEFE34BE6 /* Uzbelia.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Uzbelia.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4513E6C80F16CC3CEFE34BE6 /* Uzbelia.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Uzbelia.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		485D464EF9EC9E2F59EF0B2B /* CallEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallEngine.swift; sourceTree = "<group>"; };
 		489971617D71A67579B5AAFE /* AIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIClient.swift; sourceTree = "<group>"; };
 		491E63F0B58FD10F21DFED48 /* CallTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallTests.swift; sourceTree = "<group>"; };
@@ -414,10 +414,11 @@
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					6EDA5CBA80A63237C5D874E4 = {
-						DevelopmentTeam = "";
+						DevelopmentTeam = H4M7KJL5DT;
 						ProvisioningStyle = Automatic;
 					};
 					77A3DEACD9AFDC380258B49A = {
+						DevelopmentTeam = H4M7KJL5DT;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -545,7 +546,6 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = H4M7KJL5DT;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Uzbelia;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Uzbelia usa il microfono per gli esercizi di pronuncia. / Uzbelia talaffuz mashqlari uchun mikrofondan foydalanadi.";
@@ -620,7 +620,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = H4M7KJL5DT;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -705,7 +705,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = H4M7KJL5DT;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -736,7 +736,6 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = H4M7KJL5DT;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Uzbelia;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Uzbelia usa il microfono per gli esercizi di pronuncia. / Uzbelia talaffuz mashqlari uchun mikrofondan foydalanadi.";
