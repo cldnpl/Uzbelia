@@ -239,7 +239,8 @@ enum AIClient {
                 ["text": "Transcribe this \(languageName) recording."],
                 ["inline_data": ["mime_type": "audio/wav", "data": wav.base64EncodedString()]],
             ]]],
-            "generationConfig": ["maxOutputTokens": 200, "temperature": 0],
+            "generationConfig": ["maxOutputTokens": 2000, "temperature": 0,
+                                 "thinkingConfig": ["thinkingBudget": 0]],
         ]
 
         var lastError: Error = Failure.empty
@@ -489,7 +490,14 @@ enum AIClient {
             request.setValue(key, forHTTPHeaderField: "x-goog-api-key")
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-            var config: [String: Any] = ["maxOutputTokens": maxTokens, "temperature": temperature]
+            // The 3.x models think before answering, and the thinking is charged against
+            // maxOutputTokens — so a tight budget silently returns half a sentence.
+            // None of these tasks need deliberation, so it is turned off outright.
+            var config: [String: Any] = [
+                "maxOutputTokens": max(maxTokens, 1024),
+                "temperature": temperature,
+                "thinkingConfig": ["thinkingBudget": 0],
+            ]
             if json { config["responseMimeType"] = "application/json" }
             request.httpBody = try JSONSerialization.data(withJSONObject: [
                 "system_instruction": ["parts": [["text": system]]],

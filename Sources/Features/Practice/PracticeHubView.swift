@@ -207,7 +207,7 @@ struct PracticeHubView: View {
     private func startSkill(_ skill: Skill) {
         let pairs = Array(state.learnedPairs.shuffled().prefix(14))
         let ex = ExerciseFactory.practice(pairs: pairs, pool: state.curriculum.allPairs,
-                                          native: state.native, settings: state.settings,
+                                          native: state.native, settings: state.effectiveSettings,
                                           count: 12, productionBias: 0.5, restrictTo: skill)
         session = SessionRequest(mode: .practice, customExercises: ex,
                                  customTitle: skill.label, consumesHearts: false, xpReward: 20)
@@ -216,7 +216,7 @@ struct PracticeHubView: View {
     private func launch(pairs: [Pair], title: Bilingual, xp: Int) {
         guard !pairs.isEmpty else { return }
         let ex = ExerciseFactory.practice(pairs: pairs, pool: state.curriculum.allPairs,
-                                          native: state.native, settings: state.settings,
+                                          native: state.native, settings: state.effectiveSettings,
                                           count: 15, productionBias: 0.55)
         session = SessionRequest(mode: .practice, customExercises: ex,
                                  customTitle: title, consumesHearts: false, xpReward: xp)

@@ -78,7 +78,7 @@ enum PlacementTest {
         let exercises = ExerciseFactory.placementTest(pairs: source,
                                                       pool: state.curriculum.allPairs,
                                                       native: state.native,
-                                                      settings: state.settings,
+                                                      settings: state.effectiveSettings,
                                                       count: target.questionCount)
         return SessionRequest(mode: .test,
                               customExercises: exercises,

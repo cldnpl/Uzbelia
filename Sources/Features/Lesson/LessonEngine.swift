@@ -176,6 +176,19 @@ final class LessonEngine {
         advance(requeue: false)
     }
 
+    /// "Not right now." Drops the question on screen and rewrites every later one that
+    /// needs the same skill, so the rest of the lesson can be done in silence.
+    func setAside(_ skill: Skill, native: Language) {
+        for index in exercises.indices where index > self.index && exercises[index].trainsSkill == skill {
+            exercises[index] = exercises[index].withoutAudio(native: native)
+        }
+        if skill == .speaking { skippedSpeaking = true }
+        if let ex = current, ex.trainsSkill == skill {
+            completed.insert(ex.id)
+            advance(requeue: false)
+        }
+    }
+
     // MARK: - Moving on
 
     func advance(requeue: Bool = true) {

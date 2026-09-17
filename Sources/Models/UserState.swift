@@ -78,6 +78,8 @@ struct PersistedState: Codable {
     var mistakesBank: [Pair] = []
     /// Questions Anorcha has already asked, so a generated call can steer around them.
     var recentCallQuestions: [String] = []
+    /// Skills put on hold until a given moment — "I can't speak right now".
+    var skillSnoozes: [String: Date] = [:]
     /// Wordings the course does not list but that turned out to be perfectly good:
     /// norm(expected answer) → the other ways of saying it she has had accepted.
     /// Once learnt they are accepted offline, for good.
@@ -113,6 +115,47 @@ final class AppState {
     var unlockedLevels: Set<String> { s.unlockedLevels }
     var mistakesBank: [Pair] { s.mistakesBank }
     var recentCallQuestions: [String] { s.recentCallQuestions }
+
+    // MARK: - Putting a skill on hold
+
+    /// How long "not right now" lasts. Long enough to finish a meeting or a bus ride,
+    /// short enough that she never has to remember to switch it back on.
+    static let snoozeMinutes = 15
+
+    func isSnoozed(_ skill: Skill) -> Bool {
+        guard let until = s.skillSnoozes[skill.rawValue] else { return false }
+        return until > .now
+    }
+
+    func snoozeEnds(_ skill: Skill) -> Date? {
+        guard let until = s.skillSnoozes[skill.rawValue], until > .now else { return nil }
+        return until
+    }
+
+    /// Minutes left on the hold, rounded up, for the line that says so on screen.
+    func snoozeMinutesLeft(_ skill: Skill) -> Int {
+        guard let until = snoozeEnds(skill) else { return 0 }
+        return max(1, Int((until.timeIntervalSinceNow / 60).rounded(.up)))
+    }
+
+    func snooze(_ skill: Skill, minutes: Int? = nil) {
+        s.skillSnoozes[skill.rawValue] = Date().addingTimeInterval(Double(minutes ?? Self.snoozeMinutes) * 60)
+        save()
+    }
+
+    func wakeUp(_ skill: Skill) {
+        s.skillSnoozes[skill.rawValue] = nil
+        save()
+    }
+
+    /// The settings a session is actually built with: whatever she chose in Profilo,
+    /// minus anything she has just said she cannot do right now.
+    var effectiveSettings: Settings {
+        var out = s.settings
+        if isSnoozed(.speaking) { out.speakingExercises = false }
+        if isSnoozed(.listening) { out.listeningExercises = false }
+        return out
+    }
 
     // MARK: - Which assistant is actually in use
 
@@ -358,7 +401,7 @@ final class AppState {
         let exercises = ExerciseFactory.practice(pairs: pairs,
                                                  pool: curriculum.pairsUpTo(unitID: unit.id),
                                                  native: native,
-                                                 settings: settings,
+                                                 settings: effectiveSettings,
                                                  count: 18,
                                                  productionBias: 0.6)
         return SessionRequest(mode: .practice,
@@ -629,7 +672,7 @@ extension PersistedState {
     enum CodingKeys: String, CodingKey {
         case nativeLanguage, xp, gems, hearts, heartsStamp, streak, lastPracticeDay, freezes
         case records, srs, history, unlockedLevels, settings, onboarded, mistakesBank
-        case recentCallQuestions, acceptedAlternatives
+        case recentCallQuestions, acceptedAlternatives, skillSnoozes
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -651,5 +694,6 @@ extension PersistedState {
         recentCallQuestions = try c.decodeIfPresent([String].self, forKey: .recentCallQuestions) ?? []
         acceptedAlternatives = try c.decodeIfPresent([String: [String]].self,
                                                      forKey: .acceptedAlternatives) ?? [:]
+        skillSnoozes = try c.decodeIfPresent([String: Date].self, forKey: .skillSnoozes) ?? [:]
     }
 }

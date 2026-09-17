@@ -22,6 +22,7 @@
 		3426B219D7DE84C4855BDB0A /* GrammarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC86E04668C37A25C735DBF3 /* GrammarView.swift */; };
 		37F70295F857B27E66F5B8F7 /* PlacementTestTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CFF04605EF3B56A31FEC6DE /* PlacementTestTests.swift */; };
 		3B5A3BC4CDF4AD295D4A4089 /* ExerciseViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FF376E95BFEA87762ED6343 /* ExerciseViews.swift */; };
+		401573FC1064D6A733F7B5EB /* LevelFinder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A076CDEAF99DCED886A58C6F /* LevelFinder.swift */; };
 		416E539931307199D4F4D49D /* HeartsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 976F8F97FF7529F18DB3923D /* HeartsSheet.swift */; };
 		441CC8A883C78006BB2AA826 /* ExerciseFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78DAE71A9D23EC9585F6A3EB /* ExerciseFactory.swift */; };
 		44A9DA5FBBCD2B327FE6D0DA /* CallEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 485D464EF9EC9E2F59EF0B2B /* CallEngine.swift */; };
@@ -47,6 +48,7 @@
 		8FB79C8CFB448887868FC768 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B0007B70030747E257A8D8 /* AppStateTests.swift */; };
 		9410A7F4E2BD0E8E11D0308B /* LessonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7613CBEDCFA9994DF246CF9C /* LessonView.swift */; };
 		959392380A5CD60D27005E7A /* Curriculum.swift in Sources */ = {isa = PBXBuildFile; fileRef = 511B75B4EDCC56F297AACCB9 /* Curriculum.swift */; };
+		9B32CB6C3BDE7BD166B00E31 /* SnoozeAndPlacementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB8AB2177DE5E1032847522 /* SnoozeAndPlacementTests.swift */; };
 		A2E654C79B52B1FB6BEFE313 /* CallHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFE8F11B682D5C80A77073AB /* CallHubView.swift */; };
 		A803C5FC484BE7F89572D3C8 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99D96901633D6ACACCFF9F42 /* ProfileView.swift */; };
 		B149FC5CB8B35B351FAC8FB4 /* AIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 489971617D71A67579B5AAFE /* AIClient.swift */; };
@@ -88,9 +90,10 @@
 		2A15FEBFC9C588786F0E3128 /* SessionFocus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionFocus.swift; sourceTree = "<group>"; };
 		38A2598CD8309E4390F77163 /* CallPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallPlanner.swift; sourceTree = "<group>"; };
 		3CB602D167605E0D98C64062 /* PathView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathView.swift; sourceTree = "<group>"; };
+		3FB8AB2177DE5E1032847522 /* SnoozeAndPlacementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnoozeAndPlacementTests.swift; sourceTree = "<group>"; };
 		42095AEB590B324B6BCAB94A /* EdgeVoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeVoice.swift; sourceTree = "<group>"; };
 		44C326874ED478B37CC35BCB /* CallQuestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallQuestions.swift; sourceTree = "<group>"; };
-		4513E6C80F16CC3CEFE34BE6 /* Uzbelia.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Uzbelia.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4513E6C80F16CC3CEFE34BE6 /* Uzbelia.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Uzbelia.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		485D464EF9EC9E2F59EF0B2B /* CallEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallEngine.swift; sourceTree = "<group>"; };
 		489971617D71A67579B5AAFE /* AIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIClient.swift; sourceTree = "<group>"; };
 		491E63F0B58FD10F21DFED48 /* CallTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallTests.swift; sourceTree = "<group>"; };
@@ -117,6 +120,7 @@
 		977BAFABC5B34CECE009967D /* AnswerJudge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnswerJudge.swift; sourceTree = "<group>"; };
 		99D96901633D6ACACCFF9F42 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		9C22AE4F94FA0F1F698B4BC4 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		A076CDEAF99DCED886A58C6F /* LevelFinder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LevelFinder.swift; sourceTree = "<group>"; };
 		A8B772792E29F45F4B401E0F /* CallReviewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallReviewer.swift; sourceTree = "<group>"; };
 		B36208A22087AD0A48DCD7DD /* Grader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Grader.swift; sourceTree = "<group>"; };
 		BD9047AD63C46F030A60FC4A /* a1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = a1.json; sourceTree = "<group>"; };
@@ -171,6 +175,7 @@
 				7C1174B38BDA81EF71CB5DA8 /* ExerciseFactoryTests.swift */,
 				9412A430EBF62CCF60189DA0 /* GlossaryTests.swift */,
 				4CFF04605EF3B56A31FEC6DE /* PlacementTestTests.swift */,
+				3FB8AB2177DE5E1032847522 /* SnoozeAndPlacementTests.swift */,
 				1C856BC398535971FCBF43D2 /* VoiceTests.swift */,
 			);
 			path = Tests;
@@ -354,6 +359,7 @@
 				78DAE71A9D23EC9585F6A3EB /* ExerciseFactory.swift */,
 				C63EEE3E5E7A347D263B21EE /* Glossary.swift */,
 				B36208A22087AD0A48DCD7DD /* Grader.swift */,
+				A076CDEAF99DCED886A58C6F /* LevelFinder.swift */,
 				2A15FEBFC9C588786F0E3128 /* SessionFocus.swift */,
 			);
 			path = Engine;
@@ -412,7 +418,6 @@
 						ProvisioningStyle = Automatic;
 					};
 					77A3DEACD9AFDC380258B49A = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -467,6 +472,7 @@
 				EBCF5C37C2124193BD3A482A /* ExerciseFactoryTests.swift in Sources */,
 				BDFD7E96A11E2704575EC5C4 /* GlossaryTests.swift in Sources */,
 				37F70295F857B27E66F5B8F7 /* PlacementTestTests.swift in Sources */,
+				9B32CB6C3BDE7BD166B00E31 /* SnoozeAndPlacementTests.swift in Sources */,
 				635652F078564FC72A9AC03E /* VoiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -498,6 +504,7 @@
 				416E539931307199D4F4D49D /* HeartsSheet.swift in Sources */,
 				C9CF6CCA9BF62AC6FDD87BFF /* LessonEngine.swift in Sources */,
 				9410A7F4E2BD0E8E11D0308B /* LessonView.swift in Sources */,
+				401573FC1064D6A733F7B5EB /* LevelFinder.swift in Sources */,
 				B5C29535857D5D047C56819F /* OnboardingView.swift in Sources */,
 				FBBD75C3CC4306FC74BDAE21 /* PathView.swift in Sources */,
 				2E8B35A5F99A7FEA1F650C0F /* PlacementTest.swift in Sources */,
@@ -538,6 +545,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = H4M7KJL5DT;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Uzbelia;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Uzbelia usa il microfono per gli esercizi di pronuncia. / Uzbelia talaffuz mashqlari uchun mikrofondan foydalanadi.";
@@ -728,6 +736,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = H4M7KJL5DT;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Uzbelia;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Uzbelia usa il microfono per gli esercizi di pronuncia. / Uzbelia talaffuz mashqlari uchun mikrofondan foydalanadi.";

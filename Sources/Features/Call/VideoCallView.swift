@@ -320,6 +320,12 @@ struct VideoCallView: View {
                 if recording {
                     Text(S.callListening[state.native])
                         .font(.heading(14)).foregroundStyle(Palette.pink)
+                } else if recognizer.isTranscribing {
+                    HStack(spacing: 7) {
+                        ProgressView().tint(Palette.pink).scaleEffect(0.8)
+                        Text(S.transcribing[state.native])
+                            .font(.heading(14)).foregroundStyle(Palette.pink)
+                    }
                 } else if !recognizer.transcript.isEmpty {
                     Text(recognizer.transcript)
                         .font(.body(15)).foregroundStyle(.white)
@@ -389,6 +395,7 @@ struct VideoCallView: View {
     private func micButton(_ engine: CallEngine) -> some View {
         Button {
             Feedback.pop()
+            guard !recognizer.isTranscribing else { return }
             if recording { stopRecording(engine) } else { startRecording() }
         } label: {
             ZStack {
@@ -427,8 +434,10 @@ struct VideoCallView: View {
 
     private func stopRecording(_ engine: CallEngine) {
         recording = false
-        recognizer.stop()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+        // the same waiting the pronunciation exercises do: an Uzbek answer is
+        // transcribed by whoever can actually hear Uzbek, which takes a moment
+        Task {
+            await recognizer.stopAndTranscribe()
             engine.submit(recognizer.transcript, typed: false)
             recognizer.reset()
         }

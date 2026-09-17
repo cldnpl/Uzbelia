@@ -250,6 +250,10 @@ struct ProfileView: View {
                           isOn: Binding(get: { st.settings.listeningExercises },
                                         set: { st.settings.listeningExercises = $0 }))
 
+                // a hold she set from inside a lesson, with a way out of it
+                snoozeRow(st, skill: .speaking, label: S.onHoldSpeaking[state.native])
+                snoozeRow(st, skill: .listening, label: S.onHoldListening[state.native])
+
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Label(S.speechRate[state.native], systemImage: "tortoise.fill")
@@ -349,6 +353,30 @@ struct ProfileView: View {
             .padding(.vertical, 6)
             .background(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous).fill(Palette.card))
             .overlay(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous).stroke(Palette.stroke, lineWidth: 2))
+        }
+    }
+
+    @ViewBuilder
+    private func snoozeRow(_ st: AppState, skill: Skill, label: String) -> some View {
+        if st.isSnoozed(skill) {
+            HStack(spacing: 10) {
+                Image(systemName: "clock.badge.xmark")
+                    .font(.system(size: 15, weight: .bold)).foregroundStyle(Palette.amberDeep)
+                    .frame(width: 26)
+                Text("\(label) \(st.snoozeMinutesLeft(skill)) \(S.minutesShort[state.native])")
+                    .font(.plain(13.5)).foregroundStyle(Palette.ink)
+                Spacer(minLength: 0)
+                Button {
+                    Feedback.tap(); st.wakeUp(skill)
+                } label: {
+                    Text(S.resumeNow[state.native])
+                        .font(.heading(12)).foregroundStyle(Palette.brand)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 9)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Palette.amber.opacity(0.14)))
+            .padding(.horizontal, 12)
         }
     }
 

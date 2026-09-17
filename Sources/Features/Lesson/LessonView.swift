@@ -4,6 +4,8 @@ struct LessonView: View {
     @Environment(AppState.self) private var state
     @Environment(\.dismiss) private var dismiss
     let request: SessionRequest
+    /// Told what happened, for callers that place the learner by the outcome.
+    var onFinish: ((SessionResults) -> Void)?
 
     @State private var engine: LessonEngine?
     @State private var showQuitAlert = false
@@ -52,7 +54,7 @@ struct LessonView: View {
             list = ExerciseFactory.session(for: node, unit: unit,
                                            curriculum: state.curriculum,
                                            native: state.native,
-                                           settings: state.settings,
+                                           settings: state.effectiveSettings,
                                            focus: request.focus)
         } else {
             list = []
@@ -167,11 +169,18 @@ struct LessonView: View {
             }
 
             HStack(spacing: 12) {
-                if verdict == nil, engine.current?.kind == .speak {
+                // "not right now": puts the whole skill aside for a quarter of an hour,
+                // here and in every session started while the hold lasts
+                if verdict == nil, let skill = engine.current?.trainsSkill,
+                   skill == .speaking || skill == .listening {
                     Button {
-                        Feedback.tap(); engine.skipSpeaking()
+                        Feedback.tap()
+                        state.snooze(skill)
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            engine.setAside(skill, native: state.native)
+                        }
                     } label: {
-                        Text(S.cantSpeak[state.native])
+                        Text((skill == .speaking ? S.cantSpeak : S.cantListen)[state.native])
                             .font(.heading(13))
                             .lineLimit(1)
                             .minimumScaleFactor(0.75)
@@ -495,14 +504,14 @@ struct LessonView: View {
         }
 
         if passed == false { Feedback.failure() } else { Feedback.celebrate() }
-        withAnimation(.spring(response: 0.5)) {
-            results = SessionResults(xp: passed == false ? 0 : xp,
+        let outcome = SessionResults(xp: passed == false ? 0 : xp,
                                      accuracy: acc,
                                      minutes: engine.minutes,
                                      mistakes: engine.mistakePairs,
                                      title: request.customTitle ?? request.node?.title ?? S.lessonDone,
                                      testPassed: passed)
-        }
+        onFinish?(outcome)
+        withAnimation(.spring(response: 0.5)) { results = outcome }
     }
 }
 

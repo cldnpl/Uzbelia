@@ -114,6 +114,34 @@ extension Exercise {
         kind == .fillBlank ? pair[answerLanguage] : answer
     }
 
+    /// The same item asked without the skill she has just put on hold.
+    ///
+    /// A queued question is not thrown away — a pronunciation becomes a written
+    /// translation, a dictation becomes a translation from her own language — so a
+    /// lesson keeps its length and still teaches the word.
+    func withoutAudio(native: Language) -> Exercise {
+        var out = self
+        switch kind {
+        case .speak:
+            out.kind = .type
+            out.promptLanguage = answerLanguage.other
+            out.prompt = pair[answerLanguage.other]
+        case .listenType:
+            out.kind = .type
+            out.promptLanguage = native
+            out.prompt = pair[native]
+        case .listenChoice:
+            out.kind = .choice
+            out.promptLanguage = native
+            out.prompt = pair[native]
+        default:
+            return out
+        }
+        out.audioText = nil
+        out.audioLanguage = nil
+        return out
+    }
+
     /// What `text` means, read in the language this question is answered in.
     ///
     /// The exercise's own pair is consulted first, so a story line the curriculum

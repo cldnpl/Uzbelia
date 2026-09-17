@@ -264,6 +264,34 @@ vedi più sotto.
 > valid»), il che dimostra che endpoint, header e corpo sono giusti. Non ho potuto provare
 > una risposta completa perché non ho una chiave vera.
 
+## «Ora non posso»
+
+Dentro un esercizio di pronuncia o di ascolto, accanto a *Verifica*, c'è **«Non posso
+parlare ora»** / **«Non posso ascoltare ora»**. Un tocco e quella abilità va in pausa per
+**15 minuti**: niente microfono e niente audio, in questa sessione e in tutte quelle
+iniziate finché la pausa dura.
+
+Le domande già in coda non vengono buttate: una pronuncia diventa una traduzione
+scritta, un dettato diventa una traduzione dalla tua lingua. La lezione resta lunga
+uguale e insegna le stesse parole, solo in silenzio.
+
+La pausa scade da sola — non devi ricordarti di riattivare niente — e intanto compare in
+*Profilo → Impostazioni* con i minuti che restano e un «Riattiva» per annullarla prima.
+
+## Scopri il tuo livello
+
+All'inizio, sopra la scelta manuale del livello, c'è **«Scopri il tuo livello»**: un test
+che sale lungo tutto il corso, due domande per capitolo, da A1 fino a B2.
+
+Non è un punteggio ma **una curva**: giuste all'inizio, sbagliate più avanti, e il punto
+in cui giri è dove appartieni. Chi la lingua non l'ha mai vista si ferma al primo gradino
+e parte da A1, che è esattamente giusto.
+
+Vieni messa **al primo capitolo che non sapevi**, mai oltre: così il test può solo
+saltare roba che hai dimostrato di avere. Un gradino sbagliato per distrazione ti fa
+partire un po' prima del dovuto, e dal percorso puoi sempre testare per saltare avanti.
+Niente microfono e niente audio: lo puoi fare in autobus.
+
 ## Più di una traduzione può essere giusta
 
 Un corso elenca una forma per frase, una lingua ne ha parecchie: *a domani* è

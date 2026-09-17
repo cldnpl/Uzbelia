@@ -7,6 +7,11 @@ struct OnboardingView: View {
     @State private var chosenLevel: CEFR = .a1
     @State private var chosenGoal: Int = 50
     @State private var bounce = false
+    /// Set when she asks to be placed by a quiz instead of choosing a level herself.
+    /// Presenting on the quiz itself, rather than on a separate flag, is what keeps
+    /// the screen from opening before the questions are in it.
+    @State private var quiz: LevelFinder.Quiz?
+    @State private var placement: (level: CEFR, unitID: String)?
 
     private var lang: Language { chosenNative ?? .it }
 
@@ -33,6 +38,17 @@ struct OnboardingView: View {
                     .padding(.horizontal, Metrics.hPad)
                     .padding(.bottom, 26)
             }
+        }
+        .fullScreenCover(item: $quiz) { quiz in
+            LessonView(request: SessionRequest(mode: .practice,
+                                               customExercises: quiz.exercises,
+                                               customTitle: S.findLevel,
+                                               consumesHearts: false,
+                                               xpReward: 0),
+                       onFinish: { results in
+                           placement = LevelFinder.placement(quiz: quiz, mistakes: results.mistakes)
+                           if let placement { chosenLevel = placement.level }
+                       })
         }
     }
 
@@ -120,22 +136,61 @@ struct OnboardingView: View {
     private var levelPage: some View {
         VStack(spacing: 18) {
             header(title: S.pickLevel[lang], subtitle: S.pickLevelSub[lang])
+
+            // the way out of guessing: let the course work it out
+            Button {
+                Feedback.pop()
+                let built = LevelFinder.quiz(curriculum: state.curriculum,
+                                             native: lang,
+                                             settings: state.effectiveSettings)
+                guard !built.exercises.isEmpty else { return }
+                quiz = built
+            } label: {
+                ChunkyCard(fill: placement != nil ? Palette.teal.opacity(0.16) : Palette.card,
+                           edge: placement != nil ? Palette.teal.opacity(0.4) : Palette.stroke,
+                           border: placement != nil ? Palette.teal : Palette.stroke) {
+                    HStack(spacing: 14) {
+                        Image(systemName: placement != nil ? "checkmark.seal.fill" : "wand.and.stars")
+                            .font(.system(size: 20, weight: .black))
+                            .foregroundStyle(.white)
+                            .frame(width: 52, height: 42)
+                            .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Palette.teal))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(S.findLevel[lang]).font(.heading(16)).foregroundStyle(Palette.ink)
+                            Text(placementSummary ?? S.findLevelSub[lang])
+                                .font(.plain(12.5)).foregroundStyle(Palette.inkSoft)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(14)
+                }
+            }
+            .buttonStyle(.plain)
+
+            HStack(spacing: 10) {
+                Rectangle().fill(Palette.stroke).frame(height: 1.5)
+                Text(S.orPickYourself[lang]).font(.heading(11)).foregroundStyle(Palette.inkFaint)
+                Rectangle().fill(Palette.stroke).frame(height: 1.5)
+            }
+
             VStack(spacing: 12) {
                 ForEach(CEFR.allCases) { lvl in
                     Button {
                         Feedback.tap()
-                        withAnimation(.spring(response: 0.3)) { chosenLevel = lvl }
+                        withAnimation(.spring(response: 0.3)) { chosenLevel = lvl; placement = nil }
                     } label: {
-                        ChunkyCard(fill: chosenLevel == lvl ? Palette.purple.opacity(0.12) : Palette.card,
-                                   edge: chosenLevel == lvl ? Palette.purpleDeep.opacity(0.35) : Palette.stroke,
-                                   border: chosenLevel == lvl ? Palette.purple : Palette.stroke) {
+                        ChunkyCard(fill: chosenLevel == lvl && placement == nil ? Palette.purple.opacity(0.12) : Palette.card,
+                                   edge: chosenLevel == lvl && placement == nil ? Palette.purpleDeep.opacity(0.35) : Palette.stroke,
+                                   border: chosenLevel == lvl && placement == nil ? Palette.purple : Palette.stroke) {
                             HStack(spacing: 14) {
                                 Text(lvl.label)
                                     .font(.display(20))
                                     .foregroundStyle(.white)
                                     .frame(width: 52, height: 42)
                                     .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(chosenLevel == lvl ? Palette.purple : Palette.inkFaint))
+                                        .fill(chosenLevel == lvl && placement == nil ? Palette.purple : Palette.inkFaint))
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(lvl.blurb[lang]).font(.heading(16)).foregroundStyle(Palette.ink)
                                     Text(lvl == .a1 ? S.fromZero[lang] : levelHint(lvl))
@@ -153,6 +208,15 @@ struct OnboardingView: View {
         }
         .padding(.horizontal, Metrics.hPad)
         .padding(.top, 20)
+    }
+
+    /// What the quiz decided, in a line she can read on the card.
+    private var placementSummary: String? {
+        guard let placement,
+              let unit = state.curriculum.unit(id: placement.unitID) else { return nil }
+        return lang == .it
+            ? "Inizi da \(placement.level.label) · \(unit.title.it)"
+            : "\(placement.level.label) · \(unit.title.uz) dan boshlaysiz"
     }
 
     private func levelHint(_ lvl: CEFR) -> String {
@@ -230,6 +294,8 @@ struct OnboardingView: View {
                 withAnimation { step += 1 }
             } else {
                 state.finishOnboarding(goal: chosenGoal, startLevel: chosenLevel)
+                // a quiz result opens the course up to the chapter it found
+                if let placement { LevelFinder.apply(placement, state: state) }
             }
         } label: {
             Text(step == 3 ? S.start[lang] : S.continueBtn[lang])
