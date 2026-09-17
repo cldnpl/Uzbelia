@@ -27,11 +27,18 @@ final class RecognizerService: NSObject {
     private var task: SFSpeechRecognitionTask?
     private var recognizer: SFSpeechRecognizer?
 
-    /// 16 kHz mono samples collected for Azure, when it is Azure that is listening.
+    /// 16 kHz mono samples collected for whoever is going to transcribe them.
     private var recorded = Data()
     private var converter: AVAudioConverter?
     private var listeningRemotely = false
     private var remoteLanguage: Language = .uz
+
+    /// True while the words on screen are a running guess rather than the final read.
+    private(set) var isPartial = false
+    /// Guards against two passes over the same audio at once — the model takes about
+    /// a second, and a second pass queued behind it would only ever show stale words.
+    private var partialRunning = false
+    private var lastPartialAt: Date = .distantPast
 
     // MARK: - Availability
 
@@ -55,10 +62,18 @@ final class RecognizerService: NSObject {
         usesRemote(for: language) || resolvedLocale(for: language) != nil
     }
 
-    /// Apple has no Uzbek recogniser at all. With a key — Azure's, or the Gemini one
-    /// the video calls already use — somebody else does the listening instead.
+    /// Apple has no Uzbek recogniser at all. The phone's own Whisper model is the
+    /// best answer when it is there; failing that a key — Azure's, or the Gemini one
+    /// the video calls already use — has somebody else do the listening.
     func usesRemote(for language: Language) -> Bool {
-        language == .uz && (AzureSpeech.isConfigured || Secrets.builtIn?.provider == .gemini)
+        language == .uz && (UzbekRecognizer.isAvailable
+                            || AzureSpeech.isConfigured
+                            || Secrets.builtIn?.provider == .gemini)
+    }
+
+    /// True when Uzbek is heard by the phone itself, with no network at all.
+    func usesOnDevice(for language: Language) -> Bool {
+        language == .uz && UzbekRecognizer.isAvailable
     }
 
     /// Kept for the places that ask specifically about Azure.
@@ -167,6 +182,38 @@ final class RecognizerService: NSObject {
         recorded.append(UnsafeBufferPointer(start: channel, count: Int(out.frameLength)))
         // 60 seconds is the ceiling for a single request; an exercise is seconds long
         if recorded.count > 16_000 * 2 * 55 { engine.pause() }
+        runPartialIfDue()
+    }
+
+    /// Reads back what has been said so far, every second or so, so the words appear
+    /// as she speaks instead of all at once when she stops.
+    ///
+    /// Only the model on the phone can do this: sending a second of audio to a server
+    /// every second would be both slow and rude to her data plan.
+    private func runPartialIfDue() {
+        guard UzbekRecognizer.isAvailable, remoteLanguage == .uz,
+              !partialRunning, status == .listening else { return }
+        guard recorded.count > 16_000 * 2 / 2 else { return }          // at least half a second
+        guard Date().timeIntervalSince(lastPartialAt) > 0.9 else { return }
+
+        partialRunning = true
+        lastPartialAt = .now
+        let soFar = recorded
+        Task { [weak self] in
+            let heard = try? await UzbekRecognizer.shared.transcribe(
+                samples: UzbekRecognizer.floats(fromPCM16: soFar), quick: true)
+            await MainActor.run {
+                guard let self, self.status == .listening else {
+                    self?.partialRunning = false
+                    return
+                }
+                if let heard, !heard.isEmpty {
+                    self.transcript = heard
+                    self.isPartial = true
+                }
+                self.partialRunning = false
+            }
+        }
     }
 
     /// Minimal 16-bit PCM WAV header around the samples.
@@ -196,11 +243,20 @@ final class RecognizerService: NSObject {
         stop()
         guard samples.count > 16_000 / 4 else { status = .finished; return }   // under 0.25s: silence
         isTranscribing = true
-        defer { isTranscribing = false; status = .finished }
+        defer { isTranscribing = false; isPartial = false; status = .finished }
         let audio = Self.wav(samples)
 
-        // Azure first when it is configured: it is a recogniser, not a model being
-        // asked to act like one. Gemini otherwise — a free key, and no card.
+        // The model on the phone first: it was trained on Uzbek, it needs no network
+        // and no key, and it is the only one of the three that is actually a Uzbek
+        // recogniser rather than something standing in for one.
+        if UzbekRecognizer.isAvailable, remoteLanguage == .uz {
+            let floats = UzbekRecognizer.floats(fromPCM16: samples)
+            if let heard = try? await UzbekRecognizer.shared.transcribe(samples: floats),
+               !heard.isEmpty {
+                transcript = heard
+                return
+            }
+        }
         if AzureSpeech.isConfigured,
            let heard = try? await AzureSpeech.transcribe(wav: audio, locale: remoteLanguage.recognitionLocale) {
             transcript = heard
@@ -251,6 +307,9 @@ final class RecognizerService: NSObject {
         recorded = Data()
         listeningRemotely = false
         isTranscribing = false
+        isPartial = false
+        partialRunning = false
+        lastPartialAt = .distantPast
         status = .idle
     }
 }

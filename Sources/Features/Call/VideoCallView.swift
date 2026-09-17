@@ -318,8 +318,19 @@ struct VideoCallView: View {
         VStack(spacing: 12) {
             if engine.phase == .yourTurn {
                 if recording {
-                    Text(S.callListening[state.native])
-                        .font(.heading(14)).foregroundStyle(Palette.pink)
+                    VStack(spacing: 6) {
+                        Text(S.callListening[state.native])
+                            .font(.heading(14)).foregroundStyle(Palette.pink)
+                        if !recognizer.transcript.isEmpty {
+                            Text(recognizer.transcript)
+                                .font(.body(15)).foregroundStyle(.white)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(3)
+                                .opacity(recognizer.isPartial ? 0.6 : 1)
+                                .animation(.easeOut(duration: 0.15), value: recognizer.transcript)
+                                .padding(.horizontal, 20)
+                        }
+                    }
                 } else if recognizer.isTranscribing {
                     HStack(spacing: 7) {
                         ProgressView().tint(Palette.pink).scaleEffect(0.8)

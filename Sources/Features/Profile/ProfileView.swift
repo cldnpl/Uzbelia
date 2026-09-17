@@ -337,6 +337,11 @@ struct ProfileView: View {
                         Label(S.realVoice[state.native], systemImage: "checkmark.seal.fill")
                             .font(.heading(11.5)).foregroundStyle(Palette.green)
                             .fixedSize(horizontal: false, vertical: true)
+                        if RecognizerService.shared.usesOnDevice(for: state.target) {
+                            Label(S.onDeviceEars[state.native], systemImage: "waveform.badge.mic")
+                                .font(.heading(11.5)).foregroundStyle(Palette.green)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                         HStack(spacing: 8) {
                             Text(S.voiceCached[state.native] + " " + cacheLabel)
                                 .font(.plain(11)).foregroundStyle(Palette.inkFaint)

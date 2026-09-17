@@ -508,8 +508,19 @@ struct SpeakExercise: View {
             VStack(spacing: 12) {
                 micButton
                 if recognizer.status == .listening {
-                    Text(S.listening[state.native])
-                        .font(.heading(14)).foregroundStyle(Palette.pink)
+                    VStack(spacing: 6) {
+                        Text(S.listening[state.native])
+                            .font(.heading(14)).foregroundStyle(Palette.pink)
+                        // the words appear as she says them, not all at once at the end
+                        if !recognizer.transcript.isEmpty {
+                            Text(recognizer.transcript)
+                                .font(.body(17)).foregroundStyle(Palette.ink)
+                                .multilineTextAlignment(.center)
+                                .opacity(recognizer.isPartial ? 0.65 : 1)
+                                .animation(.easeOut(duration: 0.15), value: recognizer.transcript)
+                                .padding(.horizontal, 20)
+                        }
+                    }
                 } else if recognizer.isTranscribing {
                     HStack(spacing: 7) {
                         ProgressView().tint(Palette.pink).scaleEffect(0.8)

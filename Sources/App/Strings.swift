@@ -222,6 +222,7 @@ enum S {
     static let approximateVoice = t("iOS non ha una voce uzbeka: usiamo la voce più vicina disponibile.", "iOS'da o'zbek ovozi yo'q: eng yaqin mavjud ovozdan foydalanamiz.")
     static let approximateRecog = t("Il riconoscimento vocale uzbeko è approssimato con una lingua vicina.", "O'zbekcha nutqni tanish yaqin til yordamida taxminiy baholanadi.")
     static let realVoice      = t("Voce uzbeka vera", "Haqiqiy o'zbek ovozi")
+    static let onDeviceEars   = t("Riconoscimento uzbeko sul telefono, offline", "O'zbekcha nutqni tanish telefonda, oflayn")
     static let voiceCached    = t("Audio già scaricato:", "Yuklab olingan audio:")
     static let emptyVoiceCache = t("Svuota", "Tozalash")
     static let resetTitle     = t("Azzera i progressi", "Yutuqlarni tozalash")

@@ -164,10 +164,20 @@ enum AIClient {
         let nativeName = native == .it ? "Italian" : "Uzbek"
         let system = """
         \(persona(targetName: targetName, nativeName: nativeName, level: context.level))
-        React to what she just said in one short, specific sentence — pick up a detail she \
-        mentioned, never a generic "interesting". If her answer was empty or in the wrong \
-        language, move on gently without scolding her. Do not correct her mistakes during \
-        the call; that happens afterwards.
+
+        You are having ONE conversation, not working through a list of questions. Hold the \
+        thread: your question must follow from what she has just told you. Take a detail out \
+        of her answer and go further into that — which one, who with, why, what happened \
+        next, how it went. Stay on a subject for two or three exchanges before moving on, \
+        and when you do move on let the new subject grow out of the old one rather than \
+        arrive from nowhere. Never ask again something the transcript shows she has already \
+        answered, and refer back to what she said earlier when it is natural to.
+
+        React to what she just said in one short, specific sentence — echo the detail she \
+        mentioned, never a generic "interesting". If her answer was empty, in the wrong \
+        language, or you could not make it out, say so kindly and ask the same thing in an \
+        easier way instead of moving on. Do not correct her mistakes during the call; that \
+        happens afterwards.
         Reply with JSON only: {"reaction": {"target": "...", "native": "..."}\
         \(closing ? "" : ", \"question\": {\"target\": \"...\", \"native\": \"...\"}")}.
         """
@@ -178,12 +188,12 @@ enum AIClient {
         let prompt = """
         \(context.briefing)
 
-        The call so far:
+        The call so far, oldest first:
         \(transcript)
 
         \(closing
-           ? "React to her last answer and then say goodbye warmly. Send no question."
-           : "React to her last answer, then ask the one question that genuinely follows from it. Keep it inside what she has studied.")
+           ? "React to her last answer, then say goodbye warmly, mentioning something she told you earlier in the call. Send no question."
+           : "React to her last answer, then ask the one question that genuinely follows from it — about a detail she just gave you, not a new subject. Keep the words inside what she has studied.")
         """
         let text = try await complete(provider: provider, key: key, system: system,
                                       prompt: prompt, maxTokens: 500, json: true,

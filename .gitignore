@@ -12,3 +12,8 @@ xcuserdata/
 # Python bytecode from the content pipeline
 content/__pycache__/
 *.pyc
+
+# Build artefacts for on-device Uzbek speech recognition (see
+# scripts/build-uzbek-recognizer.sh). Too large for git; rebuilt on demand.
+Frameworks/whisper.xcframework/
+Resources/Models/*.bin

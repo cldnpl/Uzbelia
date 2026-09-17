@@ -25,6 +25,15 @@ targets:
     sources:
       - path: Sources
       - path: Resources
+    dependencies:
+      # On-device Uzbek speech recognition. Both this and the model in
+      # Resources/Models are build artefacts kept out of git: rebuild them with
+      # ./scripts/build-uzbek-recognizer.sh (it takes a few minutes and ~1 GB of
+      # downloads). Without them the app still builds — the recogniser simply
+      # reports itself unavailable and the old fallbacks take over.
+      - framework: Frameworks/whisper.xcframework
+        embed: true
+        codeSign: true
     settings:
       base:
         GENERATE_INFOPLIST_FILE: "YES"

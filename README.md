@@ -254,6 +254,10 @@ Con una chiave la videochiamata diventa **una conversazione scritta sul momento*
 
 - ogni turno è generato da quello che hai appena risposto — Anorcha reagisce a un
   dettaglio che hai detto e la domanda dopo nasce da lì, invece di leggere una scaletta;
+- **tiene il filo**: resta sullo stesso argomento per due o tre scambi prima di spostarsi,
+  non richiede mai una cosa a cui hai già risposto, e torna su quello che le hai detto
+  prima. Le dici che hai preso il tè con tua sorella e ti chiede dov'è; le dici che si
+  chiama Malika e lavora a Tashkent e ti chiede che lavoro fa;
 - il modello riceve un *briefing* su di te: capitolo in corso, lezioni dentro al
   capitolo, vocabolario appena studiato, capitoli già fatti, le parole che sbagli più
   spesso, i giorni di fila e l'ora del giorno;
@@ -371,12 +375,40 @@ anche l'ascolto:
 Chiave e regione si incollano in `Secrets.swift`, da `portal.azure.com` → *Create a
 resource* → **Speech** → tier **F0** → *Keys and Endpoint*.
 
-### E il riconoscimento, senza carta?
+### Il riconoscimento: lo fa il telefono
 
-Lo fa **Gemini**, con la stessa chiave gratuita delle videochiamate (AI Studio non chiede
-nessuna carta). L'app registra a 16 kHz e manda l'audio al modello, che scrive quello che
-ha sentito. L'ordine è: Azure se c'è la chiave, altrimenti Gemini, altrimenti il turco
-approssimato di iOS come è sempre stato.
+Dentro l'app gira **[`navai-uz/whisper-small-uzbek`](https://huggingface.co/navai-uz/whisper-small-uzbek)**
+— un Whisper small rifinito su uzbeko (Common Voice 22, FLEURS, FeruzaSpeech) — tramite
+whisper.cpp, **sul dispositivo**: niente chiave, niente account, niente rete.
+
+Sullo stesso spezzone di «Ertaga ko'rishguncha! Men xursandman.»:
+
+| | |
+|---|---|
+| Apple, che ripiega sul turco | `Selam gece Özbekçe orada yaptım` |
+| Gemini | `Ertagacha ko'rishguncha Men xursandman` |
+| **Il modello sul telefono** | **`ertaga koʻrishguncha men xursandman`** |
+
+L'ordine è: il modello sul telefono, poi Azure se c'è la chiave, poi Gemini, e solo in
+ultimo il turco approssimato di iOS.
+
+**Le parole compaiono mentre parli.** Circa una volta al secondo il modello rilegge quello
+che hai detto finora e lo scrive sotto, in grigio chiaro perché è ancora una lettura
+provvisoria; quando smetti, una passata completa la sostituisce con la versione buona.
+Questo lo può fare solo il modello a bordo: mandare un secondo di audio al secondo a un
+server non sarebbe né veloce né gentile col traffico dati. Con le altre vie il testo
+compare tutto insieme alla fine, come prima.
+
+**I due artefatti non stanno in git** — l'XCFramework (58 MB) e il modello (181 MB) sono
+troppo grossi. Si ricostruiscono con:
+
+```bash
+./scripts/build-uzbek-recognizer.sh
+```
+
+Serve `cmake` (`brew install cmake`) e scarica circa 1 GB; ci mette qualche minuto. Senza
+quei file **l'app compila lo stesso**: il riconoscitore si dichiara non disponibile e
+valgono le vie di prima. Con loro, l'app pesa circa 200 MB in più.
 
 **L'audio viene messo in cache su disco**, per voce e per velocità: un corso ripete di
 continuo le stesse parole, quindi dopo il primo passaggio su un capitolo non esce quasi
