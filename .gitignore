@@ -1,0 +1,14 @@
+# Xcode
+DerivedData/
+build/
+*.xcuserdatad/
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+
+# macOS
+.DS_Store
+
+# Python bytecode from the content pipeline
+content/__pycache__/
+*.pyc
