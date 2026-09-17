@@ -352,7 +352,8 @@ struct NodeSheet: View {
             if case .lesson(let lesson) = node.kind, unlocked {
                 VStack(alignment: .leading, spacing: 6) {
                     SectionHeader(title: S.keyWords[state.native].uppercased())
-                    FlowChips(items: Array(lesson.vocab.prefix(6)).map { $0[state.target] })
+                    FlowChips(items: Array(lesson.vocab.prefix(6)).map { $0[state.target] },
+                              language: state.target)
                 }
             }
 
@@ -444,6 +445,9 @@ struct NodeSheet: View {
 struct FlowChips: View {
     let items: [String]
     var tint: Color = Palette.brand
+    /// Set when the chips hold words in the language being learnt: a tap then reads
+    /// the word out loud.
+    var language: Language?
 
     var body: some View {
         FlowLayout(spacing: 6, lineSpacing: 6) {
@@ -454,6 +458,7 @@ struct FlowChips: View {
                     .padding(.horizontal, 10).padding(.vertical, 5)
                     .background(Capsule().fill(tint.opacity(0.12)))
                     .lineLimit(1)
+                    .speakOnTap(item, language: language)
             }
         }
     }

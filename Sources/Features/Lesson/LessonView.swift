@@ -183,7 +183,14 @@ struct LessonView: View {
                     Button {
                         if verdict == nil { performCheck(engine) } else { performContinue(engine) }
                     } label: {
-                        Text(verdict == nil ? S.checkAnswer[state.native] : S.continueBtn[state.native])
+                        if engine.checking {
+                            HStack(spacing: 8) {
+                                ProgressView().tint(.white)
+                                Text(S.doubleChecking[state.native])
+                            }
+                        } else {
+                            Text(verdict == nil ? S.checkAnswer[state.native] : S.continueBtn[state.native])
+                        }
                     }
                     .buttonStyle(.chunky(buttonFill(verdict), buttonEdge(verdict)))
                     .disabled(verdict == nil && !engine.canCheck)
@@ -205,7 +212,7 @@ struct LessonView: View {
 
     private func bannerTint(_ v: Verdict?) -> Color? {
         switch v {
-        case .correct, .almost: return Palette.green
+        case .correct, .almost, .alternative: return Palette.green
         case .wrong: return Palette.red
         case nil: return nil
         }
@@ -232,16 +239,31 @@ struct LessonView: View {
 
     /// The right answer, always read back with its translation — a correct pick the
     /// learner half-guessed should still tell her what she just said.
-    private func solutionLine(_ v: Verdict, ex: Exercise) -> FeedbackLine? {
+    private func solutionLine(_ v: Verdict, ex: Exercise, engine: LessonEngine) -> FeedbackLine? {
         let text: String
-        if case .almost(let fix) = v, ex.kind != .fillBlank { text = fix } else { text = ex.solution }
+        switch v {
+        case .alternative:
+            // her wording was accepted, so hers is the answer worth showing first
+            text = engine.givenAnswer
+        case .almost(let fix):
+            text = ex.kind == .fillBlank ? ex.solution : fix
+        case .correct, .wrong:
+            text = ex.solution
+        }
         guard !text.isEmpty else { return nil }
         return FeedbackLine(text: text, meaning: ex.meaning(of: text))
     }
 
     /// What she actually answered, translated too — but only when it differs from
     /// the solution, so a clean hit stays a single line.
-    private func givenLine(ex: Exercise, engine: LessonEngine) -> FeedbackLine? {
+    private func givenLine(_ v: Verdict, ex: Exercise, engine: LessonEngine) -> FeedbackLine? {
+        // when her own wording was accepted, the second line is the book's version
+        if case .alternative(let canonical, _) = v {
+            guard !canonical.isEmpty,
+                  Grader.normalise(canonical) != Grader.normalise(engine.givenAnswer) else { return nil }
+            return FeedbackLine(label: S.courseSays[state.native], text: canonical,
+                                meaning: ex.meaning(of: canonical))
+        }
         let raw = engine.givenAnswer.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !raw.isEmpty else { return nil }
         let key = Grader.normalise(raw)
@@ -268,12 +290,13 @@ struct LessonView: View {
     @ViewBuilder
     private func feedbackBanner(_ v: Verdict, engine: LessonEngine) -> some View {
         let ex = engine.current
-        let solution = ex.flatMap { solutionLine(v, ex: $0) }
-        let given = ex.flatMap { givenLine(ex: $0, engine: engine) }
+        let solution = ex.flatMap { solutionLine(v, ex: $0, engine: engine) }
+        let given = ex.flatMap { givenLine(v, ex: $0, engine: engine) }
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: {
                 switch v {
                 case .correct: return "checkmark.circle.fill"
+                case .alternative: return "checkmark.circle.badge.questionmark.fill"
                 case .almost: return "exclamationmark.circle.fill"
                 case .wrong: return "xmark.circle.fill"
                 }
@@ -286,6 +309,9 @@ struct LessonView: View {
                 case .correct:
                     Text(S.correct[state.native])
                         .font(.heading(17)).foregroundStyle(Palette.greenDeep)
+                case .alternative:
+                    Text(S.alsoRight[state.native])
+                        .font(.heading(17)).foregroundStyle(Palette.greenDeep)
                 case .almost:
                     Text(S.almost[state.native]).font(.heading(15)).foregroundStyle(Palette.greenDeep)
                 case .wrong:
@@ -295,12 +321,18 @@ struct LessonView: View {
                 if let solution {
                     render(solution, size: 16, tint: Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
+                        .speakOnTap(solution.text, language: ex?.answerLanguage)
                 }
                 if let given {
                     render(given, size: 13.5, tint: Palette.inkSoft)
                         .fixedSize(horizontal: false, vertical: true)
+                        .speakOnTap(given.text, language: ex?.answerLanguage)
                 }
 
+                if case .alternative(_, let note) = v, let note, !note.isEmpty {
+                    Text(note).font(.plain(12.5)).foregroundStyle(Palette.inkSoft)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if let ex, ex.kind == .speak, let score = engine.speechScore {
                     Text("\(Int(score * 100))%")
                         .font(.plain(12)).foregroundStyle(Palette.inkSoft)
@@ -332,25 +364,69 @@ struct LessonView: View {
     // MARK: - Actions
 
     private func performCheck(_ engine: LessonEngine) {
-        let v = engine.check()
-        switch v {
-        case .correct, .almost:
+        let v = engine.grade()
+        guard let ex = engine.current else { return }
+
+        // A translation she wrote herself can be right in more than one way. Before
+        // the miss is recorded, see whether the course, her own history, or the
+        // assistant recognises her wording.
+        guard case .wrong = v, AnswerJudge.isOpen(ex.kind) else {
+            settle(v, ex: ex, engine: engine)
+            return
+        }
+        let given = engine.givenAnswer
+        if let offline = AnswerJudge.offline(given, for: ex,
+                                             remembered: state.alternatives(for: ex.answer)) {
+            settle(offline, ex: ex, engine: engine)
+            return
+        }
+        guard AIClient.isConfigured(provider: state.aiProvider, key: state.aiKey) else {
+            settle(v, ex: ex, engine: engine)
+            return
+        }
+        engine.checking = true
+        Task {
+            let second = await AnswerJudge.secondOpinion(given, for: ex,
+                                                         level: request.level ?? .a1,
+                                                         native: state.native,
+                                                         provider: state.aiProvider,
+                                                         apiKey: state.aiKey)
+            await MainActor.run {
+                engine.checking = false
+                if case .alternative = second {
+                    // learnt for good: the same answer never has to be argued for twice
+                    state.rememberAlternative(given, for: ex.answer)
+                }
+                settle(second ?? v, ex: ex, engine: engine)
+            }
+        }
+    }
+
+    /// Records the verdict, and pays for it.
+    private func settle(_ v: Verdict, ex: Exercise, engine: LessonEngine) {
+        withAnimation(.easeOut(duration: 0.18)) { engine.commit(v) }
+        if v.isAccepted {
             Feedback.success(); Feedback.dingCorrect()
-        case .wrong:
+        } else {
             Feedback.failure(); Feedback.dingWrong()
             if request.consumesHearts {
                 state.loseHeart()
                 if state.hearts == 0 { outOfHearts = true }
             }
         }
-        if let ex = engine.current {
-            state.gradePair(ex.pair, correct: { if case .wrong = v { return false } else { return true } }())
-        }
+        state.gradePair(ex.pair, correct: v.isAccepted)
+
         // read the answer back on production exercises
-        if let ex = engine.current, ex.answerLanguage == state.target, ex.kind != .speak {
-            if case .correct = v {
-                SpeechService.shared.speak(ex.answer, language: state.target, rate: state.settings.speechRate)
-            }
+        guard ex.answerLanguage == state.target, ex.kind != .speak else { return }
+        switch v {
+        case .correct:
+            SpeechService.shared.speak(ex.answer, language: state.target, rate: state.settings.speechRate)
+        case .alternative:
+            // her own wording is the one worth hearing back
+            SpeechService.shared.speak(engine.givenAnswer, language: state.target,
+                                       rate: state.settings.speechRate)
+        case .almost, .wrong:
+            break
         }
     }
 

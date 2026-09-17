@@ -197,6 +197,60 @@ enum AIClient {
         return Turn(reaction: reaction, question: decoded.question.map(bilingual))
     }
 
+    // MARK: - Is this another way of saying it?
+
+    struct Judgement: Decodable {
+        let acceptable: Bool
+        let note: String
+    }
+
+    /// Decides whether a translation the course did not list is nevertheless right.
+    ///
+    /// Kept deliberately strict on meaning and deliberately generous on register: a
+    /// colloquial, regional or shorter way of saying the same thing is a right answer,
+    /// and being told otherwise is how a learner stops trusting the app.
+    static func judge(provider: AIProvider,
+                      key: String,
+                      asked: String,
+                      askedLanguage: Language,
+                      expected: String,
+                      given: String,
+                      answerLanguage: Language,
+                      native: Language,
+                      level: CEFR) async throws -> Judgement {
+        let answerName = answerLanguage == .it ? "Italian" : "Uzbek"
+        let askedName = askedLanguage == .it ? "Italian" : "Uzbek"
+        let nativeName = native == .it ? "Italian" : "Uzbek"
+        let system = """
+        You are a fair, experienced \(answerName) examiner marking one translation from a \
+        CEFR \(level.label) learner whose own language is \(nativeName).
+        Accept the answer whenever it is a natural way a native speaker could say the same \
+        thing: colloquial, shortened, regional and more formal wordings all count, and so \
+        does a different but equally correct construction. Word order, punctuation, \
+        capitalisation and optional pronouns never matter.
+        Reject it only when it means something different, leaves out or adds meaning, is \
+        written in the wrong language, or is not grammatical \(answerName).
+        Never reject an answer merely because it is not the wording in the textbook.
+        Reply with JSON only: {"acceptable": true|false, "note": "<at most 12 words in \
+        \(nativeName): if accepted, what her wording conveys or when it is used; if not, \
+        what is wrong with it>"}.
+        """
+        let prompt = """
+        Asked to translate from \(askedName): "\(asked)"
+        The textbook wording in \(answerName): "\(expected)"
+        What the learner wrote: "\(given)"
+        Is what she wrote acceptable?
+        """
+        let text = try await complete(provider: provider, key: key, system: system,
+                                      prompt: prompt, maxTokens: 300, json: true,
+                                      temperature: 0)
+        guard let decoded = try? JSONDecoder().decode(Judgement.self,
+                                                      from: Data(extractJSON(text).utf8)) else {
+            throw Failure.decoding
+        }
+        return decoded
+    }
+
     // MARK: - End-of-call correction
 
     private struct GeneratedReview: Decodable {

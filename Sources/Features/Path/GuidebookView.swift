@@ -131,9 +131,8 @@ struct PairRow: View {
     var body: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(pair[state.target])
-                    .font(.body(compact ? 15 : 16)).foregroundStyle(Palette.ink)
-                    .fixedSize(horizontal: false, vertical: true)
+                SpeakableText(text: pair[state.target], language: state.target,
+                              font: .body(compact ? 15 : 16))
                 Text(pair[state.native])
                     .font(.plain(compact ? 13 : 14)).foregroundStyle(Palette.inkSoft)
                     .fixedSize(horizontal: false, vertical: true)

@@ -78,6 +78,10 @@ struct PersistedState: Codable {
     var mistakesBank: [Pair] = []
     /// Questions Anorcha has already asked, so a generated call can steer around them.
     var recentCallQuestions: [String] = []
+    /// Wordings the course does not list but that turned out to be perfectly good:
+    /// norm(expected answer) → the other ways of saying it she has had accepted.
+    /// Once learnt they are accepted offline, for good.
+    var acceptedAlternatives: [String: [String]] = [:]
 }
 
 // MARK: - Observable app state
@@ -109,6 +113,42 @@ final class AppState {
     var unlockedLevels: Set<String> { s.unlockedLevels }
     var mistakesBank: [Pair] { s.mistakesBank }
     var recentCallQuestions: [String] { s.recentCallQuestions }
+
+    // MARK: - Which assistant is actually in use
+
+    /// A key typed in Profilo wins, so a different one can be tried without a rebuild;
+    /// otherwise the app falls back to whatever was compiled in, and to nothing at all
+    /// when neither exists — at which point everything simply runs offline.
+    private var assistant: (provider: AIProvider, key: String) {
+        let typed = s.settings.aiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.settings.aiProvider != .none, !typed.isEmpty { return (s.settings.aiProvider, typed) }
+        return Secrets.builtIn ?? (.none, "")
+    }
+
+    var aiProvider: AIProvider { assistant.provider }
+    var aiKey: String { assistant.key }
+    var aiIsBuiltIn: Bool {
+        Secrets.builtIn != nil && s.settings.aiKey.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    /// Other accepted ways of saying `expected`, learnt from earlier answers.
+    func alternatives(for expected: String) -> [String] {
+        s.acceptedAlternatives[Grader.normalise(expected)] ?? []
+    }
+
+    /// Files away a wording that was judged just as good, so the same answer is never
+    /// marked wrong twice — and never needs a second network call.
+    func rememberAlternative(_ given: String, for expected: String) {
+        let key = Grader.normalise(expected)
+        let value = Grader.normalise(given)
+        guard !key.isEmpty, !value.isEmpty, key != value else { return }
+        var list = s.acceptedAlternatives[key] ?? []
+        guard !list.contains(value) else { return }
+        list.append(value)
+        if list.count > 8 { list.removeFirst(list.count - 8) }
+        s.acceptedAlternatives[key] = list
+        save()
+    }
 
     /// When true the UI shows ∞ instead of counters and nothing is ever consumed.
     var unlimited: Bool { s.settings.unlimitedResources }
@@ -581,7 +621,7 @@ extension PersistedState {
     enum CodingKeys: String, CodingKey {
         case nativeLanguage, xp, gems, hearts, heartsStamp, streak, lastPracticeDay, freezes
         case records, srs, history, unlockedLevels, settings, onboarded, mistakesBank
-        case recentCallQuestions
+        case recentCallQuestions, acceptedAlternatives
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -601,5 +641,7 @@ extension PersistedState {
         onboarded = try c.decodeIfPresent(Bool.self, forKey: .onboarded) ?? false
         mistakesBank = try c.decodeIfPresent([Pair].self, forKey: .mistakesBank) ?? []
         recentCallQuestions = try c.decodeIfPresent([String].self, forKey: .recentCallQuestions) ?? []
+        acceptedAlternatives = try c.decodeIfPresent([String: [String]].self,
+                                                     forKey: .acceptedAlternatives) ?? [:]
     }
 }

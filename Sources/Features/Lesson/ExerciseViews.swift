@@ -34,10 +34,7 @@ struct PromptCard: View {
             Mascot(mood: mood, size: 64)
             SpeechBubble {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(text)
-                        .font(.body(20))
-                        .foregroundStyle(Palette.ink)
-                        .fixedSize(horizontal: false, vertical: true)
+                    SpeakableText(text: text, language: language, font: .body(20))
                     if speakable && language == state.target {
                         AudioButtons(text: text, language: language, compact: true)
                     }
@@ -174,12 +171,12 @@ struct ChoiceExercise: View {
                               selected: engine.chosen == opt,
                               state: optionState(opt),
                               index: i) {
-                        guard engine.verdict == nil else { return }
                         Feedback.tap()
+                        // an option in the language she is learning is always worth
+                        // hearing, whether or not the question is already answered
+                        speakIfTarget(opt, language: ex.answerLanguage, state: state)
+                        guard engine.verdict == nil else { return }
                         engine.chosen = opt
-                        if ex.answerLanguage == state.target {
-                            SpeechService.shared.speak(opt, language: state.target, rate: state.settings.speechRate)
-                        }
                     }
                 }
             }
@@ -215,8 +212,10 @@ struct ListenChoiceExercise: View {
                               selected: engine.chosen == opt,
                               state: optionState(opt),
                               index: i) {
+                        Feedback.tap()
+                        speakIfTarget(opt, language: ex.answerLanguage, state: state)
                         guard engine.verdict == nil else { return }
-                        Feedback.tap(); engine.chosen = opt
+                        engine.chosen = opt
                     }
                 }
             }
@@ -281,8 +280,9 @@ struct WordBankExercise: View {
             // answer tray
             VStack(spacing: 0) {
                 ChipFlow(items: engine.built.map { (id: $0, text: ex.tokens[$0]) }) { item in
-                    guard engine.verdict == nil else { return }
                     Feedback.tap()
+                    speakIfTarget(item.text, language: ex.answerLanguage, state: state)
+                    guard engine.verdict == nil else { return }
                     engine.built.removeAll { $0 == item.id }
                 }
                 .frame(minHeight: 48, alignment: .topLeading)
@@ -296,8 +296,9 @@ struct WordBankExercise: View {
             ChipFlow(items: ex.tokens.enumerated()
                 .filter { !engine.built.contains($0.offset) }
                 .map { (id: $0.offset, text: $0.element) }) { item in
-                    guard engine.verdict == nil else { return }
                     Feedback.tap()
+                    speakIfTarget(item.text, language: ex.answerLanguage, state: state)
+                    guard engine.verdict == nil else { return }
                     engine.built.append(item.id)
                 }
                 .padding(.top, 6)
@@ -494,8 +495,7 @@ struct SpeakExercise: View {
                 Mascot(mood: .cheer, size: 60)
                 SpeechBubble {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(ex.prompt).font(.body(21)).foregroundStyle(Palette.ink)
-                            .fixedSize(horizontal: false, vertical: true)
+                        SpeakableText(text: ex.prompt, language: ex.promptLanguage, font: .body(21))
                         if let hint = ex.hint {
                             Text(hint).font(.plain(13)).foregroundStyle(Palette.inkSoft)
                         }
@@ -608,8 +608,11 @@ struct MatchExercise: View {
                 let selected = isLeft ? engine.matchLeft == item : engine.matchRight == item
                 let isWrong = wrongPair.map { $0.0 == item || $0.1 == item } ?? false
                 Button {
-                    guard !done else { return }
                     Feedback.tap()
+                    // the left column is the language she is learning: let her hear a
+                    // tile again even once it has been paired off
+                    if isLeft { speakIfTarget(item, language: state.target, state: state) }
+                    guard !done else { return }
                     if isLeft { engine.matchLeft = item } else { engine.matchRight = item }
                     evaluate()
                 } label: {
@@ -676,9 +679,8 @@ struct FillBlankExercise: View {
                 Mascot(mood: .think, size: 60)
                 SpeechBubble {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(displaySentence)
-                            .font(.body(20)).foregroundStyle(Palette.ink)
-                            .fixedSize(horizontal: false, vertical: true)
+                        SpeakableText(text: displaySentence, language: ex.answerLanguage,
+                                      font: .body(20))
                         if let hint = ex.hint {
                             Text(hint).font(.plain(13)).foregroundStyle(Palette.inkSoft)
                         }
@@ -690,8 +692,10 @@ struct FillBlankExercise: View {
             FlowLayout(spacing: 9, lineSpacing: 9) {
                 ForEach(ex.options, id: \.self) { opt in
                     Button {
+                        Feedback.tap()
+                        speakIfTarget(opt, language: ex.answerLanguage, state: state)
                         guard engine.verdict == nil else { return }
-                        Feedback.tap(); engine.chosen = opt
+                        engine.chosen = opt
                     } label: {
                         Text(opt)
                             .font(.body(17))

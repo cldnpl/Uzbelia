@@ -37,6 +37,9 @@ final class LessonEngine {
     var speechScore: Double?
     var spoken = ""                 // what the recogniser heard on a .speak question
     var skippedSpeaking = false
+    /// True while a rejected free answer is being reconsidered. Nothing is recorded
+    /// and no heart is lost until that comes back.
+    var checking = false
 
     // stats
     private(set) var completed: Set<UUID> = []
@@ -59,7 +62,7 @@ final class LessonEngine {
     var mistakePairs: [Pair] { mistakes }
 
     var canCheck: Bool {
-        guard let ex = current, verdict == nil else { return false }
+        guard let ex = current, verdict == nil, !checking else { return false }
         switch ex.kind {
         case .choice, .listenChoice, .fillBlank: return chosen != nil
         case .type, .listenType: return !typed.trimmingCharacters(in: .whitespaces).isEmpty
@@ -89,37 +92,45 @@ final class LessonEngine {
 
     // MARK: - Checking
 
-    @discardableResult
-    func check() -> Verdict {
+    /// Marks the answer without recording anything. Split from `commit` so a free
+    /// answer can be reconsidered — a colloquial wording the course never listed is
+    /// still right — before it counts against her.
+    func grade() -> Verdict {
         guard let ex = current else { return .correct }
-        let v: Verdict
         switch ex.kind {
         case .choice, .listenChoice, .fillBlank:
-            v = (chosen.map { Grader.normalise($0) == Grader.normalise(ex.answer) } ?? false)
+            return (chosen.map { Grader.normalise($0) == Grader.normalise(ex.answer) } ?? false)
                 ? .correct : .wrong(ex.answer)
         case .wordBank:
-            v = Grader.grade(builtSentence, expected: ex.answer, tolerant: false)
+            return Grader.grade(builtSentence, expected: ex.answer, tolerant: false)
         case .type, .listenType:
-            v = Grader.grade(typed, expected: ex.answer)
+            return Grader.grade(typed, expected: ex.answer)
         case .speak:
             let score = speechScore ?? 0
-            v = score >= 0.65 ? .correct : (score >= 0.4 ? .almost(ex.answer) : .wrong(ex.answer))
+            return score >= 0.65 ? .correct : (score >= 0.4 ? .almost(ex.answer) : .wrong(ex.answer))
         case .match:
-            v = .correct
+            return .correct
         }
+    }
+
+    /// Records the verdict and shows it.
+    func commit(_ v: Verdict) {
+        guard let ex = current else { return }
         register(v, for: ex)
         verdict = v
+    }
+
+    @discardableResult
+    func check() -> Verdict {
+        let v = grade()
+        commit(v)
         return v
     }
 
     private func register(_ v: Verdict, for ex: Exercise) {
         attempts += 1
-        let ok: Bool
-        switch v {
-        case .correct: ok = true; hits += 1
-        case .almost: ok = true; hits += 1
-        case .wrong: ok = false; mistakes.append(ex.pair)
-        }
+        let ok = v.isAccepted
+        if ok { hits += 1 } else { mistakes.append(ex.pair) }
         var bucket = perSkill[ex.trainsSkill] ?? (0, 0)
         bucket.total += 1
         if ok { bucket.hit += 1 }
@@ -181,6 +192,7 @@ final class LessonEngine {
         matchWrong = false
         speechScore = nil
         spoken = ""
+        checking = false
     }
 
     // MARK: - Rewards

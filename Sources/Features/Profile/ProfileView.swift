@@ -341,6 +341,12 @@ struct ProfileView: View {
             Label(S.aiTitle[state.native], systemImage: "sparkles")
                 .font(.body(14)).foregroundStyle(Palette.ink)
 
+            if st.aiIsBuiltIn {
+                Label(S.aiBuiltIn[state.native], systemImage: "checkmark.seal.fill")
+                    .font(.heading(12)).foregroundStyle(Palette.green)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             Picker("", selection: Binding(get: { st.settings.aiProvider },
                                           set: { st.settings.aiProvider = $0; aiTest = .idle })) {
                 ForEach(AIProvider.allCases) { provider in
@@ -395,7 +401,7 @@ struct ProfileView: View {
                 }
             }
 
-            Text(st.settings.aiProvider == .none ? S.aiNote[state.native] : S.aiFreeHint[state.native])
+            Text(st.aiProvider == .none ? S.aiNote[state.native] : S.aiFreeHint[state.native])
                 .font(.plain(11.5)).foregroundStyle(Palette.inkFaint)
                 .fixedSize(horizontal: false, vertical: true)
         }

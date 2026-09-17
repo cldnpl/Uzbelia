@@ -58,7 +58,8 @@ struct ResultsView: View {
                     SectionHeader(title: S.reviewMistakes[state.native].uppercased())
                     ForEach(results.mistakes.prefix(4)) { pair in
                         HStack {
-                            Text(pair[state.target]).font(.body(15)).foregroundStyle(Palette.ink)
+                            SpeakableText(text: pair[state.target], language: state.target,
+                                          font: .body(15))
                             Spacer()
                             Text(pair[state.native]).font(.plain(14)).foregroundStyle(Palette.inkSoft)
                         }

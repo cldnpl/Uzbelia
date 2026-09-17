@@ -72,9 +72,8 @@ struct StoryReadingView: View {
                 Text(line.who.uppercased())
                     .font(.heading(10)).kerning(0.8)
                     .foregroundStyle(mine ? Palette.brand : Palette.pink)
-                Text(line[state.target])
-                    .font(.body(17)).foregroundStyle(Palette.ink)
-                    .fixedSize(horizontal: false, vertical: true)
+                SpeakableText(text: line[state.target], language: state.target,
+                              font: .body(17))
                 if translated.contains(i) {
                     Text(line[state.native])
                         .font(.plain(14)).foregroundStyle(Palette.inkSoft)

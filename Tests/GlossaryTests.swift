@@ -78,3 +78,30 @@ final class GlossaryTests: XCTestCase {
         XCTAssertEqual(ex.meaning(of: ex.solution)?.text, "Sono felice")
     }
 }
+
+/// Tap-to-hear: the rules that decide whether a tap should say anything at all.
+final class SpeakableTests: XCTestCase {
+
+    func testOnlyTheLanguageBeingLearntIsSpokenAloud() {
+        let state = AppState(persistent: false)
+        state.chooseCourse(native: .it)
+        XCTAssertEqual(state.target, .uz)
+
+        // the guard every tap goes through
+        func wouldSpeak(_ text: String, _ language: Language?) -> Bool {
+            guard let language, language == state.target else { return false }
+            return !text.trimmingCharacters(in: .whitespaces).isEmpty
+        }
+
+        XCTAssertTrue(wouldSpeak("xursandman", .uz))
+        XCTAssertFalse(wouldSpeak("sono felice", .it), "her own language needs no pronunciation")
+        XCTAssertFalse(wouldSpeak("   ", .uz))
+        XCTAssertFalse(wouldSpeak("xursandman", nil))
+    }
+
+    func testTheOtherCourseSpeaksTheOtherLanguage() {
+        let state = AppState(persistent: false)
+        state.chooseCourse(native: .uz)
+        XCTAssertEqual(state.target, .it)
+    }
+}

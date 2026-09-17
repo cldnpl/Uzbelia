@@ -2,8 +2,18 @@ import Foundation
 
 enum Verdict: Equatable {
     case correct
+    /// Not the wording the course expects, but it means the same thing. Carries the
+    /// course's own version and, when there is one, a line saying why it is fine.
+    case alternative(canonical: String, note: String?)
     case almost(String)     // accepted, but show the polished spelling
     case wrong(String)      // the expected answer
+
+    var isAccepted: Bool {
+        switch self {
+        case .correct, .alternative, .almost: return true
+        case .wrong: return false
+        }
+    }
 }
 
 enum Grader {

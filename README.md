@@ -53,8 +53,29 @@ Se modifichi `project.yml` (o aggiungi cartelle di sorgenti), rigeneralo con `xc
 La firma è **automatica** e il campo Team è volutamente vuoto, così Xcode ti fa scegliere
 il tuo.
 
-Requisiti: Xcode 16+, iOS 17.0 o successivo. Nessuna dipendenza esterna, nessun account,
-nessuna rete: **funziona interamente offline**.
+Requisiti: Xcode 16+, iOS 17.0 o successivo. Nessuna dipendenza esterna, nessun account.
+Senza chiave IA **funziona interamente offline**; con una chiave la rete serve solo per la
+videochiamata e per il giudizio sulle traduzioni alternative, e se manca ricade sull'offline.
+
+### Usarla in due
+
+L'app è pensata per una coppia che impara la lingua dell'altro: stesso corpus, due versi.
+
+- **Ognuno sul proprio iPhone.** Ripeti la procedura qui sopra collegando il suo telefono
+  al tuo Mac. Al primo avvio lui sceglie *Italyan tilini o'rganaman* e da lì l'intera
+  interfaccia è in uzbeko, mentre esercizi, audio e correzioni sono in italiano.
+- **Progressi separati.** XP, serie, cuori, parole imparate e forme alternative accettate
+  vivono sul telefono, non in un account: nessuno vede o sposta i dati dell'altro.
+- **Una sola chiave.** Quella in `Secrets.swift` viene compilata dentro l'app, quindi
+  funziona su entrambi i telefoni senza configurare niente. La quota Google però è
+  **condivisa**: due persone sul piano gratuito di Gemini stanno larghe, ma se un giorno
+  finisce, le videochiamate tornano al generatore offline e le traduzioni alternative
+  ricadono sul corso e sulle forme già imparate.
+- **Il bundle identifier.** Se installi su due telefoni con lo stesso Apple ID va bene
+  così; se usate due Apple ID diversi, ognuno mette il proprio Team in *Signing &
+  Capabilities*.
+- **Chi ha la chiave ha il conto.** Una chiave dentro un'app si può estrarre dal bundle:
+  fra voi due non è un problema, ma è il motivo per cui l'app non va data ad altri.
 
 ---
 
@@ -214,19 +235,72 @@ In *Profilo → Impostazioni → Assistente IA* puoi scegliere fra tre opzioni:
 | **Gemini (gratis)** | chiave da `aistudio.google.com/apikey`, ha un piano gratuito |
 | **Claude (a pagamento)** | chiave da `console.anthropic.com`, richiede credito prepagato |
 
-Con una chiave, **domande e correzione finale le scrive il modello**: conversazione
-davvero libera e correzioni argomentate. L'interfaccia è identica e compare ✨.
-C'è un pulsante **Prova la chiave** che fa una richiesta vera e ti dice subito se
-funziona o qual è l'errore.
+Con una chiave la videochiamata diventa **una conversazione scritta sul momento**:
+
+- ogni turno è generato da quello che hai appena risposto — Anorcha reagisce a un
+  dettaglio che hai detto e la domanda dopo nasce da lì, invece di leggere una scaletta;
+- il modello riceve un *briefing* su di te: capitolo in corso, lezioni dentro al
+  capitolo, vocabolario appena studiato, capitoli già fatti, le parole che sbagli più
+  spesso, i giorni di fila e l'ora del giorno;
+- **due chiamate non si somigliano mai**: a ogni chiamata viene estratto a sorte un
+  «angolo» fra dodici (parti da un ricordo, confronta due cose, mettila in una
+  situazione…), il vocabolario viene rimescolato, e le ultime 60 domande già fatte
+  vengono passate al modello come lista da evitare;
+- la correzione finale è argomentata invece che basata su regole.
+
+L'interfaccia è identica e compare ✨. C'è un pulsante **Prova la chiave** che fa una
+richiesta vera e ti dice subito se funziona o qual è l'errore.
 
 Se la chiamata al modello fallisce (chiave sbagliata, quota finita, niente rete), la
-videochiamata **non si interrompe**: ricade sul generatore e sul correttore offline.
+videochiamata **non si interrompe**: ricade sul generatore e sul correttore offline, e
+smette di riprovare per non bruciare quota.
+
+La chiave serve anche agli **esercizi**, per far accettare le traduzioni alternative:
+vedi più sotto.
 
 > Stato delle verifiche: il percorso offline è provato end-to-end. Del percorso IA ho
 > potuto verificare che la richiesta a Gemini è formata correttamente — l'ho eseguita con
 > una chiave finta e Google ha risposto rifiutando **solo la chiave** (400 «API key not
 > valid»), il che dimostra che endpoint, header e corpo sono giusti. Non ho potuto provare
 > una risposta completa perché non ho una chiave vera.
+
+## Più di una traduzione può essere giusta
+
+Un corso elenca una forma per frase, una lingua ne ha parecchie: *a domani* è
+`ertaga ko'rishguncha` sul libro ed `ertagacha` per strada, e sono giuste entrambe.
+Lo stesso vale nell'altro senso: `yaxshiman` è «sto bene», ma anche «va tutto ok».
+
+Quando scrivi una traduzione tua e il correttore non la riconosce, prima di segnarla
+sbagliata l'app prova tre strade, dalla più economica alla più costosa:
+
+| | |
+|---|---|
+| **Il corso stesso** | se quella forma è insegnata altrove come traduzione della stessa frase, è accettata subito, offline |
+| **La tua storia** | una forma già accettata in passato vale per sempre, senza nessuna richiesta di rete |
+| **L'assistente** | con una chiave configurata, il modello decide se è un modo naturale di dire la stessa cosa |
+
+L'esaminatore è **severo sul significato e generoso sul registro**: colloquiale,
+abbreviato, regionale o più formale vanno tutti bene; viene rifiutato solo ciò che
+significa altro, è in un'altra lingua o non è grammaticale. Se passa, vedi *«Va bene
+anche così!»*, la tua forma con la sua traduzione, la versione del corso come
+riferimento e una riga che spiega la sfumatura — e la forma resta **imparata per
+sempre**, anche offline.
+
+Vale per gli esercizi di traduzione libera (scrittura e banco di parole). Il dettato e
+le scelte multiple hanno una risposta sola, e restano tali.
+
+Senza chiave restano attive le prime due strade: il corso e la tua storia.
+
+## Ogni parola si può ascoltare
+
+Qualunque cosa scritta nella lingua che stai imparando si tocca e si sente: le opzioni
+di risposta, le tessere dell'abbinamento, i chip del banco di parole, le parole chiave
+di una lezione, le righe di una storia, il vocabolario della guida, gli errori nel
+riepilogo, i sottotitoli della videochiamata.
+
+Dentro una frase il bersaglio è **la singola parola**: tocchi *kech* e senti *kech*, non
+tutta la riga. Per l'intera frase ci sono i pulsanti 🔊 e 🐢 di sempre, oppure un tocco
+prolungato.
 
 ## Gamification
 

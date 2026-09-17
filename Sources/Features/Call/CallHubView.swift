@@ -7,7 +7,7 @@ struct CallHubView: View {
     @State private var active: CallLaunch?
 
     private var aiOn: Bool {
-        AIClient.isConfigured(provider: state.settings.aiProvider, key: state.settings.aiKey)
+        AIClient.isConfigured(provider: state.aiProvider, key: state.aiKey)
     }
 
     var body: some View {

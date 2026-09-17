@@ -48,8 +48,8 @@ struct VideoCallView: View {
         var plan = CallPlanner.plan(level: level, state: state)
         let context = CallPlanner.context(for: plan, level: level, state: state, target: target)
 
-        let key = state.settings.aiKey
-        let provider = state.settings.aiProvider
+        let key = state.aiKey
+        let provider = state.aiProvider
         let configured = AIClient.isConfigured(provider: provider, key: key)
         if configured {
             if let generated = try? await AIClient.questions(
@@ -160,8 +160,8 @@ struct VideoCallView: View {
             case .reacting:
                 // in a live call this is where Anorcha reads what was just said and
                 // writes her answer; offline it returns at once
-                await engine.composeNextTurn(provider: state.settings.aiProvider,
-                                             apiKey: state.settings.aiKey)
+                await engine.composeNextTurn(provider: state.aiProvider,
+                                             apiKey: state.aiKey)
                 if let reaction = engine.reaction {
                     SpeechService.shared.speak(reaction[target], language: target,
                                                rate: state.settings.speechRate)
@@ -256,6 +256,7 @@ struct VideoCallView: View {
                 Text(reaction[target])
                     .font(.body(17)).foregroundStyle(Palette.green)
                     .padding(.top, 12)
+                    .speakOnTap(reaction[target], language: target)
             } else if engine.phase == .reacting, engine.thinking {
                 HStack(spacing: 7) {
                     ProgressView().tint(Palette.pink).scaleEffect(0.8)
@@ -265,10 +266,8 @@ struct VideoCallView: View {
                 .padding(.top, 12)
             } else if let q = engine.question, engine.showSubtitles {
                 VStack(spacing: 6) {
-                    Text(q.text[target])
-                        .font(.body(18)).foregroundStyle(.white)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
+                    SpeakableText(text: q.text[target], language: target,
+                                  font: .body(18), color: .white, alignment: .center)
                     if engine.showTranslation {
                         Text(q.text[state.native])
                             .font(.plain(13)).foregroundStyle(.white.opacity(0.55))
@@ -447,8 +446,8 @@ struct VideoCallView: View {
         }
         .task {
             await engine.buildReview(curriculum: state.curriculum,
-                                     provider: state.settings.aiProvider,
-                                     apiKey: state.settings.aiKey)
+                                     provider: state.aiProvider,
+                                     apiKey: state.aiKey)
             state.addXP(engine.xpEarned, minutes: max(1, engine.records.count / 3))
             // so the next call knows where it has already been
             state.rememberCallQuestions(engine.askedQuestions())
@@ -551,6 +550,7 @@ struct VideoCallView: View {
             Text(turn.question[target])
                 .font(.heading(14)).foregroundStyle(.white.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
+                .speakOnTap(turn.question[target], language: target)
 
             HStack(spacing: 7) {
                 statusBadge(turn.status)
@@ -566,6 +566,7 @@ struct VideoCallView: View {
                     Text(turn.said)
                         .font(.body(15)).foregroundStyle(.white)
                         .fixedSize(horizontal: false, vertical: true)
+                        .speakOnTap(turn.said, language: target)
                 }
             }
 
@@ -615,6 +616,7 @@ struct VideoCallView: View {
                  + Text("  \(S.recapInstead[state.native]) ").font(.plain(12)).foregroundStyle(.white.opacity(0.45))
                  + Text(fix.original).font(.plain(13)).foregroundStyle(.white.opacity(0.5)).strikethrough())
                     .fixedSize(horizontal: false, vertical: true)
+                    .speakOnTap(fix.suggestion, language: target)
             }
             Text(fix.note[state.native])
                 .font(.plain(12.5)).foregroundStyle(.white.opacity(0.65))
