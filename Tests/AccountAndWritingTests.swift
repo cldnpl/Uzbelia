@@ -390,3 +390,100 @@ final class PhraseForgeTests: XCTestCase {
         XCTAssertFalse(brief.isPossible)
     }
 }
+
+// MARK: - I due pulsanti che non passano per una password
+
+/// Apple e Google sono due strade diverse verso la stessa sessione, e quel che le
+/// rompe non è quasi mai il codice che si vede nel foglio: è una stringa composta
+/// male, o un errore letto per un altro. Queste sono le parti che si possono
+/// guardare senza aprire una finestra di sistema.
+final class SignInTests: XCTestCase {
+
+    /// Il redirect di Google è il client id letto all'incontrario. Se questa riga
+    /// sbaglia, il browser si apre, l'utente accede davvero, e poi non torna più:
+    /// nessun errore, nessun log, solo un foglio che resta lì.
+    func testTheGoogleRedirectSchemeIsTheClientIDBackwards() {
+        let id = "1234567890-abcdefg.apps.googleusercontent.com"
+        XCTAssertEqual(SocialSignIn.redirectScheme(for: id),
+                       "com.googleusercontent.apps.1234567890-abcdefg")
+    }
+
+    /// La stessa cosa deve valere due volte di seguito, altrimenti il redirect che
+    /// l'app ascolta e quello che Google richiama non sono lo stesso.
+    func testTheSchemeSurvivesBeingReversedTwice() {
+        let id = "1234567890-abcdefg.apps.googleusercontent.com"
+        let back = SocialSignIn.redirectScheme(for: SocialSignIn.redirectScheme(for: id))
+        XCTAssertEqual(back, id)
+    }
+
+    func testSpacesPastedAroundTheClientIDDoNotEndUpInTheScheme() {
+        let scheme = SocialSignIn.redirectScheme(for: "  1-a.apps.googleusercontent.com\n")
+        XCTAssertEqual(scheme, "com.googleusercontent.apps.1-a")
+        XCTAssertFalse(scheme.contains(" "))
+    }
+
+    /// Senza client id il pulsante non compare: è `AccountForm` a chiederlo, e la
+    /// risposta deve seguire `Secrets`, non un valore scritto a parte.
+    func testGoogleIsOfferedOnlyWhenItHasAClientID() {
+        XCTAssertEqual(SocialSignIn.isGoogleConfigured, !SocialSignIn.googleClientID.isEmpty)
+        XCTAssertEqual(SocialSignIn.googleClientID,
+                       Secrets.googleOAuthClientID.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    /// I due provider viaggiano nel `postBody` di `signInWithIdp`: sono gli stessi
+    /// nomi che Firebase usa nella console, e non possono essere abbreviati.
+    func testTheProviderNamesAreTheOnesFirebaseKnows() {
+        XCTAssertEqual(FirebaseClient.Federated.apple.rawValue, "apple.com")
+        XCTAssertEqual(FirebaseClient.Federated.google.rawValue, "google.com")
+    }
+
+    /// Annullare non è fallire: chi chiude il foglio non deve vedere un errore
+    /// rosso, e il messaggio di "annullato" non deve somigliare a un guasto.
+    func testCancellingSaysSomethingCalmInBothLanguages() {
+        let cancelled = SocialSignIn.Failure.cancelled.message
+        XCTAssertFalse(cancelled.it.isEmpty)
+        XCTAssertFalse(cancelled.uz.isEmpty)
+        XCTAssertNotEqual(cancelled.it, cancelled.uz)
+    }
+
+    /// L'errore 1000 di Apple vuol dire quasi sempre una cosa sola, e dirla per
+    /// nome è ciò che separa mezz'ora di ricerche da trenta secondi.
+    func testTheAppleErrorThatMeansNoAppleIDSaysSo() {
+        let message = SocialSignIn.Failure.appleAccountMissing.message
+        XCTAssertTrue(message.it.lowercased().contains("apple"))
+        XCTAssertFalse(message.uz.isEmpty)
+    }
+
+    /// "Non abilitato" senza dire cosa manda a cercare nel posto sbagliato.
+    func testAProviderThatIsOffNamesItself() {
+        let off = FirebaseClient.Failure.auth("OPERATION_NOT_ALLOWED").message
+        XCTAssertFalse(off.it.contains("Email e password"),
+                       "il codice arriva uguale per tutti e tre i pulsanti")
+        XCTAssertFalse(off.it.isEmpty)
+    }
+
+    /// Un nonce mancante e una risposta che il server non accetta sono due cose
+    /// diverse, e prima finivano tutte e due nel messaggio generico col codice.
+    func testTheIdentityErrorsApplePeopleActuallyHitAreSpelledOut() {
+        for code in ["MISSING_OR_INVALID_NONCE", "INVALID_IDP_RESPONSE",
+                     "FEDERATED_USER_ID_ALREADY_LINKED"] {
+            let message = FirebaseClient.Failure.auth(code).message
+            XCTAssertFalse(message.it.contains(code),
+                           "\(code) non è ancora tradotto in una frase")
+        }
+    }
+
+    /// Senza le due stringhe di `Secrets` ogni chiamata deve fermarsi prima di
+    /// partire: un URL con `key=` vuoto torna 400 con un codice che non dice niente.
+    func testNothingIsSentWhenTheProjectIsNotConfiguredYet() async {
+        guard !FirebaseClient.isConfigured else { return }   // build già configurata
+        do {
+            _ = try await FirebaseClient.signIn(idToken: "x", provider: .google)
+            XCTFail("avrebbe dovuto fermarsi prima della rete")
+        } catch FirebaseClient.Failure.notConfigured {
+            // giusto così
+        } catch {
+            XCTFail("errore sbagliato: \(error)")
+        }
+    }
+}

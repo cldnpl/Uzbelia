@@ -90,20 +90,53 @@ APP_IOS=$(firebase apps:list IOS --project "$PROGETTO" --json | node -e \
   'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
      const a=JSON.parse(s).result;console.log(a&&a[0]?a[0].appId:"")})')
 CLIENT=""
-if [ -n "$APP_IOS" ]; then
-  CLIENT=$(firebase apps:sdkconfig IOS "$APP_IOS" --project "$PROGETTO" --json 2>/dev/null | node -e \
+leggi_client() {   # il CLIENT_ID compare nel GoogleService-Info solo dopo che
+                   # Google è acceso: è Firebase a creare il client OAuth iOS.
+  [ -n "$APP_IOS" ] || return 0
+  firebase apps:sdkconfig IOS "$APP_IOS" --project "$PROGETTO" --json 2>/dev/null | node -e \
     'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
        let t="";try{const r=JSON.parse(s).result;
          t=r.fileContents||r.sdkConfig&&r.sdkConfig.CLIENT_ID||"";}catch{}
        if(/^[0-9]/.test(t)&&t.includes("apps.googleusercontent.com")){console.log(t.trim());return;}
        const m=/<key>CLIENT_ID<\/key>\s*<string>([^<]+)<\/string>/.exec(t);
-       console.log(m?m[1]:"")})')
-fi
+       console.log(m?m[1]:"")})'
+}
 
 echo "▸ 6/9  Accendo i tre modi di accedere…"
 RESTA_GOOGLE=0
 RESTA_APPLE=0
 ADMIN="https://identitytoolkit.googleapis.com/admin/v2/projects/$PROGETTO"
+
+# Le API vanno accese sul progetto prima di poterle chiamare.
+for SERVIZIO in identitytoolkit.googleapis.com firestore.googleapis.com; do
+  api POST "https://serviceusage.googleapis.com/v1/projects/$PROGETTO/services/$SERVIZIO:enable" '{}' >/dev/null 2>&1 || true
+done
+
+# E qui c'è l'unica cosa che Google non lascia fare da fuori: la primissima
+# accensione di Authentication. `identityPlatform:initializeAuth` esiste, ma
+# risponde BILLING_NOT_ENABLED — è la versione a pagamento. Sul piano gratuito
+# quel clic si dà in console, una volta sola, e dura mezzo secondo.
+if echo "$(api GET "$ADMIN/config" || true)" | grep -q "CONFIGURATION_NOT_FOUND"; then
+  echo
+  giallo "  ┌───────────────────────────────────────────────────────────────┐"
+  giallo "  │  Un clic, e poi riprendo da solo.                             │"
+  giallo "  │                                                               │"
+  giallo "  │  Nella pagina che si è aperta:  ► Inizia / Get started        │"
+  giallo "  │  (se chiede subito un provider, scegli Email/Password)        │"
+  giallo "  └───────────────────────────────────────────────────────────────┘"
+  echo
+  command -v open >/dev/null && \
+    open "https://console.firebase.google.com/project/$PROGETTO/authentication/providers" || true
+  printf "  aspetto"
+  for _ in $(seq 1 100); do   # cinque minuti, poi si arrende
+    if ! echo "$(api GET "$ADMIN/config" || true)" | grep -q "CONFIGURATION_NOT_FOUND"; then
+      echo; verde "  ✓ Authentication è acceso. Riprendo."; break
+    fi
+    printf "."
+    sleep 3
+  done
+  echo
+fi
 
 R=$(api PATCH "$ADMIN/config?updateMask=signIn.email.enabled,signIn.email.passwordRequired" \
       '{"signIn":{"email":{"enabled":true,"passwordRequired":true}}}' || true)
@@ -126,6 +159,17 @@ else
   R=$(api PATCH "$ADMIN/defaultSupportedIdpConfigs/google.com?updateMask=enabled" \
         '{"enabled":true}' || true)
   ok "$R" && verde "       ✓ Google" || { giallo "       … Google: da alzare a mano"; RESTA_GOOGLE=1; }
+fi
+
+if [ "$RESTA_GOOGLE" = "0" ]; then
+  printf "       client OAuth iOS"
+  for _ in $(seq 1 12); do
+    CLIENT=$(leggi_client)
+    [ -n "$CLIENT" ] && break
+    printf "."
+    sleep 5
+  done
+  [ -n "$CLIENT" ] && { echo; verde "       ✓ $CLIENT"; } || echo
 fi
 
 echo "▸ 7/9  Database Firestore…"

@@ -147,10 +147,7 @@ enum SocialSignIn {
         let clientID = googleClientID
         guard !clientID.isEmpty else { throw Failure.notConfigured }
 
-        // Google's iOS clients redirect to the client id read backwards, which is also
-        // the URL scheme ASWebAuthenticationSession listens on — and because it listens
-        // itself, nothing has to be registered in Info.plist.
-        let scheme = clientID.split(separator: ".").reversed().joined(separator: ".")
+        let scheme = redirectScheme(for: clientID)
         let redirect = "\(scheme):/oauth2redirect"
         let verifier = randomString(length: 64)
         let challenge = base64URL(Data(SHA256.hash(data: Data(verifier.utf8))))
@@ -214,6 +211,15 @@ enum SocialSignIn {
 
         return try await exchange(code: code, verifier: verifier,
                                   clientID: clientID, redirect: redirect)
+    }
+
+    /// Google's iOS clients redirect to the client id read backwards, which is also
+    /// the URL scheme `ASWebAuthenticationSession` listens on — e siccome ascolta da
+    /// sé, non c'è niente da registrare in Info.plist. Una sola vocale fuori posto
+    /// qui e il browser si apre, l'utente accede, e poi non torna più indietro.
+    static func redirectScheme(for clientID: String) -> String {
+        clientID.trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: ".").reversed().joined(separator: ".")
     }
 
     private struct TokenReply: Decodable { let id_token: String? }

@@ -17,3 +17,7 @@ content/__pycache__/
 # scripts/build-uzbek-recognizer.sh). Too large for git; rebuilt on demand.
 Frameworks/whisper.xcframework/
 Resources/Models/*.bin
+
+# Cartella di lavoro della CLI Firebase: le regole che contiene le riscrive
+# ./scripts/crea-progetto-firebase.sh ogni volta che gira.
+.firebase/
