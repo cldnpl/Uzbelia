@@ -42,7 +42,7 @@ enum LevelFinder {
             }
         }
         guard !ordered.isEmpty else { return Quiz(exercises: [], rungs: [], floor: nil) }
-
+ 
         let stride = max(1, Int((Double(ordered.count) / Double(wanted)).rounded()))
         var picked: [(unit: Unit, level: CEFR)] = []
         var index = 0

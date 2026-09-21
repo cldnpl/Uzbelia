@@ -20,6 +20,7 @@ struct ProfileView: View {
                     statsGrid
                     weekChart
                     courseProgress
+                    AccountSection()
                     if state.unlimited { giftCard } else { shop }
                     settings
                     dangerZone
@@ -249,6 +250,13 @@ struct ProfileView: View {
                 toggleRow(S.wordHintsOn[state.native], icon: "hand.tap.fill",
                           isOn: Binding(get: { st.settings.wordHints },
                                         set: { st.settings.wordHints = $0 }))
+                toggleRow(S.freshPhrases[state.native], icon: "wand.and.sparkles",
+                          isOn: Binding(get: { st.settings.freshPhrases },
+                                        set: { st.settings.freshPhrases = $0 }))
+                Text(S.freshPhrasesSub[state.native])
+                    .font(.plain(11.5)).foregroundStyle(Palette.inkFaint)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 14).padding(.bottom, 2)
                 toggleRow(S.listeningOn[state.native], icon: "ear.fill",
                           isOn: Binding(get: { st.settings.listeningExercises },
                                         set: { st.settings.listeningExercises = $0 }))

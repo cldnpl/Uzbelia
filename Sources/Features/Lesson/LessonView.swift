@@ -12,6 +12,10 @@ struct LessonView: View {
     @State private var showStory = false
     @State private var outOfHearts = false
     @State private var results: SessionResults?
+    /// The line that appears when a skill has just been put on hold.
+    @State private var pausedNotice: Bilingual?
+    /// True while the assistant is writing sentences for a chapter that has none yet.
+    @State private var writingPhrases = false
 
     var body: some View {
         ZStack {
@@ -28,10 +32,25 @@ struct LessonView: View {
             } else if let engine {
                 lessonBody(engine)
             } else {
-                ProgressView().tint(Palette.brand)
+                VStack(spacing: 12) {
+                    ProgressView().tint(Palette.brand)
+                    if writingPhrases {
+                        Text(S.writingPhrases[state.native])
+                            .font(.plain(13)).foregroundStyle(Palette.inkSoft)
+                            .transition(.opacity)
+                    }
+                }
+                .animation(.easeInOut(duration: 0.2), value: writingPhrases)
             }
         }
-        .onAppear(perform: setUp)
+        .task { await setUp() }
+        .task(id: pausedNotice) {
+            // long enough to read, short enough not to sit on top of the next question
+            guard pausedNotice != nil else { return }
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.25)) { pausedNotice = nil }
+        }
         .alert(S.quitLesson[state.native], isPresented: $showQuitAlert) {
             Button(S.stay[state.native], role: .cancel) {}
             Button(S.quit[state.native], role: .destructive) { dismiss() }
@@ -44,25 +63,51 @@ struct LessonView: View {
 
     // MARK: - Setup
 
-    private func setUp() {
+    private func setUp() async {
         guard engine == nil else { return }
         if case .story? = request.node?.kind { showStory = true }
         let list: [Exercise]
         if request.mode != .lesson {
             list = request.customExercises
         } else if let node = request.node, let unit = request.unit {
+            let fresh = await freshPhrases(for: node, unit: unit)
             list = ExerciseFactory.session(for: node, unit: unit,
                                            curriculum: state.curriculum,
                                            native: state.native,
                                            settings: state.effectiveSettings,
-                                           focus: request.focus)
+                                           focus: request.focus,
+                                           fresh: fresh)
         } else {
             list = []
         }
         Glossary.prime(with: state.curriculum.allPairs)
-        // story lines are built on the fly and live in no curriculum file
+        // story lines, and every sentence the assistant writes, live in no file
         Glossary.learn(list.map(\.pair))
         engine = LessonEngine(exercises: list)
+    }
+
+    /// The chapter's newly written sentences, if there are any to be had.
+    ///
+    /// The first pass over a node teaches the words themselves and wants none of
+    /// this. Every later pass takes whatever is on disk — instantly — and, when the
+    /// pool is still thin, waits a few seconds for a first batch rather than serving
+    /// the same fifteen questions a fourth time. Either way another batch is ordered
+    /// on the way out, so the wait is paid at most once per chapter.
+    private func freshPhrases(for node: PathNode, unit: Unit) async -> [Pair] {
+        guard request.focus != .discover,
+              let level = state.curriculum.level(of: unit.id),
+              let brief = state.phraseBrief(for: node, unit: unit, level: level) else { return [] }
+
+        let held = await PhraseForge.shared.stored(for: node.id)
+        guard held.count < PhraseForge.comfortable, brief.isPossible else {
+            PhraseForge.shared.warm(brief)
+            return held
+        }
+        withAnimation { writingPhrases = true }
+        let ready = await PhraseForge.shared.ready(brief, waitingUpTo: 9)
+        writingPhrases = false
+        PhraseForge.shared.warm(brief)
+        return ready
     }
 
     // MARK: - Lesson body
@@ -201,6 +246,9 @@ struct LessonView: View {
             Color.clear.frame(height: 0)
         } else {
         VStack(spacing: 12) {
+            if let pausedNotice {
+                pausedBanner(pausedNotice)
+            }
             if let verdict {
                 feedbackBanner(verdict, engine: engine)
             }
@@ -214,6 +262,7 @@ struct LessonView: View {
                         Feedback.tap()
                         state.snooze(skill)
                         withAnimation(.easeInOut(duration: 0.2)) {
+                            pausedNotice = S.pausedNotice(skill, minutes: AppState.snoozeMinutes)
                             engine.setAside(skill, native: state.native)
                         }
                     } label: {
@@ -254,6 +303,28 @@ struct LessonView: View {
         )
         .animation(.easeOut(duration: 0.18), value: engine.verdict)
         }
+    }
+
+    /// "Speaking is off for the next quarter of an hour" — said once, where she is
+    /// already looking, and gone on its own before it gets in the way.
+    private func pausedBanner(_ text: Bilingual) -> some View {
+        HStack(spacing: 9) {
+            Image(systemName: "clock.badge.xmark")
+                .font(.system(size: 15, weight: .black))
+                .foregroundStyle(Palette.amberDeep)
+            Text(text[state.native])
+                .font(.plain(13.5))
+                .foregroundStyle(Palette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Metrics.radiusSmall, style: .continuous)
+            .fill(Palette.amber.opacity(0.16)))
+        .overlay(RoundedRectangle(cornerRadius: Metrics.radiusSmall, style: .continuous)
+            .stroke(Palette.amber.opacity(0.45), lineWidth: 1.5))
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
     private func bannerTint(_ v: Verdict?) -> Color? {

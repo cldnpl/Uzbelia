@@ -12,8 +12,15 @@ struct OnboardingView: View {
     /// the screen from opening before the questions are in it.
     @State private var quiz: LevelFinder.Quiz?
     @State private var placement: (level: CEFR, unitID: String)?
+    /// "I have been here before": signing in restores a course rather than starting one.
+    @State private var showAccount = false
 
     private var lang: Language { chosenNative ?? .it }
+
+    /// Five steps, the last of which is the account. It is always there, even in a
+    /// build whose `Secrets` are still empty: the page then says so plainly, which is
+    /// far more use than a step that quietly is not.
+    private let lastStep = 4
 
     var body: some View {
         ZStack {
@@ -30,6 +37,7 @@ struct OnboardingView: View {
                     coursePage.tag(1)
                     levelPage.tag(2)
                     goalPage.tag(3)
+                    accountPage.tag(4)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut, value: step)
@@ -39,6 +47,7 @@ struct OnboardingView: View {
                     .padding(.bottom, 26)
             }
         }
+        .sheet(isPresented: $showAccount) { AccountSheet(mode: .signIn) }
         .fullScreenCover(item: $quiz) { quiz in
             LessonView(request: SessionRequest(mode: .practice,
                                                customExercises: quiz.exercises,
@@ -54,7 +63,7 @@ struct OnboardingView: View {
 
     private var progressDots: some View {
         HStack(spacing: 7) {
-            ForEach(0..<4) { i in
+            ForEach(0...lastStep, id: \.self) { i in
                 Capsule()
                     .fill(i <= step ? Palette.brand : Palette.locked)
                     .frame(width: i == step ? 26 : 9, height: 9)
@@ -287,21 +296,110 @@ struct OnboardingView: View {
     // MARK: - Footer
 
     private var footer: some View {
-        Button {
-            Feedback.pop()
-            if step == 1, let chosenNative { state.chooseCourse(native: chosenNative) }
-            if step < 3 {
-                withAnimation { step += 1 }
-            } else {
-                state.finishOnboarding(goal: chosenGoal, startLevel: chosenLevel)
-                // a quiz result opens the course up to the chapter it found
-                if let placement { LevelFinder.apply(placement, state: state) }
+        // The account step has its own buttons inside the page — a second green one
+        // down here would sit right under "Crea un account" and mean something else.
+        let waitingToSignIn = step == lastStep && !state.account.isSignedIn
+        return VStack(spacing: 12) {
+            if !waitingToSignIn {
+                Button {
+                    Feedback.pop()
+                    if step == 1, let chosenNative { state.chooseCourse(native: chosenNative) }
+                    if step < lastStep {
+                        withAnimation { step += 1 }
+                    } else {
+                        finish()
+                    }
+                } label: {
+                    Text(step == lastStep ? S.start[lang] : S.continueBtn[lang])
+                }
+                .buttonStyle(.chunky(Palette.green, Palette.greenDeep))
+                .disabled(step == 1 && chosenNative == nil)
+                .opacity(step == 1 && chosenNative == nil ? 0.5 : 1)
             }
-        } label: {
-            Text(step == 3 ? S.start[lang] : S.continueBtn[lang])
+
+            // Offered on the very first screen: someone reinstalling the app wants her
+            // streak back, not four questions about where to start.
+            if step == 0 {
+                Button {
+                    Feedback.tap(); showAccount = true
+                } label: {
+                    Text(S.haveAccount[lang])
+                        .font(.heading(13)).foregroundStyle(Palette.brand)
+                }
+                .buttonStyle(.plain)
+            }
+
+            // The way past the account step without one. Quiet on purpose, but never
+            // hidden: an app that will not open until you sign up is a worse app.
+            if waitingToSignIn {
+                Button {
+                    Feedback.tap(); finish()
+                } label: {
+                    Text(S.secureSkip[lang])
+                        .font(.heading(14)).foregroundStyle(Palette.inkSoft)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .buttonStyle(.chunky(Palette.green, Palette.greenDeep))
-        .disabled(step == 1 && chosenNative == nil)
-        .opacity(step == 1 && chosenNative == nil ? 0.5 : 1)
+    }
+
+    private func finish() {
+        state.finishOnboarding(goal: chosenGoal, startLevel: chosenLevel)
+        // a quiz result opens the course up to the chapter it found
+        if let placement { LevelFinder.apply(placement, state: state) }
+    }
+
+    // MARK: - Last step: the account
+
+    private var accountPage: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                if state.account.isSignedIn {
+                    VStack(spacing: 12) {
+                        Mascot(mood: .cheer, size: 110)
+                        Text(S.secureDone[lang])
+                            .font(.display(24)).foregroundStyle(Palette.ink)
+                        Text(S.secureDoneSub[lang])
+                            .font(.plain(14)).foregroundStyle(Palette.inkSoft)
+                            .multilineTextAlignment(.center)
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.icloud.fill")
+                                .font(.system(size: 15, weight: .black)).foregroundStyle(Palette.green)
+                            Text(state.account.email)
+                                .font(.heading(14)).foregroundStyle(Palette.ink)
+                                .lineLimit(1).minimumScaleFactor(0.7)
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 10)
+                        .background(Capsule().fill(Palette.green.opacity(0.14)))
+                    }
+                    .padding(.top, 30)
+                } else {
+                    header(title: S.secureTitle[lang], subtitle: S.secureSub[lang])
+                    AccountForm(mode: .signUp, showsMascot: false)
+                    if !state.account.isAvailable {
+                        HStack(alignment: .top, spacing: 9) {
+                            Image(systemName: "wrench.and.screwdriver.fill")
+                                .font(.system(size: 13, weight: .black))
+                                .foregroundStyle(Palette.amberDeep)
+                            Text(S.secureNotSetUp[lang])
+                                .font(.plain(12)).foregroundStyle(Palette.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(11)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: Metrics.radiusSmall,
+                                                     style: .continuous)
+                            .fill(Palette.amber.opacity(0.16)))
+                    }
+                }
+            }
+            .padding(.horizontal, Metrics.hPad)
+            // the same air the other four pages leave between the dots and the mascot
+            .padding(.top, 24)
+            .padding(.bottom, 20)
+        }
+        .scrollDismissesKeyboard(.interactively)
     }
 }

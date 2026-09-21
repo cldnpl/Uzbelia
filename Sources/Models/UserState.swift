@@ -48,6 +48,10 @@ struct Settings: Codable, Hashable {
     /// Tap a word inside an exercise to see what it means. On by default: a hint that
     /// sometimes hands over the answer still teaches more than a blank stare.
     var wordHints = true
+    /// Let the assistant write new sentences for the chapter being studied, so the
+    /// fifth pass over a lesson is not the first one again. Needs a key; without one
+    /// it simply never fires. See `PhraseForge`.
+    var freshPhrases = true
     var speechRate: Double = 0.44     // AVSpeechUtterance rate
     var dailyGoal: Int = 50           // xp
     var largeText = false
@@ -229,6 +233,31 @@ final class AppState {
         questions = ContentStore.loadQuestions()
         if persistent, let loaded = Self.read() { s = loaded }
         normaliseHearts()
+        if persistent {
+            Task { @MainActor in self.account.attach(to: self) }
+        }
+    }
+
+    // MARK: - The account this progress belongs to
+
+    /// Signed out this does nothing at all; signed in it keeps a merged copy of the
+    /// whole profile on Firestore, so a reinstall or a second phone picks up where
+    /// the first one left off. See `CloudAccount`.
+    @ObservationIgnored let account = CloudAccount()
+
+    /// The saved profile as it stands, for the parts of the app that send it somewhere.
+    var snapshot: PersistedState { s }
+
+    /// Replaces the whole profile — used only by the merge that follows a sign-in.
+    func adopt(_ new: PersistedState) {
+        s = new
+        normaliseHearts()
+        guard persistent else { return }
+        // Written straight through rather than through `save()`, so that adopting the
+        // server's copy never bounces back up as a fresh upload.
+        if let data = try? JSONEncoder().encode(s) {
+            try? data.write(to: AppState.fileURL, options: .atomic)
+        }
     }
 
     private func normaliseHearts() {
@@ -272,7 +301,7 @@ final class AppState {
     }
 
     func requiredSessions(forNodeID id: String) -> Int {
-        if id.hasSuffix("-story") || id.hasSuffix("-review") { return 1 }
+        if id.hasSuffix("-story") || id.hasSuffix("-review") || id.hasSuffix("-writing") { return 1 }
         return Self.sessionsPerLesson
     }
 
@@ -584,11 +613,46 @@ final class AppState {
         save()
     }
 
+    // MARK: - Sentences written for this learner
+
+    /// Everything the forge needs to write new sentences for one chapter: its words,
+    /// its grammar, and the level it sits at. Assembled here because this is where
+    /// the curriculum and the assistant's key are both in reach.
+    func phraseBrief(for node: PathNode, unit: Unit, level: CEFR) -> PhraseForge.Brief? {
+        guard s.settings.freshPhrases else { return nil }
+        let vocabulary: [Pair]
+        let lessonTitle: String
+        switch node.kind {
+        case .lesson(let lesson):
+            vocabulary = lesson.allPairs
+            lessonTitle = lesson.title[native]
+        case .story(let dialogue):
+            vocabulary = dialogue.lines.map { Pair(it: $0.it, uz: $0.uz) }
+            lessonTitle = dialogue.title[native]
+        case .review:
+            vocabulary = Array(unit.allPairs.shuffled().prefix(40))
+            lessonTitle = node.title[native]
+        case .writing:
+            return nil          // a writing chapter has no exercises to write
+        }
+        guard !vocabulary.isEmpty else { return nil }
+        return PhraseForge.Brief(lessonID: node.id,
+                                 level: level,
+                                 unitTitle: unit.title[native],
+                                 lessonTitle: lessonTitle,
+                                 grammar: unit.grammar.map { $0.title[native] },
+                                 vocabulary: vocabulary,
+                                 native: native,
+                                 provider: aiProvider,
+                                 key: aiKey)
+    }
+
     // MARK: - Reset
 
     func resetEverything() {
         s = PersistedState()
         save()
+        Task { await PhraseForge.shared.wipe() }
     }
 
     // MARK: - Persistence
@@ -602,7 +666,7 @@ final class AppState {
         return f.string(from: d)
     }
 
-    private static var fileURL: URL {
+    fileprivate static var fileURL: URL {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("uzbelia-state.json")
@@ -620,6 +684,7 @@ final class AppState {
             guard let data = try? JSONEncoder().encode(snapshot) else { return }
             try? data.write(to: AppState.fileURL, options: .atomic)
         }
+        account.scheduleUpload()
     }
 }
 
@@ -630,6 +695,7 @@ final class AppState {
 extension Settings {
     enum CodingKeys: String, CodingKey {
         case sounds, haptics, speakingExercises, listeningExercises, wordHints
+        case freshPhrases
         case speechRate, dailyGoal, largeText
         case reminderOn, reminderHour, reminderMinute, unlimitedResources
         case aiProvider, aiKey, claudeAPIKey
@@ -640,6 +706,7 @@ extension Settings {
         haptics = try c.decodeIfPresent(Bool.self, forKey: .haptics) ?? true
         speakingExercises = try c.decodeIfPresent(Bool.self, forKey: .speakingExercises) ?? true
         listeningExercises = try c.decodeIfPresent(Bool.self, forKey: .listeningExercises) ?? true
+        freshPhrases = try c.decodeIfPresent(Bool.self, forKey: .freshPhrases) ?? true
         wordHints = try c.decodeIfPresent(Bool.self, forKey: .wordHints) ?? true
         speechRate = try c.decodeIfPresent(Double.self, forKey: .speechRate) ?? 0.44
         dailyGoal = try c.decodeIfPresent(Int.self, forKey: .dailyGoal) ?? 50
@@ -665,6 +732,7 @@ extension Settings {
         try c.encode(haptics, forKey: .haptics)
         try c.encode(speakingExercises, forKey: .speakingExercises)
         try c.encode(listeningExercises, forKey: .listeningExercises)
+        try c.encode(freshPhrases, forKey: .freshPhrases)
         try c.encode(wordHints, forKey: .wordHints)
         try c.encode(speechRate, forKey: .speechRate)
         try c.encode(dailyGoal, forKey: .dailyGoal)

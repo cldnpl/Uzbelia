@@ -20,7 +20,8 @@ final class ExerciseFactoryTests: XCTestCase {
                     // every unit, every node kind; a stride keeps the 400-node course quick
                     let nodes = unit.nodes(level: pack.level, index: 0)
                     let sampled = nodes.enumerated().filter { $0.offset % 3 == 0 || $0.offset >= nodes.count - 2 }
-                    for node in sampled.map(\.element) {
+                    // the writing chapter is a conversation and builds no exercises
+                    for node in sampled.map(\.element) where !node.isWriting {
                         let session = ExerciseFactory.session(for: node, unit: unit,
                                                               curriculum: curriculum,
                                                               native: native,
@@ -168,7 +169,8 @@ final class ExerciseFactoryTests: XCTestCase {
     func testEveryFocusStaysAnswerableOnASampleOfNodes() {
         for pack in curriculum.levels {
             for unit in pack.units.prefix(2) {
-                for node in unit.nodes(level: pack.level, index: 0) {
+                // the writing chapter is a conversation, not a set of exercises
+                for node in unit.nodes(level: pack.level, index: 0) where !node.isWriting {
                     for focus in SessionFocus.allCases {
                         let session = ExerciseFactory.session(for: node, unit: unit,
                                                               curriculum: curriculum,

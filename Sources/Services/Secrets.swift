@@ -42,6 +42,67 @@ enum Secrets {
     static let azureSpeechKey = ""
     static let azureSpeechRegion = ""
 
+    /// ↓ and the two Firebase strings here ↓
+    ///
+    /// **Non serve scriverle a mano.** Un comando solo crea il progetto, registra
+    /// l'app iOS, accende Email, Apple e Google, mette le regole di Firestore e
+    /// riempie le tre righe qui sotto:
+    ///
+    ///     ./scripts/crea-progetto-firebase.sh
+    ///
+    /// Chiede solo il login Google nel browser, una volta. Quel che segue è il
+    /// percorso a mano, per chi preferisce vedere dove sta ogni cosa.
+    ///
+    /// These are what give the app accounts, so that progress lives on a server and
+    /// survives a reinstall or a new phone. Both come from one place:
+    ///
+    ///   console.firebase.google.com → create a project → ⚙ Project settings
+    ///     · **Project ID**          — the line right at the top ("uzbelia-1a2b3")
+    ///     · **Web API Key**         — a little further down, an `AIzaSy…` string
+    ///
+    /// Then, still in the console, two switches have to be flipped:
+    ///     · Build → **Authentication** → Get started → Sign-in method →
+    ///       enable **Email/Password**
+    ///     · Build → **Firestore Database** → Create database (any region)
+    ///
+    /// and the security rules (Firestore → Rules) set so that each learner can only
+    /// ever touch her own document:
+    ///
+    ///     rules_version = '2';
+    ///     service cloud.firestore {
+    ///       match /databases/{db}/documents {
+    ///         match /learners/{uid} {
+    ///           allow read, write: if request.auth != nil && request.auth.uid == uid;
+    ///         }
+    ///       }
+    ///     }
+    ///
+    /// The Web API key is not a secret in the way the others here are — it only names
+    /// the project, and the rules above are what actually keep the data private. Left
+    /// empty, the whole account section simply disappears and the app saves on the
+    /// phone alone, exactly as it did before.
+    static let firebaseAPIKey = ""
+    static let firebaseProjectID = ""
+
+    /// ↓ and, only if you want the Google button, the iOS OAuth client id here ↓
+    ///
+    /// *Accedi con Apple* needs nothing here: it is a system framework and the only
+    /// switch is Firebase console → Authentication → Sign-in method → **Apple**.
+    ///
+    /// Google needs one string, e nasce da sé: basta registrare un'app **iOS** nel
+    /// progetto Firebase con il bundle `com.uzbelia.app` e Firebase crea il client
+    /// OAuth iOS insieme a lei. Lo trovi nel `GoogleService-Info.plist` alla voce
+    /// `CLIENT_ID`, o su Google Cloud console → *APIs & Services → Credentials*.
+    /// Ha questa forma: `1234567890-abcdefg.apps.googleusercontent.com`.
+    ///
+    /// Va anche abilitato **Google** in Firebase → Authentication → Sign-in method.
+    ///
+    /// Nothing has to go in Info.plist: the sign-in window listens for the redirect
+    /// itself. Left empty, the Google button simply does not appear — che è il
+    /// comportamento giusto, perché senza client id non potrebbe fare altro che
+    /// aprirsi e scusarsi.
+    static let googleOAuthClientID = ""
+
     /// Which of the two Uzbek voices reads the course.
     static let uzbekVoice = AzureSpeech.Voice.madina
 

@@ -25,6 +25,14 @@ targets:
     sources:
       - path: Sources
       - path: Resources
+        excludes:
+          - "Uzbelia.entitlements"
+    entitlements:
+      path: Resources/Uzbelia.entitlements
+    # L'entitlements qui sopra è ciò che accende "Sign in with Apple": con la firma
+    # automatica Xcode lo legge, alza la capability sull'App ID del team e si fa
+    # dare un profilo capace di firmarla. Senza quel file il pulsante Apple si apre
+    # e muore con l'errore 1000, che non dice niente a nessuno.
     dependencies:
       # On-device Uzbek speech recognition. Both this and the model in
       # Resources/Models are build artefacts kept out of git: rebuild them with

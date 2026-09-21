@@ -7,6 +7,8 @@ struct PathView: View {
     @State private var activeSession: SessionRequest?
     @State private var guidebookUnit: Unit?
     @State private var testTarget: TestTarget?
+    /// The writing chapter is not a set of exercises, so it opens its own screen.
+    @State private var writingNode: PathNode?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -38,6 +40,9 @@ struct PathView: View {
             } startTest: { target in
                 selectedNode = nil
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { testTarget = target }
+            } startWriting: { chapterNode in
+                selectedNode = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { writingNode = chapterNode }
             }
             .presentationDetents([.height(430)])
             .presentationDragIndicator(.visible)
@@ -53,6 +58,11 @@ struct PathView: View {
         }
         .fullScreenCover(item: $activeSession) { req in
             LessonView(request: req)
+        }
+        .fullScreenCover(item: $writingNode) { node in
+            if case .writing(let chapter) = node.kind {
+                ChatChapterView(chapter: chapter, node: node)
+            }
         }
     }
 
@@ -327,6 +337,7 @@ struct NodeSheet: View {
     let level: CEFR
     let start: (SessionRequest) -> Void
     let startTest: (TestTarget) -> Void
+    let startWriting: (PathNode) -> Void
 
     private var unit: Unit? { state.curriculum.unit(id: node.unitID) }
     private var unlocked: Bool { state.isUnlocked(node) }
@@ -337,6 +348,10 @@ struct NodeSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
+
+            if case .writing(let chapter) = node.kind, unlocked {
+                writingBrief(chapter)
+            }
 
             if required > 1 {
                 VStack(alignment: .leading, spacing: 8) {
@@ -365,7 +380,17 @@ struct NodeSheet: View {
 
             Spacer(minLength: 0)
 
-            if unlocked {
+            if unlocked, node.isWriting {
+                Button {
+                    Feedback.pop(); startWriting(node)
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "paperplane.fill").font(.system(size: 15, weight: .black))
+                        Text(S.writingStart[state.native])
+                    }
+                }
+                .buttonStyle(.chunky(Palette.purple, Palette.purpleDeep))
+            } else if unlocked {
                 Button {
                     guard let unit else { return }
                     Feedback.pop()
@@ -397,6 +422,13 @@ struct NodeSheet: View {
         .padding(Metrics.hPad)
         .padding(.top, 8)
         .background(Palette.bgElevated)
+        .onAppear {
+            // She is reading the chapter's key words; that is time enough for the
+            // assistant to have written a few new sentences before she taps Start.
+            guard unlocked, done > 0, let unit,
+                  let brief = state.phraseBrief(for: node, unit: unit, level: level) else { return }
+            PhraseForge.shared.warm(brief)
+        }
     }
 
     private var header: some View {
@@ -417,6 +449,34 @@ struct NodeSheet: View {
                 }
             }
             Spacer()
+        }
+    }
+
+    /// What this chapter is, in the two lines it takes to say it: who she is writing
+    /// to, about what, and how much of it is being asked for.
+    private func writingBrief(_ chapter: WritingChapter) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(S.writingSub[state.native])
+                .font(.plain(13.5)).foregroundStyle(Palette.inkSoft)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 10) {
+                Image(systemName: chapter.theme.icon)
+                    .font(.system(size: 17, weight: .black)).foregroundStyle(.white)
+                    .frame(width: 40, height: 40)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Palette.purple))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(chapter.theme.title[state.native])
+                        .font(.heading(15)).foregroundStyle(Palette.ink)
+                    Text("\(chapter.turns) × \(chapter.minimumWords)+ \(S.wordsShort[state.native])")
+                        .font(.plain(12)).foregroundStyle(Palette.inkSoft)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(11)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous)
+                .fill(Palette.purple.opacity(0.12)))
         }
     }
 

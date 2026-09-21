@@ -68,9 +68,12 @@ Se modifichi `project.yml` (o aggiungi cartelle di sorgenti), rigeneralo con `xc
 La firma è **automatica** e il campo Team è volutamente vuoto, così Xcode ti fa scegliere
 il tuo.
 
-Requisiti: Xcode 16+, iOS 17.0 o successivo. Nessuna dipendenza esterna, nessun account.
-Senza chiave IA **funziona interamente offline**; con una chiave la rete serve solo per la
-videochiamata e per il giudizio sulle traduzioni alternative, e se manca ricade sull'offline.
+Requisiti: Xcode 16+, iOS 17.0 o successivo. **Nessuna dipendenza esterna**, nemmeno per
+l'account. Senza chiave IA e senza account **funziona interamente offline**; con una
+chiave la rete serve per la videochiamata, per il capitolo di scrittura, per le frasi
+nuove e per il giudizio sulle traduzioni alternative — e se manca, ognuna di queste
+ricade sull'offline. L'account (facoltativo, vedi [più sotto](#account-non-perdere-i-progressi))
+serve solo a non perdere i progressi cambiando telefono.
 
 ### Usarla in due
 
@@ -127,6 +130,7 @@ Unità ─┬─ Lezione 1  ┐
        ├─ Lezione n  │  4 lezioni "narrative" + pacchetti di lessico
        │             ┘  (16-21 vocaboli ciascuna)
        ├─ Dialogo       storia da leggere/ascoltare + esercizi
+       ├─ Scrittura     chat con Anorcha: scrivi tu, nessun esercizio
        └─ Ripasso       test finale su tutta l'unità (20 esercizi)
 ```
 
@@ -150,6 +154,51 @@ Dialoghi e ripassi d'unità restano invece a sessione singola.
 
 Ogni unità ha anche un **manuale** (l'icona 📖 sul banner) con le note di grammatica e
 l'elenco completo delle parole, ognuna con audio e indicatore di memoria.
+
+### Le frasi non sono sempre le stesse
+
+Il corso ha un corpus fisso, quindi al quinto giro su una lezione le quindici frasi
+sarebbero le stesse del primo: non si traduce più, si ricorda quale bottone si era
+premuto. Con una chiave IA configurata l'app **si scrive frasi nuove da sola**
+(`PhraseForge`): stesso lessico del capitolo, stessa grammatica, stesso livello CEFR —
+ma frasi che nessuno ha mai visto.
+
+- Il **primo** giro su una lezione resta sempre sul corpus del corso: le parole nuove
+  si incontrano in frasi verificate, non inventate.
+- Dal secondo in poi la sessione è circa **metà capitolo e metà frasi nuove**.
+- La lunghezza è vincolata al livello (A1 3-6 parole, A2 4-9, B1 6-13, B2 8-18), così
+  «nuovo» non diventa mai di nascosto «più difficile».
+- Tutto quello che arriva viene **tenuto su disco** e si accumula: dopo i primi giri
+  c'è varietà anche offline, e ogni capitolo arriva a un massimo di 90 frasi.
+- Si disattiva da *Profilo → Frasi sempre nuove*. Senza chiave non parte mai e il
+  corso funziona esattamente come prima.
+
+### Un capitolo di sola scrittura, in ogni unità
+
+Ogni unità ha un nodo **Scrivi ad Anorcha**: niente esercizi, niente cinque sessioni —
+una **chat**. Anorcha scrive un messaggio nella lingua che stai imparando, tu rispondi
+di tuo pugno, e va avanti per qualche scambio. Sono **32 capitoli in tutto**, uno per
+unità, distribuiti da A1 a B2.
+
+| Livello | Messaggi da scrivere | Minimo per messaggio |
+|---|---|---|
+| A1 | 4 | 3 parole |
+| A2 | 5 | 5 parole |
+| B1 | 6 | 8 parole |
+| B2 | 6 | 12 parole |
+
+Ogni unità ha un **argomento fisso** (com'è andata oggi, mettersi d'accordo, chiedere
+un favore, un piccolo problema…) scelto dall'id dell'unità, così il capitolo ha
+un'identità sua; i messaggi dentro, invece, sono scritti nuovi ogni volta. Tocca un
+messaggio di Anorcha per vederne la traduzione.
+
+**Durante la chat non ti corregge niente** — una conversazione che ti segna l'errore a
+ogni riga è una conversazione che smetti di scrivere. Alla fine arriva il rapporto:
+frase per frase, cosa era sbagliato, perché, e un modo più naturale di dirlo. È lo
+stesso motore di correzione della videochiamata, quindi **funziona anche offline**
+(con una chiave, le correzioni le scrive l'IA; senza, le fa il correttore locale).
+Anche senza chiave Anorcha ha un copione di domande per ogni argomento, quindi il
+capitolo si fa comunque.
 
 ### Le note di grammatica sono bilingui *e asimmetriche*
 
@@ -513,6 +562,138 @@ Se un giorno Apple aggiungerà una voce uzbeka, verrà usata automaticamente sen
 
 ---
 
+## Account: non perdere i progressi
+
+Senza account l'app è quello che è sempre stata: un file sul telefono. Reinstalli,
+cambi iPhone, e i progressi se ne vanno con lui.
+
+Con un account quel file ha un gemello su **Firestore**: viene mandato su qualche
+secondo dopo ogni cambiamento, e **riunito** con quello del server a ogni accesso.
+
+L'account è **l'ultimo passo dell'onboarding**, subito prima di cominciare: è lì che
+si decide se le prossime settimane di studio esistono solo su questo telefono. Chi
+preferisce di no ha *Continua senza account* in fondo, e può rimediare in qualsiasi
+momento da *Profilo → Account*. Chi invece sta reinstallando trova *Ho già un account*
+già sulla primissima schermata: accede, i progressi tornano giù, e l'onboarding si
+salta del tutto.
+
+Il passo c'è **sempre**, anche in una build le cui stringhe in `Secrets.swift` sono
+ancora vuote: i tre pulsanti restano al loro posto e sotto compare un promemoria giallo
+che dice quali stringhe mancano. Una schermata che si nasconde da sola quando non è
+configurata è una schermata che non ti accorgi di non aver configurato.
+
+Tre modi per entrare, tutti e tre sullo stesso account Firebase e quindi sullo stesso
+documento di progressi:
+
+| | Che cosa serve |
+|---|---|
+| **Accedi con Apple** | niente: è un framework di sistema |
+| **Accedi con Google** | una stringa in `Secrets.swift` (il client OAuth iOS) |
+| **Email e password** | niente, con recupero password via email |
+
+### La fusione non perde mai niente
+
+Non è «vince l'ultimo che scrive» — è così che sparisce una settimana di lezioni
+quando due telefoni si sincronizzano nell'ordine sbagliato. La regola è additiva:
+
+| Dato | Come si uniscono le due copie |
+|---|---|
+| XP, gemme, serie, salva-serie | il valore più alto |
+| lezioni fatte | completamenti, corone e precisione migliori delle due |
+| memoria delle parole (SRS) | la copia più allenata |
+| livelli sbloccati | l'unione |
+| storico giornaliero | giorno per giorno, il massimo |
+| errori e domande già fatte | l'unione, con lo stesso tetto di prima |
+| impostazioni e «ora non posso» | **vince questo telefono** |
+
+La chiave IA **non lascia mai il telefono**: viene tolta dal blob prima dell'invio.
+
+### Come si attiva (una volta sola)
+
+Il modo corto, se hai `npm`:
+
+```bash
+./scripts/crea-progetto-firebase.sh
+```
+
+Installa `firebase-tools` se manca, apre il browser per il login Google — l'unica
+cosa che chiede — e poi fa tutto il resto da solo: crea il progetto, ci attacca
+l'app web (che porta la **Web API Key**) e l'app **iOS** con il bundle
+`com.uzbelia.app` (che porta il **client OAuth di Google**, senza il quale quel
+pulsante non potrebbe funzionare), accende Email, Apple e Google via l'API di
+Identity Toolkit, crea Firestore, carica le regole, e scrive tutte e tre le stringhe
+in `Secrets.swift` tenendole fuori dai commit, come già fa la chiave Azure.
+
+Se qualche interruttore non si lascia alzare via API, lo dice e apre la pagina
+giusta della console: sono due clic, non di più.
+
+Su un progetto Firebase che esiste già:
+
+```bash
+./scripts/crea-progetto-firebase.sh <PROJECT_ID>
+```
+
+Le chiavi si possono anche scrivere a mano in qualsiasi momento:
+
+```bash
+./scripts/set-firebase-keys.sh <WEB_API_KEY> <PROJECT_ID>
+./scripts/set-firebase-keys.sh --google <ID_CLIENT_OAUTH_IOS>
+```
+
+Il modo lungo, tutto dalla console:
+
+Non c'è nessun SDK nel progetto — né Firebase né GoogleSignIn. L'app parla con le API
+REST (*Identity Toolkit* per l'account, *Firestore* per il documento) con `URLSession`,
+esattamente come già parla con Gemini; Apple passa per `AuthenticationServices`, che è
+di sistema; Google per la finestra di `ASWebAuthenticationSession` e il normale giro
+OAuth con **PKCE**. Niente pacchetto da risolvere, niente `GoogleService-Info.plist`,
+niente da registrare in Info.plist, nessun minuto in più di compilazione — **due
+stringhe** in `Sources/Services/Secrets.swift` (tre se vuoi anche Google) e basta.
+
+1. `console.firebase.google.com` → crea un progetto.
+2. ⚙ **Project settings**: copia il **Project ID** e la **Web API Key**.
+3. **Build → Authentication** → Get started → Sign-in method → abilita
+   **Email/Password**, **Apple** e (se lo vuoi) **Google**. Per Apple, su iOS nativo
+   non serve né Services ID né chiave privata: basta l'interruttore.
+4. **Build → Firestore Database** → Create database (qualsiasi regione).
+5. Firestore → **Rules**, così ognuno può toccare solo il proprio documento:
+
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{db}/documents {
+       match /learners/{uid} {
+         allow read, write: if request.auth != nil && request.auth.uid == uid;
+       }
+     }
+   }
+   ```
+
+6. Incolla le due stringhe in `Secrets.swift` (`firebaseAPIKey`, `firebaseProjectID`)
+   e ricompila.
+
+Per il **pulsante Google**, una stringa in più: Google Cloud console →
+*APIs & Services → Credentials* → il client OAuth 2.0 di tipo **iOS** che Firebase ha
+creato abilitando Google (o creane uno con il bundle id `com.uzbelia.app`), e incollalo
+in `googleOAuthClientID`.
+
+Per **Accedi con Apple** non serve nulla in `Secrets`: l'entitlement è nel progetto
+(`Resources/Uzbelia.entitlements` → `com.apple.developer.applesignin`) e la firma
+automatica aggiunge la capability all'App ID da sola al primo build su iPhone. Da
+provare su un iPhone vero, o su un simulatore dove hai fatto l'accesso con un ID
+Apple: senza, il foglio si apre e si chiude con un errore 1000 che non riguarda
+l'app.
+
+Lasciate vuote, **tutta la sezione Account sparisce dallo schermo** e l'app salva solo
+sul telefono, come prima. La Web API Key non è un segreto come le altre in quel file:
+nomina soltanto il progetto, e sono le regole qui sopra a tenere i dati privati.
+
+Il documento contiene il profilo in JSON **compresso** (`bytesValue`), più XP e serie
+in chiaro per poterli leggere dalla console. Un corso finito sta in poche decine di KB,
+molto sotto il megabyte che Firestore concede a un documento.
+
+---
+
 ## Architettura
 
 ```
@@ -521,15 +702,19 @@ Sources/
 ├── DesignSystem/     palette, tipografia, bottoni 3D, mascotte, componenti
 ├── Models/           albero del corso (Curriculum) e stato utente persistito
 ├── Content/          caricamento del curriculum dal bundle
-├── Engine/           Exercise, ExerciseFactory, Grader, SRS
-├── Services/         sintesi vocale, riconoscimento vocale, feedback aptico
+├── Engine/           Exercise, ExerciseFactory, Grader, SRS, PhraseForge,
+│                    WritingChapter
+├── Services/         sintesi vocale, riconoscimento vocale, feedback aptico,
+│                    client IA, client Firebase (REST), Apple/Google, portachiavi
 └── Features/
-    ├── Onboarding/   scelta corso, livello di partenza, obiettivo
+    ├── Onboarding/   scelta corso, livello di partenza, obiettivo, accesso
     ├── Path/         percorso a serpentina, schede tappa, manuale d'unità
     ├── Lesson/       motore di sessione, 8 viste esercizio, storie, risultati
+    ├── Writing/      il capitolo di scrittura: chat con Anorcha e correzione
     ├── Practice/     allenamento libero, drill per abilità, elenco parole
     ├── Grammar/      tutte le note del corso, con ricerca
-    └── Profile/      statistiche, grafico settimanale, negozio, impostazioni
+    └── Profile/      statistiche, grafico settimanale, negozio, impostazioni,
+                      account
 content/              sorgenti del curriculum (Python) + compilatore in JSON
 Resources/Curriculum/ JSON generati e inclusi nell'app
 Tests/                test su contenuti, grader, SRS e motore esercizi
@@ -537,7 +722,9 @@ Tests/                test su contenuti, grader, SRS e motore esercizi
 
 Lo stato (progressi, XP, serie, SRS, impostazioni) è un unico blob JSON in
 *Application Support*, con decodifica tollerante: aggiungere campi in futuro non
-cancella i progressi di chi sta già studiando.
+cancella i progressi di chi sta già studiando. Con un account configurato lo stesso
+blob ha un gemello su Firestore (vedi sotto). Le frasi generate stanno in un secondo
+file, `uzbelia-phrases.json`, accanto al primo.
 
 ---
 

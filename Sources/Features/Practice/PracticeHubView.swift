@@ -156,25 +156,33 @@ struct PracticeHubView: View {
     }
 
     private func skillCard(_ skill: Skill) -> some View {
-        Button {
+        // a drill for a skill she has just put aside would walk straight past the hold
+        let held = state.isSnoozed(skill)
+        return Button {
             Feedback.pop(); startSkill(skill)
         } label: {
             VStack(alignment: .leading, spacing: 8) {
-                Image(systemName: skill.icon)
-                    .font(.system(size: 20, weight: .black)).foregroundStyle(skill.tint.main)
+                Image(systemName: held ? "clock.badge.xmark" : skill.icon)
+                    .font(.system(size: 20, weight: .black))
+                    .foregroundStyle(held ? Palette.amberDeep : skill.tint.main)
                 Text(skill.label[state.native]).font(.heading(15)).foregroundStyle(Palette.ink)
-                Text(skillHint(skill)).font(.plain(11.5)).foregroundStyle(Palette.inkFaint)
+                Text(held ? "\(S.onHoldFor[state.native]) \(state.snoozeMinutesLeft(skill)) \(S.minutesShort[state.native])"
+                          : skillHint(skill))
+                    .font(.plain(11.5))
+                    .foregroundStyle(held ? Palette.amberDeep : Palette.inkFaint)
                     .lineLimit(2).fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
             .background(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous).fill(Palette.card))
             .overlay(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous)
-                .stroke(skill.tint.main.opacity(0.35), lineWidth: 2))
+                .stroke((held ? Palette.amber : skill.tint.main).opacity(0.35), lineWidth: 2))
             .background(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous)
                 .fill(Palette.stroke).offset(y: 4))
+            .opacity(held ? 0.55 : 1)
         }
         .buttonStyle(.plain)
+        .disabled(held)
     }
 
     private func skillHint(_ skill: Skill) -> String {
@@ -205,6 +213,7 @@ struct PracticeHubView: View {
     }
 
     private func startSkill(_ skill: Skill) {
+        guard !state.isSnoozed(skill) else { return }
         let pairs = Array(state.learnedPairs.shuffled().prefix(14))
         let ex = ExerciseFactory.practice(pairs: pairs, pool: state.curriculum.allPairs,
                                           native: state.native, settings: state.effectiveSettings,

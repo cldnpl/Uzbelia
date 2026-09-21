@@ -103,8 +103,8 @@ final class CurriculumTests: XCTestCase {
     func testPathNodeCountPerLevel() {
         for pack in curriculum.levels {
             let nodes = pack.units.enumerated().flatMap { i, u in u.nodes(level: pack.level, index: i) }
-            // every lesson, plus one story and one review per unit
-            let expected = pack.units.reduce(0) { $0 + $1.lessons.count + 2 }
+            // every lesson, plus a story, a writing chapter and a review per unit
+            let expected = pack.units.reduce(0) { $0 + $1.lessons.count + 3 }
             XCTAssertEqual(nodes.count, expected, "\(pack.level.label) node count")
             XCTAssertEqual(Set(nodes.map(\.id)).count, nodes.count, "duplicate node ids")
         }

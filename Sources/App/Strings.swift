@@ -142,6 +142,15 @@ enum S {
     static let cantListen     = t("Non posso ascoltare ora", "Hozir eshita olmayman")
     static let onHoldSpeaking = t("Parlato in pausa per", "Gapirish pauzada:")
     static let onHoldListening = t("Ascolto in pausa per", "Tinglash pauzada:")
+    /// Said the moment she taps "not right now", so the hold is never a surprise.
+    static func pausedNotice(_ skill: Skill, minutes: Int) -> Bilingual {
+        skill == .speaking
+            ? t("Gli esercizi di parlato saranno disattivati per \(minutes) minuti",
+                "Gapirish mashqlari \(minutes) daqiqaga o'chiriladi")
+            : t("Gli esercizi di ascolto saranno disattivati per \(minutes) minuti",
+                "Tinglash mashqlari \(minutes) daqiqaga o'chiriladi")
+    }
+    static let onHoldFor      = t("In pausa per", "Pauzada:")
     static let resumeNow      = t("Riattiva", "Yoqish")
     static let correct        = t("Perfetto!", "Ajoyib!")
     static let almost         = t("Quasi! Attenzione allo spelling:", "Deyarli! Imloga e'tibor bering:")
@@ -235,6 +244,83 @@ enum S {
     static let freezeOwned    = t("Salva-serie disponibili", "Mavjud muzlatgichlar")
     static let goalReached    = t("Obiettivo di oggi raggiunto!", "Bugungi maqsadga erishildi!")
     static let todayProgress  = t("Oggi", "Bugun")
+
+    // Account
+    static let account        = t("Account", "Akkaunt")
+    static let accountSub     = t("I progressi restano al sicuro anche se cambi telefono.",
+                                  "Telefon almashtirsangiz ham yutuqlar saqlanib qoladi.")
+    static let signIn         = t("Accedi", "Kirish")
+    static let signUp         = t("Crea un account", "Akkaunt yaratish")
+    static let signOut        = t("Esci", "Chiqish")
+    static let haveAccount    = t("Ho già un account", "Menda akkaunt bor")
+    static let noAccountYet   = t("Non hai un account? Creane uno", "Akkauntingiz yo'qmi? Yarating")
+    static let backToSignIn   = t("Hai già un account? Accedi", "Akkauntingiz bormi? Kiring")
+    static let emailField     = t("Email", "Email")
+    static let passwordField  = t("Password", "Parol")
+    static let passwordHint   = t("Almeno 6 caratteri", "Kamida 6 ta belgi")
+    static let forgotPassword = t("Password dimenticata?", "Parolni unutdingizmi?")
+    static let resetSent      = t("Ti abbiamo mandato un'email per rifare la password.",
+                                  "Parolni tiklash uchun sizga email yubordik.")
+    static let syncNow        = t("Sincronizza ora", "Hozir sinxronlash")
+    static let syncing        = t("Sincronizzo…", "Sinxronlanmoqda…")
+    static let syncedJustNow  = t("Sincronizzato ora", "Hozir sinxronlandi")
+    static let syncedNever    = t("Non ancora sincronizzato", "Hali sinxronlanmagan")
+    static let syncedAt       = t("Sincronizzato alle", "Sinxronlangan vaqt:")
+    static let notSignedIn    = t("Nessun account: i progressi stanno solo su questo telefono.",
+                                  "Akkaunt yo'q: yutuqlar faqat shu telefonda.")
+    static let deleteAccount  = t("Elimina l'account", "Akkauntni o'chirish")
+    static let deleteAccountMsg = t("L'account e i progressi sul server spariranno per sempre. Quelli su questo telefono restano.",
+                                    "Akkaunt va serverdagi yutuqlar butunlay yo'qoladi. Telefondagilar qoladi.")
+    static let accountMerged  = t("Progressi uniti: non si perde niente.",
+                                  "Yutuqlar birlashtirildi: hech narsa yo'qolmaydi.")
+    static let skipForNow     = t("Più tardi", "Keyinroq")
+    static let secureTitle    = t("Metti al sicuro i progressi", "Yutuqlaringizni saqlang")
+    static let secureSub      = t("Crea un account ora: se cambi telefono o reinstalli l'app, serie, corone e parole imparate ti seguono. Ci vuole mezzo minuto.",
+                                  "Hozir akkaunt yarating: telefon almashtirsangiz yoki ilovani qayta o'rnatsangiz, seriya, tojlar va o'rgangan so'zlaringiz siz bilan qoladi. Yarim daqiqa vaqt oladi.")
+    static let secureSkip     = t("Continua senza account", "Akkauntsiz davom etish")
+    static let secureSkipNote = t("Puoi sempre farlo dopo da Profilo, ma i progressi fatti nel frattempo stanno solo qui.",
+                                  "Buni keyinroq Profildan ham qilsangiz bo'ladi, lekin oradagi yutuqlar faqat shu telefonda qoladi.")
+    /// Vista solo da chi compila l'app: in una build con le chiavi al loro posto
+    /// questa riga non esiste, perché `isAvailable` è vera e l'intero riquadro
+    /// non viene nemmeno costruito.
+    static let secureNotSetUp = t("Questa build non ha ancora un progetto Firebase dietro. Crealo con ./scripts/crea-progetto-firebase.sh e ricompila: accessi e sincronizzazione si accendono da soli.",
+                                  "Bu versiyada hali Firebase loyihasi yo'q. ./scripts/crea-progetto-firebase.sh bilan yarating va qayta kompilyatsiya qiling: kirish va sinxronlash o'zi ishga tushadi.")
+    static let secureDone     = t("Tutto a posto!", "Hammasi tayyor!")
+    static let secureDoneSub  = t("I progressi ora sono al sicuro su questo account.",
+                                  "Yutuqlar endi shu akkauntda xavfsiz.")
+    static let orWithEmail    = t("OPPURE CON L'EMAIL", "YOKI EMAIL BILAN")
+    static let continueApple  = t("Continua con Apple", "Apple bilan davom etish")
+    static let continueGoogle = t("Continua con Google", "Google bilan davom etish")
+    static let signedInWith   = t("Accesso con", "Kirish:")
+
+    // Fresh, generated phrases
+    static let freshPhrases   = t("Frasi sempre nuove", "Doim yangi jumlalar")
+    static let freshPhrasesSub = t("L'IA scrive frasi nuove con le parole del capitolo, al tuo livello.",
+                                   "Sun'iy intellekt bob so'zlari bilan darajangizga mos yangi jumlalar yozadi.")
+    static let writingPhrases = t("Preparo frasi nuove…", "Yangi jumlalar tayyorlanmoqda…")
+    static let freshBadge     = t("NUOVA FRASE", "YANGI JUMLA")
+
+    // The writing chapter
+    static let writingTitle   = t("Scrivi ad Anorcha", "Anorchaga yozing")
+    static let writingSub     = t("Un capitolo di sola scrittura: messaggiate, e alla fine ti correggo.",
+                                  "Faqat yozuvga bag'ishlangan bob: yozishasiz, oxirida men tuzataman.")
+    static let writingStart   = t("Inizia a scrivere", "Yozishni boshlang")
+    static let writingLeft    = t("messaggi da scrivere", "ta xabar yozish kerak")
+    static let writingLastOne = t("Ultimo messaggio", "Oxirgi xabar")
+    static let writeHere      = t("Scrivi qui…", "Shu yerga yozing…")
+    static let sendMessage    = t("Invia", "Yuborish")
+    static let wordsShort     = t("parole", "so'z")
+    static let anorchaTyping  = t("Anorcha sta scrivendo…", "Anorcha yozmoqda…")
+    static let tapToTranslate = t("Tocca un messaggio per la traduzione", "Tarjima uchun xabarni bosing")
+    static let writingEndEarly = t("Chiudi la chat", "Chatni yopish")
+    static let writingEndMsg  = t("Quello che hai scritto viene comunque corretto e conta.",
+                                  "Yozganlaringiz baribir tuzatiladi va hisobga olinadi.")
+    static let writingReview  = t("Correggo quello che hai scritto…", "Yozganlaringizni tekshiryapman…")
+    static let writingRecap   = t("Come hai scritto", "Qanday yozdingiz")
+    static let writingNoWords = t("Non hai scritto niente, ma puoi rifarlo quando vuoi.",
+                                  "Hech narsa yozmadingiz, lekin istalgan payt qayta urinib ko'rasiz.")
+    static let yourMessage    = t("Il tuo messaggio", "Sizning xabaringiz")
+    static let betterWay      = t("Si può dire così:", "Bunday aytsa ham bo'ladi:")
 
     // Generic
     static let done           = t("Fatto", "Tayyor")

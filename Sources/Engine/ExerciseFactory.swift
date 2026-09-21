@@ -6,31 +6,56 @@ enum ExerciseFactory {
 
     /// Builds one pass over a node. `focus` changes what the pass drills, so the
     /// five sessions a lesson needs are five genuinely different workouts.
+    ///
+    /// `fresh` is sentences written for this chapter by the assistant (see
+    /// `PhraseForge`). They are mixed in from the second pass onwards: the first pass
+    /// is where the chapter's own words are met for the first time, and meeting them
+    /// inside a sentence nobody has ever checked is not how you meet a word.
     static func session(for node: PathNode,
                         unit: Unit,
                         curriculum: Curriculum,
                         native: Language,
                         settings: Settings,
-                        focus: SessionFocus = .discover) -> [Exercise] {
+                        focus: SessionFocus = .discover,
+                        fresh: [Pair] = []) -> [Exercise] {
         let pool = curriculum.pairsUpTo(unitID: unit.id)
         switch node.kind {
         case .lesson(let lesson):
-            return build(pairs: lesson.allPairs, pool: pool, native: native,
+            let taught = lesson.allPairs
+            let pairs = focus == .discover ? taught
+                                           : blend(taught: taught, fresh: fresh, want: 18)
+            return build(pairs: pairs, pool: pool, native: native,
                          settings: settings, maxCount: 15,
                          includeMatch: focus == .discover,
                          productionBias: focus.productionBias,
                          emphasis: focus.emphasis)
         case .story(let dialogue):
-            let pairs = dialogue.lines.map { Pair(it: $0.it, uz: $0.uz) }
-            return build(pairs: pairs, pool: pool, native: native,
+            let lines = dialogue.lines.map { Pair(it: $0.it, uz: $0.uz) }
+            return build(pairs: blend(taught: lines, fresh: fresh, want: 14),
+                         pool: pool, native: native,
                          settings: settings, maxCount: 12, includeMatch: false,
                          productionBias: 0.4, emphasis: .listening)
+        case .writing:
+            // Not a set of exercises at all — see `ChatChapterView`.
+            return []
         case .review:
-            let pairs = unit.allPairs.shuffled()
-            return build(pairs: Array(pairs.prefix(22)), pool: pool, native: native,
+            let pairs = blend(taught: Array(unit.allPairs.shuffled().prefix(22)),
+                              fresh: fresh, want: 26)
+            return build(pairs: pairs, pool: pool, native: native,
                          settings: settings, maxCount: 20, includeMatch: true,
                          productionBias: 0.65, emphasis: nil)
         }
+    }
+
+    /// Roughly half the chapter's own material and half newly written, shuffled
+    /// together. Half, because a session made entirely of generated sentences would
+    /// stop drilling the very words the chapter exists to teach — and because a
+    /// wrong sentence, if one ever slips through, should never be most of a lesson.
+    static func blend(taught: [Pair], fresh: [Pair], want: Int) -> [Pair] {
+        guard !fresh.isEmpty else { return taught }
+        let newest = Array(fresh.shuffled().prefix(max(1, want / 2)))
+        let known = Array(taught.shuffled().prefix(max(1, want - newest.count)))
+        return (known + newest).shuffled()
     }
 
     /// A knowledge check: no matching game, production heavy, drawn from a wide pool.

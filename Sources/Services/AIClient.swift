@@ -211,6 +211,89 @@ enum AIClient {
         return Turn(reaction: reaction, question: decoded.question.map(bilingual))
     }
 
+    // MARK: - Messaging, not talking
+
+    /// Anorcha's next message in a written chapter.
+    ///
+    /// Deliberately a different person from the one on the video call: messages are
+    /// short, they run on, they are allowed a "haha" and an emoji, and above all they
+    /// keep *asking* — a chat whose replies do not need answering is a chat the
+    /// learner stops writing in. `history` empty means this is the opening message.
+    static func chatMessage(provider: AIProvider,
+                            key: String,
+                            briefing: String,
+                            history: [CallTurnRecord],
+                            target: Language,
+                            native: Language,
+                            level: CEFR,
+                            closing: Bool) async throws -> Turn {
+        let targetName = target == .it ? "Italian" : "Uzbek"
+        let nativeName = native == .it ? "Italian" : "Uzbek"
+        let band = lengthBand(for: level)
+        let opening = history.isEmpty
+
+        let system = """
+        You are Anorcha, texting a friend who is learning \(targetName) at CEFR level \
+        \(level.label) and whose own language is \(nativeName). This is a chat, not a lesson \
+        and not a phone call: write the way people actually text — one or two short \
+        messages' worth, \(band.min) to \(band.max + 4) words, contractions, the odd emoji, \
+        no greetings formula beyond the first message.
+
+        Every message of yours ends in something she has to answer: a question, a choice \
+        between two things, or a piece of news that begs for a reaction. Stay inside the \
+        vocabulary of her chapter — if you need a word she has not met, choose a simpler \
+        one. Pick up the detail she just gave you and go further into it rather than \
+        changing the subject; you are allowed to disagree, to tease, to be surprised.
+
+        Never correct her mistakes in the chat itself — that happens at the end, and a \
+        correction mid-conversation is how someone stops writing. If her message is empty, \
+        in the wrong language, or you genuinely cannot make it out, say so warmly and ask \
+        the same thing in an easier way.
+
+        Reply with JSON only: {"reaction": {"target": "<your message in \(targetName)>", \
+        "native": "<the same message in \(nativeName)>"}\
+        \(closing ? "" : ", \"question\": null")}.
+        """
+
+        let transcript = history.enumerated().map { i, turn in
+            "\(i + 1). You wrote: \(turn.question[target])\n   She replied: "
+            + (turn.answer.isEmpty ? "(nothing — she skipped it)" : turn.answer)
+        }.joined(separator: "\n")
+
+        let instruction: String
+        if opening {
+            instruction = "Send her the first message of the conversation. Open the situation "
+                + "above in your own words — do not announce it, just start it — and end on "
+                + "something she has to answer."
+        } else if closing {
+            instruction = "React to what she just wrote and then close the conversation warmly, "
+                + "mentioning something she told you earlier. Ask nothing more."
+        } else {
+            instruction = "React to what she just wrote and keep the conversation going: one "
+                + "more message, following the detail she gave you."
+        }
+
+        let prompt = """
+        \(briefing)
+
+        \(opening ? "Nothing has been said yet." : "The chat so far, oldest first:\n\(transcript)")
+
+        \(instruction)
+        """
+
+        let text = try await complete(provider: provider, key: key, system: system,
+                                      prompt: prompt, maxTokens: 600, json: true,
+                                      temperature: 1.15)
+        guard let decoded = try? JSONDecoder().decode(GeneratedTurn.self,
+                                                      from: Data(extractJSON(text).utf8)) else {
+            throw Failure.decoding
+        }
+        let message = Bilingual(it: native == .it ? decoded.reaction.native : decoded.reaction.target,
+                                uz: native == .it ? decoded.reaction.target : decoded.reaction.native)
+        guard !message.it.isEmpty, !message.uz.isEmpty else { throw Failure.empty }
+        return Turn(reaction: message, question: nil)
+    }
+
     // MARK: - What does this word mean?
 
     private struct GeneratedGloss: Decodable {
@@ -328,6 +411,106 @@ enum AIClient {
             }
         }
         throw lastError
+    }
+
+    // MARK: - Sentences the course has never said before
+
+    private struct GeneratedPhrase: Decodable {
+        let target: String
+        let native: String
+        let hint: String?
+    }
+
+    /// How long a sentence is allowed to be, by level. A1 that runs to twelve words is
+    /// not A1 any more, and the single fastest way to make generated material useless
+    /// is to let it drift above the chapter it belongs to.
+    static func lengthBand(for level: CEFR) -> (min: Int, max: Int) {
+        switch level {
+        case .a1: return (3, 6)
+        case .a2: return (4, 9)
+        case .b1: return (6, 13)
+        case .b2: return (8, 18)
+        }
+    }
+
+    /// Writes new sentences for a chapter the learner is on.
+    ///
+    /// The course ships a fixed corpus, which means the fifth pass over a lesson asks
+    /// the same fifteen sentences as the first. This is the way out: the same
+    /// vocabulary and the same grammar, in sentences nobody has seen — bounded by the
+    /// chapter's own words and by the length its CEFR level allows, so "new" never
+    /// quietly means "harder".
+    static func freshPhrases(provider: AIProvider,
+                             key: String,
+                             level: CEFR,
+                             unitTitle: String,
+                             lessonTitle: String,
+                             grammar: [String],
+                             vocabulary: [Pair],
+                             avoid: [String],
+                             target: Language,
+                             native: Language,
+                             count: Int) async throws -> [Pair] {
+        let targetName = target == .it ? "Italian" : "Uzbek"
+        let nativeName = native == .it ? "Italian" : "Uzbek"
+        let band = lengthBand(for: level)
+
+        let system = """
+        You write practice sentences for a CEFR \(level.label) learner of \(targetName) whose \
+        own language is \(nativeName). You are given the exact vocabulary a chapter teaches; \
+        your sentences must be built from that vocabulary plus the ordinary function words \
+        (articles, pronouns, prepositions, the commonest verbs) a learner at this level \
+        already has. Introduce no new content words.
+
+        Every sentence must:
+        · be between \(band.min) and \(band.max) words long in \(targetName);
+        · be something a person would actually say — a request, a remark, a question, a \
+          plan, a complaint — never a grammar drill;
+        · differ from all the others in subject AND in structure: do not write ten \
+          sentences off the same template with one word swapped;
+        · be natural, idiomatic \(targetName), correctly spelled and accented;
+        · come with a faithful, equally natural \(nativeName) translation — not a \
+          word-for-word gloss.
+
+        Uzbek is written in the Latin alphabet, with the apostrophes of o' and g' intact.
+        Reply with JSON only: an array of objects \
+        {"target": "<\(targetName)>", "native": "<\(nativeName)>"}.
+        """
+
+        let vocabList = vocabulary.prefix(60).map { "· \($0[target])  =  \($0[native])" }
+            .joined(separator: "\n")
+        let avoidList = avoid.isEmpty ? "(nothing yet)"
+            : avoid.suffix(45).map { "· \($0)" }.joined(separator: "\n")
+        let grammarLine = grammar.isEmpty ? "(none listed)" : grammar.joined(separator: "; ")
+
+        let prompt = """
+        Chapter: \(unitTitle) — \(lessonTitle)
+        Grammar this chapter teaches: \(grammarLine)
+
+        The vocabulary it teaches:
+        \(vocabList)
+
+        Sentences she has already been given — write nothing like these, in wording or in \
+        subject:
+        \(avoidList)
+
+        Write \(count) new sentences.
+        """
+
+        let text = try await complete(provider: provider, key: key, system: system,
+                                      prompt: prompt, maxTokens: 2200, json: true,
+                                      temperature: 1.2)
+        guard let decoded = try? JSONDecoder().decode([GeneratedPhrase].self,
+                                                      from: Data(extractJSON(text).utf8)) else {
+            throw Failure.decoding
+        }
+        let pairs = decoded.map {
+            Pair(it: native == .it ? $0.native : $0.target,
+                 uz: native == .it ? $0.target : $0.native,
+                 hint: $0.hint?.isEmpty == false ? $0.hint : nil)
+        }
+        guard !pairs.isEmpty else { throw Failure.empty }
+        return pairs
     }
 
     // MARK: - Is this another way of saying it?

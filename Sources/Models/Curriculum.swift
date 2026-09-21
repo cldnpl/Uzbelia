@@ -122,13 +122,21 @@ struct Unit: Codable, Hashable, Identifiable {
 
     var allPairs: [Pair] { lessons.flatMap(\.allPairs) }
 
-    /// Lessons + the story node + the unit review, in path order.
+    /// Lessons + the story + the writing chapter + the unit review, in path order.
+    ///
+    /// The writing chapter is not in the curriculum files: every unit gets one, built
+    /// from its own vocabulary, which is what puts a piece of real text production in
+    /// front of the learner thirty-two times across the course instead of never.
     func nodes(level: CEFR, index: Int) -> [PathNode] {
         var out: [PathNode] = lessons.enumerated().map { i, l in
             PathNode(kind: .lesson(l), unitID: id, level: level, indexInUnit: i)
         }
         if let dialogue {
             out.append(PathNode(kind: .story(dialogue), unitID: id, level: level, indexInUnit: out.count))
+        }
+        if !allPairs.isEmpty {
+            out.append(PathNode(kind: .writing(WritingPlanner.chapter(for: self, level: level)),
+                                unitID: id, level: level, indexInUnit: out.count))
         }
         out.append(PathNode(kind: .review, unitID: id, level: level, indexInUnit: out.count))
         return out
@@ -147,6 +155,8 @@ struct PathNode: Hashable, Identifiable {
     enum Kind: Hashable {
         case lesson(Lesson)
         case story(Dialogue)
+        /// Nothing but writing: a text conversation with Anorcha. See `WritingChapter`.
+        case writing(WritingChapter)
         case review
     }
     let kind: Kind
@@ -158,6 +168,7 @@ struct PathNode: Hashable, Identifiable {
         switch kind {
         case .lesson(let l): return l.id
         case .story: return "\(unitID)-story"
+        case .writing: return "\(unitID)-writing"
         case .review: return "\(unitID)-review"
         }
     }
@@ -166,6 +177,7 @@ struct PathNode: Hashable, Identifiable {
         switch kind {
         case .lesson(let l): return l.title
         case .story(let d): return d.title
+        case .writing(let w): return w.title
         case .review: return Bilingual(it: "Ripasso dell'unità", uz: "Bo'lim takrori")
         }
     }
@@ -174,6 +186,7 @@ struct PathNode: Hashable, Identifiable {
         switch kind {
         case .lesson: return "star.fill"
         case .story: return "text.bubble.fill"
+        case .writing: return "bubble.left.and.text.bubble.right.fill"
         case .review: return "crown.fill"
         }
     }
@@ -182,17 +195,24 @@ struct PathNode: Hashable, Identifiable {
         switch kind {
         case .lesson: return 15
         case .story: return 20
+        case .writing: return 35
         case .review: return 40
         }
     }
 
-    /// Lessons take five passes to complete, like a Duolingo skill; stories and
-    /// unit reviews are one-shot.
+    /// Lessons take five passes to complete, like a Duolingo skill; stories, writing
+    /// chapters and unit reviews are one-shot.
     var requiredSessions: Int {
         switch kind {
         case .lesson: return 5
-        case .story, .review: return 1
+        case .story, .writing, .review: return 1
         }
+    }
+
+    /// True for the chapters that are not a set of exercises at all.
+    var isWriting: Bool {
+        if case .writing = kind { return true }
+        return false
     }
 
     /// What the n-th pass over this node trains.
@@ -200,6 +220,7 @@ struct PathNode: Hashable, Identifiable {
         switch kind {
         case .lesson: return SessionFocus.forSession(index)
         case .story: return .listening
+        case .writing: return .writing
         case .review: return .review
         }
     }
