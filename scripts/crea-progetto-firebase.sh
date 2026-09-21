@@ -153,12 +153,19 @@ else
   ok "$R" && verde "       ✓ Apple" || { giallo "       … Apple: da alzare a mano"; RESTA_APPLE=1; }
 fi
 
+# Google, a differenza di Apple, pretende un client OAuth *web* con il suo
+# segreto — e quel client non esiste finché non si accende Google dalla console,
+# perché e' la console stessa a crearlo. Non c'e' un'API pubblica che lo faccia,
+# quindi qui l'API riesce solo su un progetto dove qualcuno l'ha gia' acceso.
 R=$(api POST "$ADMIN/defaultSupportedIdpConfigs?idpId=google.com" '{"enabled":true}' || true)
 if ok "$R"; then verde "       ✓ Google"
 else
   R=$(api PATCH "$ADMIN/defaultSupportedIdpConfigs/google.com?updateMask=enabled" \
         '{"enabled":true}' || true)
-  ok "$R" && verde "       ✓ Google" || { giallo "       … Google: da alzare a mano"; RESTA_GOOGLE=1; }
+  ok "$R" && verde "       ✓ Google" || {
+    giallo "       … Google: un clic in console (crea lui il client OAuth)"
+    RESTA_GOOGLE=1
+  }
 fi
 
 if [ "$RESTA_GOOGLE" = "0" ]; then
@@ -185,7 +192,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{db}/documents {
     match /learners/{uid} {
-      allow read, write: if request.auth != nil && request.auth.uid == uid;
+      allow read, write: if request.auth != null && request.auth.uid == uid;
     }
   }
 }
@@ -221,7 +228,11 @@ if [ "$RESTA_APPLE" = "1" ] || [ "$RESTA_GOOGLE" = "1" ]; then
   giallo "Resta un interruttore da alzare a mano — trenta secondi:"
   echo "  https://console.firebase.google.com/project/$PROGETTO/authentication/providers"
   [ "$RESTA_APPLE" = "1" ]  && echo "    → abilita  Apple   (nessun campo da riempire: Salva)" || true
-  [ "$RESTA_GOOGLE" = "1" ] && echo "    → abilita  Google  (email di supporto: la tua)" || true
+  [ "$RESTA_GOOGLE" = "1" ] && {
+    echo "    → abilita  Google  (email di supporto: la tua) → Salva"
+    echo "      e' quel Salva a creare il client OAuth: poi rilancia questo script"
+    echo "      e il pulsante Google si accende da solo."
+  } || true
   echo
   command -v open >/dev/null && \
     open "https://console.firebase.google.com/project/$PROGETTO/authentication/providers" || true

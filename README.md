@@ -663,7 +663,7 @@ stringhe** in `Sources/Services/Secrets.swift` (tre se vuoi anche Google) e bast
    service cloud.firestore {
      match /databases/{db}/documents {
        match /learners/{uid} {
-         allow read, write: if request.auth != nil && request.auth.uid == uid;
+         allow read, write: if request.auth != null && request.auth.uid == uid;
        }
      }
    }
