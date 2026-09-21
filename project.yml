@@ -27,12 +27,18 @@ targets:
       - path: Resources
         excludes:
           - "Uzbelia.entitlements"
+    # XcodeGen *genera* questo file a ogni `xcodegen generate`, e lo genera con
+    # dentro esattamente quel che dicono le `properties` qui sotto — niente altro.
+    # Scrivere la capability a mano nel file non serviva a niente: la rigenerazione
+    # successiva la cancellava, l'app veniva firmata senza, e il pulsante Apple
+    # moriva con l'errore 1000 anche su un iPhone dove l'ID Apple c'era eccome.
+    #
+    # Con la riga qui sotto la capability sopravvive, Xcode la alza sull'App ID del
+    # team da solo (firma automatica) e il profilo che ne esce sa firmarla.
     entitlements:
       path: Resources/Uzbelia.entitlements
-    # L'entitlements qui sopra è ciò che accende "Sign in with Apple": con la firma
-    # automatica Xcode lo legge, alza la capability sull'App ID del team e si fa
-    # dare un profilo capace di firmarla. Senza quel file il pulsante Apple si apre
-    # e muore con l'errore 1000, che non dice niente a nessuno.
+      properties:
+        com.apple.developer.applesignin: [Default]
     dependencies:
       # On-device Uzbek speech recognition. Both this and the model in
       # Resources/Models are build artefacts kept out of git: rebuild them with

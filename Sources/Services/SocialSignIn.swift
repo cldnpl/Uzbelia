@@ -31,7 +31,9 @@ enum SocialSignIn {
         case cancelled
         case notConfigured
         case noToken
-        case appleAccountMissing
+        /// Quel che Apple restituisce quando non completa: il codice grezzo, perché
+        /// è l'unica cosa che distingua una causa dall'altra.
+        case apple(Int)
         case provider(String)
 
         var errorDescription: String? { message.it }
@@ -43,9 +45,14 @@ enum SocialSignIn {
             case .notConfigured:
                 return Bilingual(it: "Accesso con Google non configurato in questa build.",
                                  uz: "Bu versiyada Google orqali kirish sozlanmagan.")
-            case .appleAccountMissing:
-                return Bilingual(it: "Nessun ID Apple su questo dispositivo. Aprilo in Impostazioni, accedi, e riprova.",
-                                 uz: "Bu qurilmada Apple ID yo'q. Sozlamalarni oching, kiring va qayta urinib ko'ring.")
+            case .apple(let code):
+                // Il 1000 ha almeno tre cause che dall'app si vedono identiche —
+                // nessun ID Apple sul dispositivo, l'app firmata senza la capability,
+                // il Portachiavi iCloud spento — e indovinarne una manda a cercare
+                // nel posto sbagliato. Meglio dire cosa è successo e lasciare il
+                // codice a chi deve guardarci dentro.
+                return Bilingual(it: "Apple non ha completato l'accesso (\(code)). Riprova, oppure entra con l'email.",
+                                 uz: "Apple kirishni yakunlamadi (\(code)). Qayta urinib ko'ring yoki email bilan kiring.")
             case .noToken:
                 return Bilingual(it: "Il provider non ha restituito un'identità valida.",
                                  uz: "Provayder yaroqli identifikator qaytarmadi.")
@@ -118,16 +125,14 @@ enum SocialSignIn {
 
         func authorizationController(controller: ASAuthorizationController,
                                      didCompleteWithError error: Error) {
-            switch (error as? ASAuthorizationError)?.code {
+            let failure = error as? ASAuthorizationError
+            switch failure?.code {
             case .canceled:
                 // Ha chiuso il foglio: non è un guasto, e non va detto niente.
                 finish(.failure(Failure.cancelled))
-            case .unknown, .failed:
-                // Il codice 1000 arriva quasi sempre da una cosa sola: nessun Apple ID
-                // sul dispositivo (tipico del simulatore appena creato). Dirlo per nome
-                // risparmia mezz'ora a chiunque lo veda.
-                finish(.failure(Failure.appleAccountMissing))
-            default:
+            case .some(let code):
+                finish(.failure(Failure.apple(code.rawValue)))
+            case nil:
                 finish(.failure(Failure.provider(error.localizedDescription)))
             }
         }

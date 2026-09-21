@@ -53,6 +53,14 @@ enum Palette {
     static let purple     = Color(light: 0x9B6BEF, dark: 0xAE86F5)
     static let purpleDeep = Color(light: 0x7A4FCB, dark: 0x8A5FD8)
 
+    /// Il pulsante "Accedi con Apple", che Apple vuole nero su chiaro e bianco su
+    /// scuro — e il testo sempre dell'altro colore. `ink` da solo faceva la prima
+    /// metà e non la seconda: al buio diventava un pulsante bianco con la scritta
+    /// bianca sopra, cioè un rettangolo vuoto.
+    static let appleFill  = Color(light: 0x000000, dark: 0xFFFFFF)
+    static let appleEdge  = Color(light: 0x2A2A2A, dark: 0xCFD4DA)
+    static let appleInk   = Color(light: 0xFFFFFF, dark: 0x000000)
+
     static let pink       = Color(light: 0xF2568F, dark: 0xF96FA2)
     static let locked     = Color(light: 0xE3DED2, dark: 0x2A2F3A)
     static let lockedDeep = Color(light: 0xCBC4B4, dark: 0x373D4A)

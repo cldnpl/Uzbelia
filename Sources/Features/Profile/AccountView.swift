@@ -141,7 +141,8 @@ struct AccountForm: View {
                     Text(S.continueApple[lang])
                 }
             }
-            .buttonStyle(.chunky(Palette.ink, Palette.ink.opacity(0.75), height: 50))
+            .buttonStyle(.chunky(Palette.appleFill, Palette.appleEdge,
+                                 text: Palette.appleInk, height: 50))
             .disabled(account.busy)
 
             // Senza client id il pulsante non può fare altro che aprirsi e scusarsi:

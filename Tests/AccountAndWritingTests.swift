@@ -446,12 +446,15 @@ final class SignInTests: XCTestCase {
         XCTAssertNotEqual(cancelled.it, cancelled.uz)
     }
 
-    /// L'errore 1000 di Apple vuol dire quasi sempre una cosa sola, e dirla per
-    /// nome è ciò che separa mezz'ora di ricerche da trenta secondi.
-    func testTheAppleErrorThatMeansNoAppleIDSaysSo() {
-        let message = SocialSignIn.Failure.appleAccountMissing.message
-        XCTAssertTrue(message.it.lowercased().contains("apple"))
-        XCTAssertFalse(message.uz.isEmpty)
+    /// Il codice che Apple restituisce va mostrato: e' l'unica cosa che distingue
+    /// un dispositivo senza ID Apple da un'app firmata senza la capability, e
+    /// sceglierne una a caso manda a cercare nel posto sbagliato.
+    func testTheAppleErrorCarriesItsCode() {
+        let message = SocialSignIn.Failure.apple(1000).message
+        XCTAssertTrue(message.it.contains("1000"))
+        XCTAssertTrue(message.uz.contains("1000"))
+        XCTAssertFalse(message.it.lowercased().contains("nessun id apple"),
+                       "non e' l'unica causa, e affermarla sarebbe una bugia")
     }
 
     /// "Non abilitato" senza dire cosa manda a cercare nel posto sbagliato.
