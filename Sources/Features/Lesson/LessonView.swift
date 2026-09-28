@@ -16,6 +16,8 @@ struct LessonView: View {
     @State private var pausedNotice: Bilingual?
     /// True while the assistant is writing sentences for a chapter that has none yet.
     @State private var writingPhrases = false
+    /// The unit's practice sentences: made of words she already has, so never "new".
+    @State private var drills: Set<String> = []
 
     var body: some View {
         ZStack {
@@ -76,13 +78,15 @@ struct LessonView: View {
                                            native: state.native,
                                            settings: state.effectiveSettings,
                                            focus: request.focus,
-                                           fresh: fresh)
+                                           fresh: fresh,
+                                           familiarity: state.familiarity(with:))
         } else {
             list = []
         }
-        Glossary.prime(with: state.curriculum.allPairs)
+        Glossary.prime(with: state.curriculum.allPairs + state.curriculum.allDrills)
         // story lines, and every sentence the assistant writes, live in no file
         Glossary.learn(list.map(\.pair))
+        drills = Set((request.unit?.allDrills ?? []).map(\.id))
         engine = LessonEngine(exercises: list)
     }
 
@@ -150,7 +154,7 @@ struct LessonView: View {
     /// never met, or one she got wrong and is meeting again.
     @ViewBuilder
     private func badges(for ex: Exercise) -> some View {
-        let isNew = ex.kind != .match && state.isNew(ex.pair)
+        let isNew = ex.kind != .match && state.isNew(ex.pair) && !drills.contains(ex.pair.id)
         let isOldMistake = !ex.isRetry && ex.kind != .match && state.isPastMistake(ex.pair)
         if ex.isRetry || isNew || isOldMistake {
             HStack(spacing: 7) {
@@ -468,22 +472,22 @@ struct LessonView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                // The course knows one wording; she may well know another. One tap and
-                // it is accepted, the heart comes back, and it counts from then on.
+                // Every wording the app can recognise is already marked right before
+                // this banner appears. What is left is hers to report: a flag, not a
+                // second verdict — the app does not say "wrong" and then "right anyway".
                 if let ex, case .wrong = v, AnswerJudge.isOpen(ex.kind),
                    !engine.givenAnswer.trimmingCharacters(in: .whitespaces).isEmpty {
                     Button {
                         acceptAnyway(engine, ex: ex)
                     } label: {
-                        Label(S.mineIsRightToo[state.native], systemImage: "checkmark.circle.fill")
-                            .font(.heading(12.5))
-                            .foregroundStyle(Palette.greenDeep)
-                            .padding(.horizontal, 11).padding(.vertical, 6)
-                            .background(Capsule().fill(Palette.greenSoft))
-                            .overlay(Capsule().stroke(Palette.green.opacity(0.45), lineWidth: 1.5))
+                        Label(S.mineIsRightToo[state.native], systemImage: "flag")
+                            .font(.plain(12))
+                            .foregroundStyle(Palette.inkSoft)
+                            .padding(.horizontal, 10).padding(.vertical, 5)
+                            .overlay(Capsule().stroke(Palette.strokeDeep, lineWidth: 1))
                     }
                     .buttonStyle(.plain)
-                    .padding(.top, 3)
+                    .padding(.top, 4)
                 }
                 if let ex, ex.kind == .speak, let score = engine.speechScore {
                     Text("\(Int(score * 100))%")
@@ -572,13 +576,22 @@ struct LessonView: View {
         guard ex.answerLanguage == state.target, ex.kind != .speak else { return }
         switch v {
         case .correct:
-            SpeechService.shared.speak(ex.answer, language: state.target, rate: state.settings.speechRate)
+            readBack(ex.answer, after: ex, engine: engine)
         case .alternative:
             // her own wording is the one worth hearing back
-            SpeechService.shared.speak(engine.givenAnswer, language: state.target,
-                                       rate: state.settings.speechRate)
+            readBack(engine.givenAnswer, after: ex, engine: engine)
         case .almost, .wrong:
             break
+        }
+    }
+
+    /// Reads an answer aloud once the chime is over, so the two do not talk over each
+    /// other — and not at all if she has already moved on to the next question.
+    private func readBack(_ text: String, after ex: Exercise, engine: LessonEngine) {
+        let rate = state.settings.speechRate, language = state.target
+        DispatchQueue.main.asyncAfter(deadline: .now() + Feedback.chimeGap) {
+            guard engine.current?.id == ex.id, engine.verdict != nil else { return }
+            SpeechService.shared.speak(text, language: language, rate: rate)
         }
     }
 
@@ -592,8 +605,7 @@ struct LessonView: View {
         outOfHearts = false
         withAnimation(.easeOut(duration: 0.18)) { engine.acceptAnswerAnyway() }
         if ex.answerLanguage == state.target {
-            SpeechService.shared.speak(engine.givenAnswer, language: state.target,
-                                       rate: state.settings.speechRate)
+            readBack(engine.givenAnswer, after: ex, engine: engine)
         }
     }
 

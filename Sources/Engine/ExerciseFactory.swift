@@ -11,19 +11,27 @@ enum ExerciseFactory {
     /// `PhraseForge`). They are mixed in from the second pass onwards: the first pass
     /// is where the chapter's own words are met for the first time, and meeting them
     /// inside a sentence nobody has ever checked is not how you meet a word.
+    ///
+    /// `familiarity` says how many times she has already answered a pair (0 = never).
+    /// The later passes use it to reach for what she has seen least, so each one
+    /// brings sentences the previous one did not.
     static func session(for node: PathNode,
                         unit: Unit,
                         curriculum: Curriculum,
                         native: Language,
                         settings: Settings,
                         focus: SessionFocus = .discover,
-                        fresh: [Pair] = []) -> [Exercise] {
+                        fresh: [Pair] = [],
+                        familiarity: (Pair) -> Int = { _ in 0 }) -> [Exercise] {
         let pool = curriculum.pairsUpTo(unitID: unit.id)
         switch node.kind {
         case .lesson(let lesson):
-            let taught = lesson.allPairs
-            let pairs = focus == .discover ? taught
-                                           : blend(taught: taught, fresh: fresh, want: 18)
+            let pairs = focus == .discover
+                ? lesson.allPairs
+                : rotation(words: lesson.vocab,
+                           sentences: lesson.phrases + lesson.drills,
+                           fresh: fresh, familiarity: familiarity,
+                           wordCount: 6, sentenceCount: 12)
             return build(pairs: pairs, pool: pool, native: native,
                          settings: settings, maxCount: 15,
                          includeMatch: focus == .discover,
@@ -39,12 +47,40 @@ enum ExerciseFactory {
             // Not a set of exercises at all — see `ChatChapterView`.
             return []
         case .review:
-            let pairs = blend(taught: Array(unit.allPairs.shuffled().prefix(22)),
-                              fresh: fresh, want: 26)
+            let pairs = rotation(words: unit.lessons.flatMap(\.vocab),
+                                 sentences: unit.lessons.flatMap(\.phrases) + unit.allDrills,
+                                 fresh: fresh, familiarity: familiarity,
+                                 wordCount: 8, sentenceCount: 18)
             return build(pairs: pairs, pool: pool, native: native,
                          settings: settings, maxCount: 20, includeMatch: true,
                          productionBias: 0.65, emphasis: nil)
         }
+    }
+
+    /// What a later pass over a lesson is made of: a handful of its words, and a
+    /// dozen of its sentences — the course's own, the practice sentences written for
+    /// it, and whatever the assistant has added — least practised first.
+    ///
+    /// Least practised, not simply random: a random dozen out of sixteen would still
+    /// repeat most of the last session. Ties are broken at random, so two sessions
+    /// over sentences she has never seen are two different sessions.
+    static func rotation(words: [Pair], sentences: [Pair], fresh: [Pair],
+                         familiarity: (Pair) -> Int,
+                         wordCount: Int, sentenceCount: Int) -> [Pair] {
+        func leastSeen(_ pairs: [Pair], _ n: Int) -> [Pair] {
+            var seen = Set<String>()
+            let unique = pairs.filter { seen.insert($0.id).inserted }
+            return Array(unique.map { ($0, familiarity($0), Int.random(in: 0..<1_000_000)) }
+                .sorted { ($0.1, $0.2) < ($1.1, $1.2) }
+                .prefix(n)
+                .map(\.0))
+        }
+        let pickedWords = leastSeen(words, wordCount)
+        // newly written sentences never outnumber the checked ones: at most half
+        let newest = leastSeen(fresh, sentenceCount / 2)
+        let checked = leastSeen(sentences, sentenceCount - newest.count)
+        let picked = pickedWords + checked + newest
+        return picked.isEmpty ? Array(words.prefix(wordCount)) : picked.shuffled()
     }
 
     /// Roughly half the chapter's own material and half newly written, shuffled

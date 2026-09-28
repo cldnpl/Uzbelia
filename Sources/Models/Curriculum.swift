@@ -106,6 +106,13 @@ struct Lesson: Codable, Hashable, Identifiable {
     let title: Bilingual
     var vocab: [Pair] = []
     var phrases: [Pair] = []
+    /// Practice sentences built from this lesson's words, a dozen or so per lesson.
+    ///
+    /// They are not what the lesson *teaches* — that is `vocab` and `phrases`, and it
+    /// is what the first pass, the manual and the word counts are made of. They are
+    /// what the later passes are made of, so that the fifth time through a lesson is
+    /// not the same four sentences as the first.
+    var drills: [Pair] = []
 
     var allPairs: [Pair] { vocab + phrases }
 }
@@ -121,6 +128,7 @@ struct Unit: Codable, Hashable, Identifiable {
     var dialogue: Dialogue?
 
     var allPairs: [Pair] { lessons.flatMap(\.allPairs) }
+    var allDrills: [Pair] { lessons.flatMap(\.drills) }
 
     /// Lessons + the story + the writing chapter + the unit review, in path order.
     ///
@@ -252,7 +260,7 @@ extension Unit {
 }
 
 extension Lesson {
-    enum CodingKeys: String, CodingKey { case id, title, vocab, phrases }
+    enum CodingKeys: String, CodingKey { case id, title, vocab, phrases, drills }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -260,6 +268,7 @@ extension Lesson {
         title = try c.decode(Bilingual.self, forKey: .title)
         vocab = try c.decodeIfPresent([Pair].self, forKey: .vocab) ?? []
         phrases = try c.decodeIfPresent([Pair].self, forKey: .phrases) ?? []
+        drills = try c.decodeIfPresent([Pair].self, forKey: .drills) ?? []
     }
 }
 

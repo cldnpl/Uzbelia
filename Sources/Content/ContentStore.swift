@@ -8,6 +8,7 @@ struct Curriculum: Codable, Hashable {
     var allUnits: [Unit] { levels.flatMap(\.units) }
     var allLessons: [Lesson] { allUnits.flatMap(\.lessons) }
     var allPairs: [Pair] { allUnits.flatMap(\.allPairs) }
+    var allDrills: [Pair] { allUnits.flatMap(\.allDrills) }
 
     func level(of unitID: String) -> CEFR? {
         levels.first { $0.units.contains { $0.id == unitID } }?.level

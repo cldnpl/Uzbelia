@@ -544,9 +544,22 @@ enum AIClient {
         thing: colloquial, shortened, regional and more formal wordings all count, and so \
         does a different but equally correct construction. Word order, punctuation, \
         capitalisation and optional pronouns never matter.
+        In particular, all of these are RIGHT and must be accepted:
+        · a subject or possessive pronoun left out because the ending already carries it \
+        (Uzbek "itim" for "mening itim", "Klaudiyaman" for "men Klaudiyaman"; Italian \
+        "sono Claudia" for "io sono Claudia"), or added where the textbook left it out;
+        · a longer or shorter form of the same greeting, thanks, apology or goodbye \
+        ("assalomu alaykum" / "salom", "ciao" / "salve", "tashakkur" / "rahmat");
+        · a different but correct construction for the same meaning ("Menda kitob bor" / \
+        "Mening kitobim bor", "Il mio nome è" / "Mi chiamo"), a synonym, tu/Lei or sen/siz \
+        where the prompt does not make the register unmistakable;
+        · a name spelled the learner's way ("Claudia" / "Klaudiya"), digits for a number;
+        · a single-letter typo or a missing apostrophe in an otherwise right answer.
         Reject it only when it means something different, leaves out or adds meaning, is \
-        written in the wrong language, or is not grammatical \(answerName).
-        Never reject an answer merely because it is not the wording in the textbook.
+        written in the wrong language, or is clearly not grammatical \(answerName).
+        Never reject an answer merely because it is not the wording in the textbook. When \
+        in doubt about a wording that a native speaker would understand as the same \
+        sentence, accept it.
         Reply with JSON only: {"acceptable": true|false, "note": "<at most 12 words in \
         \(nativeName): if accepted, what her wording conveys or when it is used; if not, \
         what is wrong with it>"}.

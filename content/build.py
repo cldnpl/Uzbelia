@@ -30,6 +30,22 @@ def load_extra(level):
             merged.setdefault(unit, []).extend(packs)
     return merged
 
+def load_drills():
+    """Practice sentences, one file per unit in content/drills/ (see check_drills.py)."""
+    out = {}
+    for path in sorted(glob.glob(os.path.join(HERE, "drills", "*.py"))):
+        unit_id = os.path.splitext(os.path.basename(path))[0]
+        if unit_id.startswith("_"):
+            continue
+        spec = importlib.util.spec_from_file_location(f"drills_{unit_id}", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        out[unit_id] = getattr(mod, "DRILLS", {})
+    return out
+
+DRILLS = load_drills()
+drill_count = 0
+
 def bil(t):
     return {"it": t[0], "uz": t[1]}
 
@@ -101,13 +117,20 @@ def build(level):
             min_phrases = 2 if lexicon else 4
             if len(phrases) < min_phrases:
                 problems.append(f"{lid}: only {len(phrases)} phrases")
-            ls.append({
+            drills = DRILLS.get(u["id"], {}).get(lid, [])
+            for d in drills: check_text(f"{lid} drill", d[0], d[1])
+            lesson = {
                 "id": lid,
                 "title": bil(title),
                 "vocab": [pair(v) for v in vocab],
                 "phrases": [pair(p) for p in phrases],
-            })
+            }
+            if drills:
+                lesson["drills"] = [pair(d) for d in drills]
+            ls.append(lesson)
             pairs += len(vocab) + len(phrases)
+            global drill_count
+            drill_count += len(drills)
             lessons += 1
         unit["lessons"] = ls
         if u.get("dialogue"):
@@ -205,6 +228,16 @@ total_nodes = sum(s["nodes"] for s in stats.values())
 for lvl, s in stats.items():
     print(f"{lvl.upper()}: {s['units']} unità · {s['lessons']} lezioni · {s['nodes']} nodi · {s['pairs']} coppie")
 print(f"TOTALE: {total_lessons} lezioni · {total_nodes} nodi di percorso · {total_pairs} coppie di traduzione")
+print(f"FRASI DI ESERCIZIO: {drill_count} in {len(DRILLS)} unità")
+
+# --- practice sentences: the full check, now that the JSON they are checked against exists
+if DRILLS:
+    spec = importlib.util.spec_from_file_location("check_drills", os.path.join(HERE, "check_drills.py"))
+    check = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(check)
+    known_units = check.curriculum_units()
+    for unit_id, drills in DRILLS.items():
+        check.check_unit(unit_id, drills, known_units, problems)
 
 if problems:
     print("\nPROBLEMI:")

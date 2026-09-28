@@ -36,6 +36,29 @@ final class ExerciseFactoryTests: XCTestCase {
         XCTAssertGreaterThan(checked, 200)
     }
 
+    /// The later passes are made mostly of practice sentences; every one of those
+    /// questions has to be answerable too.
+    func testEveryLaterPassProducesAValidSession() {
+        var checked = 0
+        for native in [Language.it, Language.uz] {
+            for pack in curriculum.levels {
+                for unit in pack.units {
+                    for node in unit.nodes(level: pack.level, index: 0) where !node.isWriting {
+                        let session = ExerciseFactory.session(for: node, unit: unit,
+                                                              curriculum: curriculum,
+                                                              native: native,
+                                                              settings: Settings(),
+                                                              focus: .review)
+                        XCTAssertFalse(session.isEmpty, "\(node.id) produced no exercises")
+                        for ex in session { assertValid(ex, native: native, node: node.id) }
+                        checked += 1
+                    }
+                }
+            }
+        }
+        XCTAssertGreaterThan(checked, 700)
+    }
+
     func testBuildingASessionIsFastEnoughForTheBiggestPool() {
         let pack = curriculum.levels.last!          // B2: the pool is the whole course
         let unit = pack.units.last!

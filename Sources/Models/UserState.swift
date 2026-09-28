@@ -431,7 +431,11 @@ final class AppState {
 
     /// A no-hearts practice run over everything a unit teaches.
     func unitPracticeRequest(for unit: Unit, level: CEFR) -> SessionRequest {
-        let pairs = Array(unit.allPairs.shuffled().prefix(24))
+        // the words, and a changing selection of the unit's sentences
+        let pairs = Array(unit.allPairs.shuffled().prefix(14))
+            + ExerciseFactory.rotation(words: [], sentences: unit.allDrills, fresh: [],
+                                       familiarity: familiarity(with:),
+                                       wordCount: 0, sentenceCount: 10)
         let exercises = ExerciseFactory.practice(pairs: pairs,
                                                  pool: curriculum.pairsUpTo(unitID: unit.id),
                                                  native: native,
@@ -561,6 +565,13 @@ final class AppState {
     /// True the first time an item is put in front of her: the course has never
     /// graded it, so it is genuinely new rather than merely forgotten.
     func isNew(_ pair: Pair) -> Bool { s.srs[pair.id] == nil }
+
+    /// Roughly how many times she has answered this item: 0 means never. What the
+    /// later passes over a lesson use to bring sentences she has not had yet.
+    func familiarity(with pair: Pair) -> Int {
+        guard let item = s.srs[pair.id] else { return 0 }
+        return 1 + item.reps + item.lapses
+    }
 
     // MARK: - Word meanings looked up once and kept
 

@@ -667,12 +667,12 @@ struct MatchExercise: View {
             engine.matchLeft = nil; engine.matchRight = nil
             if engine.matched.count >= ex.matchPairs.count * 2 {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                    Feedback.celebrate()
+                    Feedback.celebrate(); Feedback.dingCorrect()
                     withAnimation { engine.completeMatch() }
                 }
             }
         } else {
-            Feedback.failure()
+            Feedback.failure(); Feedback.dingWrong()
             if let pair { state.gradePair(pair, correct: false) }
             wrongPair = (l, r)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {

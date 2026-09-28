@@ -13,6 +13,7 @@ struct UzbeliaApp: App {
                 .onAppear {
                     Feedback.hapticsEnabled = state.settings.haptics
                     Feedback.soundsEnabled = state.settings.sounds
+                    _ = AnswerSounds.shared        // load the chimes before the first answer
                 }
         }
     }

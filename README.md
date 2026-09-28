@@ -104,6 +104,7 @@ L'app è pensata per una coppia che impara la lingua dell'altro: stesso corpus, 
 - **339 lezioni** + 32 dialoghi + 32 ripassi d'unità = **403 tappe** di percorso
 - ogni lezione richiede **5 sessioni** → circa **1.760 sessioni** per arrivare al B2
 - **6.581 coppie di traduzione** (vocaboli + frasi complete)
+- **4.068 frasi di esercizio**, una dozzina per lezione, per le sessioni dalla seconda in poi
 - **77 note di grammatica** bilingui + **256 domande di conversazione** legate ai capitoli
 
 ### Il lessico rispetta le bande CEFR
@@ -157,21 +158,38 @@ l'elenco completo delle parole, ognuna con audio e indicatore di memoria.
 
 ### Le frasi non sono sempre le stesse
 
-Il corso ha un corpus fisso, quindi al quinto giro su una lezione le quindici frasi
-sarebbero le stesse del primo: non si traduce più, si ricorda quale bottone si era
-premuto. Con una chiave IA configurata l'app **si scrive frasi nuove da sola**
+Una lezione insegna una decina di parole e quattro o cinque frasi, e va fatta cinque
+volte: se le sessioni fossero fatte solo di quelle, al terzo giro non si tradurrebbe più,
+si ricorderebbe quale bottone si era premuto.
+
+Per questo ogni lezione ha anche **una dozzina di frasi di esercizio** (`drills`,
+**4.068 in tutto il corso**), scritte con le parole di quella lezione e di quelle
+prima, alla lunghezza e con la grammatica del suo livello (A1 3-6 parole, A2 4-9, B1 6-13,
+B2 8-16). Non aggiungono vocaboli: servono a usare in modi diversi quelli già insegnati.
+
+- Il **primo** giro resta sulle parole e sulle frasi della lezione: lì le parole nuove
+  si incontrano per la prima volta.
+- Dal **secondo** in poi la sessione è fatta di sei parole della lezione e dodici
+  frasi, scelte fra quelle **che hai visto meno**: le frasi mai viste per prime, a parità
+  a caso. Così ogni giro porta frasi che il giro prima non aveva.
+- Il ripasso dell'unità e *Ripassa un capitolo* pescano dalle frasi di tutta l'unità,
+  con la stessa regola.
+- Stanno in `content/drills/<unità>.py`; `python3 content/check_drills.py` controlla
+  lunghezze, apostrofi, doppioni e che ogni lezione ne abbia almeno dieci, e
+  `build.py` rifà lo stesso controllo prima di scrivere il JSON.
+
+Con una chiave IA configurata l'app **si scrive anche frasi nuove da sola**
 (`PhraseForge`): stesso lessico del capitolo, stessa grammatica, stesso livello CEFR —
 ma frasi che nessuno ha mai visto.
 
-- Il **primo** giro su una lezione resta sempre sul corpus del corso: le parole nuove
-  si incontrano in frasi verificate, non inventate.
-- Dal secondo in poi la sessione è circa **metà capitolo e metà frasi nuove**.
-- La lunghezza è vincolata al livello (A1 3-6 parole, A2 4-9, B1 6-13, B2 8-18), così
-  «nuovo» non diventa mai di nascosto «più difficile».
+- Si aggiungono a quelle del corso dal secondo giro in poi, e non sono mai più della
+  metà delle frasi di una sessione.
+- La lunghezza è vincolata al livello, così «nuovo» non diventa mai di nascosto «più
+  difficile».
 - Tutto quello che arriva viene **tenuto su disco** e si accumula: dopo i primi giri
   c'è varietà anche offline, e ogni capitolo arriva a un massimo di 90 frasi.
-- Si disattiva da *Profilo → Frasi sempre nuove*. Senza chiave non parte mai e il
-  corso funziona esattamente come prima.
+- Si disattiva da *Profilo → Frasi sempre nuove*. Senza chiave non parte mai, e restano
+  le frasi di esercizio del corso.
 
 ### Un capitolo di sola scrittura, in ogni unità
 
@@ -239,7 +257,15 @@ tastiera negli esercizi di scrittura.
 accenti italiani (*perche* = *perché*) e **tutte le varianti di apostrofo uzbeko**
 (`o'` = `oʻ` = `o‘`). Un refuso di una lettera su parole lunghe viene accettato come
 “Quasi!” mostrando la grafia corretta; le parole corte devono essere esatte. Sono
-ammesse risposte alternative scrivendo `forma1 / forma2` nel contenuto.
+ammesse risposte alternative scrivendo `forma1 / forma2` nel contenuto, e una
+traduzione detta con parole tue ma giusta è segnata giusta: vedi
+[più sotto](#più-di-una-traduzione-può-essere-giusta).
+
+Ogni risposta ha il suo suono, come su Duolingo: un *ding* quando è giusta, un suono
+d'errore (insieme alla vibrazione) quando è sbagliata, anche nell'abbinamento delle
+coppie. Passano dal canale dei media come la voce del corso, quindi si sentono anche
+con il silenzioso; si spengono da *Profilo → Effetti sonori*. Quando l'app rilegge la risposta
+ad alta voce, aspetta che il suono sia finito.
 
 ---
 
@@ -366,35 +392,51 @@ Un corso elenca una forma per frase, una lingua ne ha parecchie: *a domani* è
 `ertaga ko'rishguncha` sul libro ed `ertagacha` per strada, e sono giuste entrambe.
 Lo stesso vale nell'altro senso: `yaxshiman` è «sto bene», ma anche «va tutto ok».
 
-Quando scrivi una traduzione tua e il correttore non la riconosce, prima di segnarla
-sbagliata l'app prova tre strade, dalla più economica alla più costosa:
+Quando scrivi una traduzione tua che non è parola per parola quella del libro, prima di
+dire qualunque cosa l'app prova queste strade, dalla più economica alla più costosa:
 
 | | |
 |---|---|
+| **Le regole della lingua** | offline e istantaneo (`Equivalence`): i casi prevedibili, elencati qui sotto |
 | **Il corso stesso** | se quella forma è insegnata altrove come traduzione della stessa frase, è accettata subito, offline |
 | **La tua storia** | una forma già accettata in passato vale per sempre, senza nessuna richiesta di rete |
 | **L'assistente** | con una chiave configurata, il modello decide se è un modo naturale di dire la stessa cosa |
-| **Tu** | se nessuno dei tre la riconosce, sotto l'errore c'è **«Anche la mia è giusta»**: un tocco e viene accettata, il cuore torna indietro e la forma è imparata per sempre |
 
-L'esaminatore è **severo sul significato e generoso sul registro**: colloquiale,
+Se una di queste la riconosce, la risposta è **giusta e basta**: banner verde,
+*«Corretto!»*, la tua forma — e sotto, come fa Duolingo, *«Un'altra soluzione
+corretta:»* con la versione del libro. Niente rosso, niente cuore perso, niente domanda
+che torna.
+
+Le regole della lingua coprono, senza rete:
+
+| | esempio |
+|---|---|
+| **Pronome sottinteso** | `itim` = `mening itim` («il mio cane»), `Klaudiyaman` = `men Klaudiyaman`, *sono Claudia* = *io sono Claudia* — e al contrario. Un pronome che non concorda resta sbagliato: `sening itim` non è «il mio cane» |
+| **Saluti, grazie, scuse** | `assalomu alaykum` = `salom`, `tashakkur` = `rahmat`, `uzr` = `kechirasiz`, *per piacere* = *per favore*, *scusi* = *scusa*; *salve* vale *ciao* se stavi traducendo `salom`, *ciao* vale *arrivederci* se stavi traducendo `xayr` |
+| **Presentarsi** | `mening ismim Klaudiya` = `men Klaudiyaman`, *il mio nome è* = *mi chiamo* |
+| **Nomi** | scritti alla tua maniera: *Claudia* per `Klaudiya`, *Marco* per `Marko` |
+| **Parole di tempo** | `ertaga`, `bugun`, *domani*, *oggi*… possono stare all'inizio o prima del verbo |
+| **Numeri** | in cifre o in lettere; `uchta kitob` = `uch kitob` |
+| **Sinonimi sicuri** | *abitare* / *vivere*, *adesso* / *ora*, *che cosa* / *cosa*, *cos'è* / *che cos'è* |
+
+Ogni regola toglie solo ciò che in quella posizione non porta significato: `men ham`
+(«anch'io») tiene il suo `men`, `u kitob` tiene il suo `u` quando la frase italiana dice
+*quel libro*, *con lei* non diventa *con lui*.
+
+L'esaminatore IA è **severo sul significato e generoso sul registro**: colloquiale,
 abbreviato, regionale o più formale vanno tutti bene; viene rifiutato solo ciò che
-significa altro, è in un'altra lingua o non è grammaticale.
+significa altro, è in un'altra lingua o non è grammaticale. Le regole offline coprono i
+casi frequenti; per *qualunque* costruzione alternativa corretta (`Menda kitob bor` per
+`Mening kitobim bor`, *tu* per *Lei*…) serve la chiave: senza, quelle risposte restano
+segnate sbagliate.
 
-Quando passa, **non è un errore corretto: è una risposta giusta**. Spunta verde,
-*«Corretto!»*, la tua forma con la sua traduzione — e solo sotto, in piccolo, *«Nel corso
-te l'avrei detta così, ma la tua va benissimo»* con la versione del libro. La forma resta
-**imparata per sempre**, anche offline.
-
-Le prime tre strade sono istantanee o quasi. Il pulsante è l'ultima spiaggia, per quando
-nessuno può decidere: **con una chiave configurata non lo vedi quasi mai**, perché il
-giudizio arriva da solo prima del verdetto.
+Per quel caso, sotto una risposta sbagliata c'è un piccolo pulsante grigio **«La mia
+risposta era giusta»** (con la bandierina): è una segnalazione tua, non un secondo
+verdetto dell'app. Un tocco e viene accettata, il cuore torna indietro e la forma è
+imparata per sempre.
 
 Vale per gli esercizi di traduzione libera (scrittura e banco di parole). Il dettato e
 le scelte multiple hanno una risposta sola, e restano tali.
-
-Senza chiave restano attive le altre tre strade: il corso, la tua storia e il pulsante.
-Il pulsante compare solo dove più di una risposta è davvero possibile — traduzione
-scritta e banco di parole — e mai sul dettato o sulle scelte multiple.
 
 ## La voce uzbeka
 
@@ -502,8 +544,8 @@ Sopra l'esercizio compare una targhetta quando c'è qualcosa da sapere:
   sessione passata.
 
 Una domanda sbagliata **torna prima della fine della lezione** e non se ne va finché non
-la fai giusta. Una risposta accettata con «Anche la mia è giusta» invece non torna: non
-era un errore.
+la fai giusta. Una traduzione giusta detta con parole tue invece non torna, e nemmeno una
+accettata con «La mia risposta era giusta»: non erano errori.
 
 Qualunque cosa scritta nella lingua che stai imparando si tocca e si sente: le opzioni
 di risposta, le tessere dell'abbinamento, i chip del banco di parole, le parole chiave

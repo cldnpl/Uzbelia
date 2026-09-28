@@ -102,14 +102,33 @@ final class LessonEngine {
             return (chosen.map { Grader.normalise($0) == Grader.normalise(ex.answer) } ?? false)
                 ? .correct : .wrong(ex.answer)
         case .wordBank:
-            return Grader.grade(builtSentence, expected: ex.answer, tolerant: false)
-        case .type, .listenType:
+            return translation(builtSentence, for: ex, tolerant: false)
+        case .type:
+            return translation(typed, for: ex, tolerant: true)
+        case .listenType:
             return Grader.grade(typed, expected: ex.answer)
         case .speak:
             let score = speechScore ?? 0
             return score >= 0.65 ? .correct : (score >= 0.4 ? .almost(ex.answer) : .wrong(ex.answer))
         case .match:
             return .correct
+        }
+    }
+
+    /// A translation she wrote herself. Her own wording is right whenever it says the
+    /// same thing — `itim` for `mening itim`, `assalomu alaykum` for `salom` — and is
+    /// marked right straight away, not wrong-with-an-appeal.
+    private func translation(_ given: String, for ex: Exercise, tolerant: Bool) -> Verdict {
+        let plain = Grader.grade(given, expected: ex.answer, tolerant: tolerant)
+        if case .correct = plain { return plain }
+        switch Equivalence.compare(given, with: ex.answer, in: ex.answerLanguage, prompt: ex.prompt) {
+        case .same(let canonical)?:
+            return .alternative(canonical: canonical, note: nil)
+        case .nearly(let canonical)? where tolerant:
+            if case .almost = plain { return plain }
+            return .almost(canonical)
+        default:
+            return plain
         }
     }
 
