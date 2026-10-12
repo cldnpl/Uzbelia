@@ -38,9 +38,9 @@ actor UzbekRecognizer {
 
         var errorDescription: String? {
             switch self {
-            case .unavailable: return "Il modello uzbeko non è incluso in questa build."
-            case .couldNotLoad: return "Il modello uzbeko non si è caricato."
-            case .failed: return "La trascrizione non è riuscita."
+            case .unavailable: return "The Uzbek model isn't included in this build."
+            case .couldNotLoad: return "The Uzbek model didn't load."
+            case .failed: return "Transcription failed."
             }
         }
     }

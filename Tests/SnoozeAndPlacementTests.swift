@@ -6,7 +6,7 @@ final class SkillSnoozeTests: XCTestCase {
 
     private func learner() -> AppState {
         let s = AppState(persistent: false)
-        s.chooseCourse(native: .it)
+        s.chooseCourse(.uz)
         return s
     }
 
@@ -67,7 +67,7 @@ final class SkillSnoozeTests: XCTestCase {
               let node = unit.nodes(level: .a1, index: 0).first else { return XCTFail() }
         let session = ExerciseFactory.session(for: node, unit: unit,
                                               curriculum: state.curriculum,
-                                              native: .it,
+                                              native: state.native,
                                               settings: state.effectiveSettings)
         XCTAssertFalse(session.isEmpty)
         XCTAssertFalse(session.contains { $0.trainsSkill == .speaking })
@@ -77,20 +77,20 @@ final class SkillSnoozeTests: XCTestCase {
     // MARK: - What happens to the questions already queued
 
     func testQueuedQuestionsAreRewrittenRatherThanThrownAway() {
-        let pair = Pair(it: "buongiorno", uz: "xayrli tong")
-        let speak = Exercise(kind: .speak, pair: pair, prompt: pair.uz, promptLanguage: .uz,
-                             answer: pair.uz, answerLanguage: .uz,
-                             audioText: pair.uz, audioLanguage: .uz)
+        let pair = Pair(en: "good morning", tx: "xayrli tong")
+        let speak = Exercise(kind: .speak, pair: pair, prompt: pair.tx, promptLanguage: .uz,
+                             answer: pair.tx, answerLanguage: .uz,
+                             audioText: pair.tx, audioLanguage: .uz)
         let dictation = Exercise(kind: .listenType, pair: pair, prompt: "", promptLanguage: .uz,
-                                 answer: pair.uz, answerLanguage: .uz,
-                                 audioText: pair.uz, audioLanguage: .uz)
-        let reading = Exercise(kind: .choice, pair: pair, prompt: pair.it, promptLanguage: .it,
-                               answer: pair.uz, answerLanguage: .uz, options: [pair.uz, "salom"])
+                                 answer: pair.tx, answerLanguage: .uz,
+                                 audioText: pair.tx, audioLanguage: .uz)
+        let reading = Exercise(kind: .choice, pair: pair, prompt: pair.en, promptLanguage: .en,
+                               answer: pair.tx, answerLanguage: .uz, options: [pair.tx, "salom"])
 
         let engine = LessonEngine(exercises: [reading, speak, dictation])
         XCTAssertEqual(engine.exercises.count, 3)
 
-        engine.setAside(.speaking, native: .it)
+        engine.setAside(.speaking, native: .en)
         XCTAssertEqual(engine.exercises.count, 3, "the lesson keeps its length")
         XCTAssertEqual(engine.exercises[1].kind, .type, "a pronunciation becomes a written translation")
         XCTAssertNil(engine.exercises[1].audioText)
@@ -98,42 +98,44 @@ final class SkillSnoozeTests: XCTestCase {
     }
 
     func testPuttingASkillAsideMovesPastTheQuestionOnScreen() {
-        let pair = Pair(it: "grazie", uz: "rahmat")
-        let speak = Exercise(kind: .speak, pair: pair, prompt: pair.uz, promptLanguage: .uz,
-                             answer: pair.uz, answerLanguage: .uz)
-        let after = Exercise(kind: .choice, pair: pair, prompt: pair.it, promptLanguage: .it,
-                             answer: pair.uz, answerLanguage: .uz, options: [pair.uz, "salom"])
+        let pair = Pair(en: "thank you", tx: "rahmat")
+        let speak = Exercise(kind: .speak, pair: pair, prompt: pair.tx, promptLanguage: .uz,
+                             answer: pair.tx, answerLanguage: .uz)
+        let after = Exercise(kind: .choice, pair: pair, prompt: pair.en, promptLanguage: .en,
+                             answer: pair.tx, answerLanguage: .uz, options: [pair.tx, "salom"])
         let engine = LessonEngine(exercises: [speak, after])
-        engine.setAside(.speaking, native: .it)
+        engine.setAside(.speaking, native: .en)
         XCTAssertEqual(engine.index, 1, "it does not sit there waiting for a microphone")
         XCTAssertEqual(engine.current?.kind, .choice)
     }
 
     func testARewrittenDictationAsksFromHerOwnLanguage() {
-        let pair = Pair(it: "acqua", uz: "suv")
+        let pair = Pair(en: "water", tx: "suv")
         let dictation = Exercise(kind: .listenType, pair: pair, prompt: "", promptLanguage: .uz,
-                                 answer: pair.uz, answerLanguage: .uz,
-                                 audioText: pair.uz, audioLanguage: .uz)
-        let rewritten = dictation.withoutAudio(native: .it)
+                                 answer: pair.tx, answerLanguage: .uz,
+                                 audioText: pair.tx, audioLanguage: .uz)
+        let rewritten = dictation.withoutAudio(native: .en)
         XCTAssertEqual(rewritten.kind, .type)
-        XCTAssertEqual(rewritten.prompt, "acqua")
-        XCTAssertEqual(rewritten.promptLanguage, .it)
+        XCTAssertEqual(rewritten.prompt, "water")
+        XCTAssertEqual(rewritten.promptLanguage, .en)
         XCTAssertEqual(rewritten.answer, "suv", "it still teaches the same word")
         XCTAssertNil(rewritten.audioLanguage)
     }
 }
 
-/// «Scopri il tuo livello»: the quiz that says where to start.
+/// "Find your level": the quiz that says where to start.
 final class LevelFinderTests: XCTestCase {
 
     private var curriculum: Curriculum!
     override func setUp() {
         super.setUp()
-        curriculum = ContentStore.loadCurriculum()
+        curriculum = ContentStore.loadCurriculum(.uz)
+        // the engines read the course's language from here; AppState sets it on load
+        Language.current = .uz
     }
 
     private func quiz() -> LevelFinder.Quiz {
-        LevelFinder.quiz(curriculum: curriculum, native: .it, settings: Settings())
+        LevelFinder.quiz(curriculum: curriculum, native: .en, settings: Settings())
     }
 
     func testTheQuizWalksTheWholeCourseInOrder() {
@@ -191,7 +193,7 @@ final class LevelFinderTests: XCTestCase {
 
     func testApplyingThePlacementOpensTheCourseUpToIt() {
         let state = AppState(persistent: false)
-        state.chooseCourse(native: .it)
+        state.chooseCourse(.uz)
         let q = quiz()
         guard q.rungs.count > 4, let place = LevelFinder.placement(quiz: q,
                                                                    mistakes: q.rungs.dropFirst(4).flatMap(\.pairs))
@@ -220,9 +222,9 @@ final class OnboardingQuizTests: XCTestCase {
 
     func testTheQuizTheOnboardingBuildsIsNeverEmpty() {
         let state = AppState(persistent: false)
-        state.chooseCourse(native: .it)
+        state.chooseCourse(.uz)
         let q = LevelFinder.quiz(curriculum: state.curriculum,
-                                 native: .it,
+                                 native: state.native,
                                  settings: state.effectiveSettings)
         XCTAssertFalse(q.exercises.isEmpty, "the level test would open onto nothing")
         XCTAssertFalse(q.rungs.isEmpty)
@@ -230,19 +232,12 @@ final class OnboardingQuizTests: XCTestCase {
     }
 
     func testItWorksBeforeAnyCourseHasBeenChosen() {
-        // the screen can be reached with the app freshly installed
+        // the screen can be reached with the app freshly installed: the first course
+        // the bundle carries stands in until she picks one
         let state = AppState(persistent: false)
+        XCTAssertTrue(ContentStore.hasCourse(state.target))
         let q = LevelFinder.quiz(curriculum: state.curriculum,
-                                 native: .it,
-                                 settings: state.effectiveSettings)
-        XCTAssertFalse(q.exercises.isEmpty)
-    }
-
-    func testItWorksForTheOtherDirectionToo() {
-        let state = AppState(persistent: false)
-        state.chooseCourse(native: .uz)
-        let q = LevelFinder.quiz(curriculum: state.curriculum,
-                                 native: .uz,
+                                 native: state.native,
                                  settings: state.effectiveSettings)
         XCTAssertFalse(q.exercises.isEmpty)
     }

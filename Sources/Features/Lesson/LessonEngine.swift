@@ -17,6 +17,8 @@ struct SessionRequest: Identifiable {
     var sessionNumber: Int = 1
     var sessionsTotal: Int = 1
     var testTarget: TestTarget?
+    /// The colour of a practice run that drills a single skill.
+    var accent: UnitAccent?
 }
 
 @Observable
@@ -41,6 +43,16 @@ final class LessonEngine {
     /// and no heart is lost until that comes back.
     var checking = false
 
+    // the short text, which is corrected over several rounds before it is marked
+    /// What the checker said last time, about the text as it was then.
+    var composeReport: CompositionReport?
+    /// How many times she has asked for a check on this text.
+    var composeRound = 0
+    /// True once she has asked to see the corrected text.
+    var composeRevealed = false
+    /// How many rounds of clues before the fix is shown anyway.
+    static let composeRounds = 3
+
     // stats
     private(set) var completed: Set<UUID> = []
     private(set) var attempts = 0
@@ -64,12 +76,21 @@ final class LessonEngine {
     var canCheck: Bool {
         guard let ex = current, verdict == nil, !checking else { return false }
         switch ex.kind {
-        case .choice, .listenChoice, .fillBlank: return chosen != nil
+        case .choice, .listenChoice, .listenMeaning, .fillBlank: return chosen != nil
         case .type, .listenType: return !typed.trimmingCharacters(in: .whitespaces).isEmpty
-        case .wordBank: return !built.isEmpty
-        case .speak: return speechScore != nil
+        case .wordBank, .listenBuild: return !built.isEmpty
+        case .speak, .speakRepeat: return speechScore != nil
         case .match: return false
+        case .compose:
+            // long enough to be a text, and changed since the last check
+            return composeWords >= (ex.composition?.minimumWords ?? 3)
+                && typed != composeReport?.text
         }
+    }
+
+    /// Words in the text being written.
+    var composeWords: Int {
+        typed.split(whereSeparator: { $0 == " " || $0 == "\n" }).count
     }
 
     var builtSentence: String {
@@ -82,10 +103,10 @@ final class LessonEngine {
     var givenAnswer: String {
         guard let ex = current else { return "" }
         switch ex.kind {
-        case .choice, .listenChoice, .fillBlank: return chosen ?? ""
-        case .type, .listenType: return typed.trimmingCharacters(in: .whitespacesAndNewlines)
-        case .wordBank: return builtSentence
-        case .speak: return spoken
+        case .choice, .listenChoice, .listenMeaning, .fillBlank: return chosen ?? ""
+        case .type, .listenType, .compose: return typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .wordBank, .listenBuild: return builtSentence
+        case .speak, .speakRepeat: return spoken
         case .match: return ""
         }
     }
@@ -98,20 +119,25 @@ final class LessonEngine {
     func grade() -> Verdict {
         guard let ex = current else { return .correct }
         switch ex.kind {
-        case .choice, .listenChoice, .fillBlank:
+        case .choice, .listenChoice, .listenMeaning, .fillBlank:
             return (chosen.map { Grader.normalise($0) == Grader.normalise(ex.answer) } ?? false)
                 ? .correct : .wrong(ex.answer)
         case .wordBank:
             return translation(builtSentence, for: ex, tolerant: false)
+        case .listenBuild:
+            // what she heard has one right wording: the one that was said
+            return Grader.grade(builtSentence, expected: ex.answer, tolerant: false)
         case .type:
             return translation(typed, for: ex, tolerant: true)
         case .listenType:
             return Grader.grade(typed, expected: ex.answer)
-        case .speak:
+        case .speak, .speakRepeat:
             let score = speechScore ?? 0
             return score >= 0.65 ? .correct : (score >= 0.4 ? .almost(ex.answer) : .wrong(ex.answer))
         case .match:
             return .correct
+        case .compose:
+            return composeVerdict
         }
     }
 
@@ -130,6 +156,30 @@ final class LessonEngine {
         default:
             return plain
         }
+    }
+
+    /// The verdict on the text once the rounds are over: clean at the first check is
+    /// right, clean after some clues is right with help, and a text she needed to see
+    /// corrected is a miss — counted, but never charged a heart or sent round again.
+    private var composeVerdict: Verdict {
+        let corrected = composeReport?.corrected ?? ""
+        if composeRevealed { return .wrong(corrected) }
+        guard composeReport?.isClean == true else { return .wrong(corrected) }
+        return composeRound <= 1 ? .correct : .almost(typed.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    /// Files one round of checking. Returns true when the text is finished — clean,
+    /// or out of rounds — and the verdict can be committed.
+    @discardableResult
+    func recordComposeRound(_ report: CompositionReport) -> Bool {
+        composeRound += 1
+        composeReport = report
+        return report.isClean
+    }
+
+    /// She asks to see the corrected text: the exercise ends there.
+    func revealComposition() {
+        composeRevealed = true
     }
 
     /// Records the verdict and shows it.
@@ -154,7 +204,8 @@ final class LessonEngine {
         bucket.total += 1
         if ok { bucket.hit += 1 }
         perSkill[ex.trainsSkill] = bucket
-        if ok { completed.insert(ex.id) }
+        // a text she asked to see corrected is not asked again, so it is done too
+        if ok || ex.kind == .compose { completed.insert(ex.id) }
     }
 
     /// Takes back the miss just recorded, because the answer was right after all.
@@ -211,10 +262,10 @@ final class LessonEngine {
     // MARK: - Moving on
 
     func advance(requeue: Bool = true) {
-        if requeue, let ex = current, case .wrong = verdict {
+        if requeue, let ex = current, case .wrong = verdict, ex.kind != .compose {
             var again = ex
             again.isRetry = true
-            if ex.kind == .speak {
+            if ex.kind == .speak || ex.kind == .speakRepeat {
                 // a missed pronunciation comes back as a written translation, asked
                 // from the other language so the answer is not sitting on screen
                 again.kind = .type
@@ -242,6 +293,9 @@ final class LessonEngine {
         speechScore = nil
         spoken = ""
         checking = false
+        composeReport = nil
+        composeRound = 0
+        composeRevealed = false
     }
 
     // MARK: - Rewards

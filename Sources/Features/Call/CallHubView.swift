@@ -5,62 +5,83 @@ import SwiftUI
 struct CallHubView: View {
     @Environment(AppState.self) private var state
     @State private var active: CallLaunch?
+    @State private var breathe = false
 
     private var aiOn: Bool {
         AIClient.isConfigured(provider: state.aiProvider, key: state.aiKey)
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            StatsHeader()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    HStack(alignment: .top, spacing: 10) {
-                        Mascot(mood: .cheer, size: 58)
-                        SpeechBubble {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(S.callTitle[state.native])
-                                    .font(.heading(18)).foregroundStyle(Palette.ink)
-                                Text(S.callSub[state.native])
-                                    .font(.plain(13)).foregroundStyle(Palette.inkSoft)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.top, 6)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                StatsHeader()
+                TabHeader(eyebrow: S.callEyebrow[state.native],
+                          title: S.callHeadline[state.native],
+                          subtitle: S.callHeadlineSub[state.native])
 
-                    Label(aiOn ? S.callAIOn[state.native] : S.callAIOff[state.native],
-                          systemImage: aiOn ? "sparkles" : "iphone.gen3")
-                        .font(.heading(11.5))
-                        .foregroundStyle(aiOn ? Palette.purple : Palette.inkFaint)
+                hero
 
-                    Text(S.callPickLevel[state.native].uppercased())
-                        .font(.heading(13)).kerning(1.1).foregroundStyle(Palette.inkSoft)
-
+                SectionHeader(title: S.callPickLevel[state.native].uppercased())
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
+                          spacing: 12) {
                     ForEach(CEFR.allCases) { level in
-                        levelButton(level)
+                        levelCard(level)
                     }
-
-                    Label(S.callFreeAnswer[state.native], systemImage: "mic.fill")
-                        .font(.plain(12.5)).foregroundStyle(Palette.pink)
-                        .padding(.top, 4)
-
-                    Text(S.callNotReal[state.native])
-                        .font(.plain(11.5)).foregroundStyle(Palette.inkFaint)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.horizontal, Metrics.hPad)
-                .padding(.bottom, 26)
+
+                Text(S.callNotReal[state.native])
+                    .font(.plain(12)).foregroundStyle(Palette.inkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .padding(.horizontal, Metrics.hPad)
+            .padding(.top, 6)
+            .padding(.bottom, Metrics.tabBarClearance)
         }
-        .background(Palette.bg)
+        .scrollIndicators(.hidden)
+        .background(AuroraBackground(mood: .call))
         .fullScreenCover(item: $active) { launch in
             VideoCallView(level: launch.level)
         }
     }
 
-    private func levelButton(_ level: CEFR) -> some View {
+    /// Anorcha in a breathing pearl, like the speaker of the reference conversation.
+    private var hero: some View {
+        HStack(spacing: 18) {
+            ZStack {
+                Circle().strokeBorder(Palette.pink.opacity(0.18), lineWidth: 1)
+                    .frame(width: 118, height: 118)
+                    .scaleEffect(breathe ? 1.06 : 0.96)
+                Circle().strokeBorder(Palette.pink.opacity(0.28), lineWidth: 1)
+                    .frame(width: 100, height: 100)
+                MascotBubble(mood: .cheer, size: 86)
+                Image(systemName: "video.fill")
+                    .font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+                    .frame(width: 30, height: 30)
+                    .background(Circle().fill(LinearGradient(colors: Tone.pink.colors,
+                                                             startPoint: .top, endPoint: .bottom)))
+                    .overlay(Circle().strokeBorder(.white, lineWidth: 2))
+                    .offset(x: 32, y: 32)
+            }
+            .frame(width: 120, height: 120)
+            .animation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true), value: breathe)
+            .onAppear { breathe = true }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Label(aiOn ? S.callAIOn[state.native] : S.callAIOff[state.native],
+                      systemImage: aiOn ? "sparkles" : "iphone.gen3")
+                    .font(.heading(12)).foregroundStyle(aiOn ? Palette.purpleDeep : Palette.inkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
+                Label(S.callFreeAnswer[state.native], systemImage: "mic.fill")
+                    .font(.plain(13)).foregroundStyle(Palette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .glass(radius: 30, tint: Palette.pink)
+    }
+
+    private func levelCard(_ level: CEFR) -> some View {
         let unlocked = state.isLevelUnlocked(level)
         let unit = state.currentUnit(in: level)
         return Button {
@@ -68,39 +89,48 @@ struct CallHubView: View {
             Feedback.pop()
             active = CallLaunch(level: level)
         } label: {
-            HStack(spacing: 14) {
-                Text(level.label)
-                    .font(.display(20)).foregroundStyle(.white)
-                    .frame(width: 58, height: 52)
-                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(unlocked ? Palette.pink : Palette.inkFaint))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(level.blurb[state.native])
-                        .font(.heading(16)).foregroundStyle(Palette.ink)
-                    if unlocked, let unit {
-                        Text("\(S.callYouAreAt[state.native]) \(unit.title[state.native])")
-                            .font(.plain(12.5)).foregroundStyle(Palette.inkSoft)
-                            .lineLimit(2).fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        Text(S.callLevelLocked[state.native])
-                            .font(.plain(12.5)).foregroundStyle(Palette.inkFaint)
-                    }
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text(level.label)
+                        .font(.display(20)).foregroundStyle(unlocked ? .white : Palette.inkFaint)
+                        .frame(width: 54, height: 44)
+                        .background {
+                            if unlocked {
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(LinearGradient(colors: Tone.pink.colors,
+                                                         startPoint: .topLeading, endPoint: .bottomTrailing))
+                                    .shadow(color: Palette.pink.opacity(0.35), radius: 8, y: 4)
+                            } else {
+                                RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Palette.locked)
+                            }
+                        }
+                    Spacer(minLength: 0)
+                    Image(systemName: unlocked ? "video.fill" : "lock.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(unlocked ? Palette.pink : Palette.inkFaint)
+                        .frame(width: 36, height: 36)
+                        .glassCircle(tint: unlocked ? Palette.pink : nil, material: false, shadow: false)
                 }
-                Spacer(minLength: 4)
-                Image(systemName: unlocked ? "video.fill" : "lock.fill")
-                    .font(.system(size: 17, weight: .black))
-                    .foregroundStyle(unlocked ? Palette.pink : Palette.inkFaint)
+                Text(level.blurb[state.native])
+                    .font(.heading(15)).foregroundStyle(Palette.ink)
+                    .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                if unlocked, let unit {
+                    Text("\(S.callYouAreAt[state.native]) \(unit.title[state.native])")
+                        .font(.plain(12)).foregroundStyle(Palette.inkSoft)
+                        .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(S.callLevelLocked[state.native])
+                        .font(.plain(12)).foregroundStyle(Palette.inkFaint)
+                        .lineLimit(3).fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
             }
             .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous).fill(Palette.card))
-            .overlay(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous)
-                .stroke(unlocked ? Palette.pink.opacity(0.35) : Palette.stroke, lineWidth: 2))
-            .background(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous)
-                .fill(Palette.stroke).offset(y: 4))
-            .opacity(unlocked ? 1 : 0.55)
+            .frame(maxWidth: .infinity, minHeight: 168, alignment: .topLeading)
+            .glass(radius: 26)
+            .opacity(unlocked ? 1 : 0.6)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .disabled(!unlocked)
     }
 }

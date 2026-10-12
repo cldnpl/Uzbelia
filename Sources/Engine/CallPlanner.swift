@@ -66,9 +66,18 @@ struct CallContext {
     }
 }
 
-/// Builds a fresh call every time: the learner picks a level, and the questions are
-/// drawn from the unit they have actually reached in that level, shuffled with a few
-/// from earlier units so two calls are never the same.
+/// Builds a fresh call every time, around the unit the learner has reached in that
+/// level.
+///
+/// A call is made of *threads*, not of questions. A thread is one of the chapter's
+/// questions followed by the two written to follow on from it, asked in that order:
+/// she says who is in her family, and the next thing she hears is still about her
+/// family. The old plan shuffled the chapter's questions together with a couple from
+/// earlier chapters and a stray "Why?", which is how a call about family turned into
+/// one about train tickets halfway through an answer.
+///
+/// With the assistant on, this plan is only the safety net: every question after the
+/// greeting is rewritten live from what she actually said (see `CallEngine`).
 enum CallPlanner {
 
     static func plan(level: CEFR,
@@ -83,47 +92,39 @@ enum CallPlanner {
         // Where is the learner inside this level? The furthest unit they have opened.
         let reachedIndex = units.lastIndex { state.hasReached(unitID: $0.id) } ?? 0
         let focus = units[reachedIndex]
-        // Earlier units of the same level, for variety and revision.
-        let earlier = Array(units[0..<reachedIndex])
-
-        var questions: [CallQuestion] = []
-
-        // 1. An opener for the level.
-        if let opener = bank.generic(level, "open").randomElement() {
-            questions.append(CallQuestion(text: opener, origin: .opening))
-        }
-
-        // 2. The body: mostly the current unit, some revision of earlier ones.
-        let fromFocus = pick(bank.questions(forUnit: focus.id),
-                             count: max(3, questionCount - 4))
-        questions += fromFocus.map {
-            CallQuestion(text: $0, origin: .unit(focus.id),
-                         suggestedVocabulary: Array(focus.allPairs.shuffled().prefix(12)))
-        }
-
-        var revision: [CallQuestion] = []
-        for unit in earlier.shuffled().prefix(2) {
-            if let q = bank.questions(forUnit: unit.id).randomElement() {
-                revision.append(CallQuestion(text: q, origin: .unit(unit.id),
-                                             suggestedVocabulary: Array(unit.allPairs.shuffled().prefix(8))))
-            }
-        }
-        questions += revision
-
-        // 3. Keep the opener first, shuffle the rest, then cap.
-        let opener = questions.first
-        var body = Array(questions.dropFirst()).shuffled()
-        body = Array(body.prefix(max(1, questionCount - 2)))
-
-        // 4. Sprinkle a follow-up in the middle: it makes the call feel like a dialogue.
-        if let follow = bank.generic(level, "follow").randomElement(), body.count >= 3 {
-            body.insert(CallQuestion(text: follow, origin: .followUp),
-                        at: Int.random(in: 2...max(2, body.count - 1)))
-        }
+        let vocabulary = Array(focus.allPairs.shuffled().prefix(12))
 
         var all: [CallQuestion] = []
-        if let opener { all.append(opener) }
+
+        // 1. A greeting for the level.
+        if let opener = bank.generic(level, "open").randomElement() {
+            all.append(CallQuestion(text: opener, origin: .opening))
+        }
+
+        // 2. The body: threads from the chapter, in the chapter's own order, until the
+        //    call is long enough. Which questions start the threads changes every time.
+        let room = max(3, questionCount - 2)
+        let pool = bank.questions(forUnit: focus.id)
+        let perThread = 1 + (bank.followUps(forUnit: focus.id, question: 0).count)
+        let threadCount = Int((Double(room) / Double(perThread)).rounded(.up))
+        let starts = Array(pool.indices.shuffled().prefix(threadCount)).sorted()
+        var body: [CallQuestion] = []
+        var threads = 0
+        for i in starts where body.count < room {
+            let follows = bank.followUps(forUnit: focus.id, question: i)
+            let lead: Bilingual? = threads == 0 ? leadIns.randomElement()
+                                                : bridges.randomElement()
+            body.append(CallQuestion(text: pool[i], origin: .unit(focus.id),
+                                     suggestedVocabulary: vocabulary, lead: lead))
+            for follow in follows where body.count < room {
+                body.append(CallQuestion(text: follow, origin: .unit(focus.id),
+                                         suggestedVocabulary: vocabulary))
+            }
+            threads += 1
+        }
         all += body
+
+        // 3. Goodbye.
         if let closing = bank.generic(level, "close").randomElement() {
             all.append(CallQuestion(text: closing, origin: .closing))
         }
@@ -131,9 +132,11 @@ enum CallPlanner {
         return CallPlan(level: level, focusUnit: focus, questions: all)
     }
 
-    private static func pick(_ items: [Bilingual], count: Int) -> [Bilingual] {
-        Array(items.shuffled().prefix(count))
-    }
+    /// How the first subject is brought in after the greeting, and how one thread
+    /// hands over to the next — said out loud, so a change of subject is one she
+    /// hears coming rather than a jump. The lines are the course's own.
+    static var leadIns: [Bilingual] { Phrases.list("call.leadIns") }
+    static var bridges: [Bilingual] { Phrases.list("call.bridges") }
 
     /// Gathers what the assistant needs to know about this learner, right now.
     static func context(for plan: CallPlan, level: CEFR, state: AppState,

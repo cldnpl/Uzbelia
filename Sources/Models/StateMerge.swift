@@ -15,12 +15,13 @@ extension PersistedState {
     ///
     /// `self` is the local copy and keeps the last word on the few things that
     /// genuinely belong to this phone: which course is being taken, what is switched
-    /// on in Profilo, and which skill is on hold right now.
+    /// on in Profile, and which skill is on hold right now.
     func merged(with remote: PersistedState) -> PersistedState {
         var out = self
 
-        out.nativeLanguage = nativeLanguage ?? remote.nativeLanguage
+        out.course = course ?? remote.course
         out.onboarded = onboarded || remote.onboarded
+        out.needsEnglishRebase = needsEnglishRebase || remote.needsEnglishRebase
 
         out.xp = max(xp, remote.xp)
         out.gems = max(gems, remote.gems)
@@ -35,22 +36,6 @@ extension PersistedState {
 
         out.lastPracticeDay = [lastPracticeDay, remote.lastPracticeDay].compactMap { $0 }.max()
 
-        out.records = records.merging(remote.records) { mine, theirs in
-            var r = mine
-            r.completions = max(mine.completions, theirs.completions)
-            r.bestAccuracy = max(mine.bestAccuracy, theirs.bestAccuracy)
-            r.crowns = max(mine.crowns, theirs.crowns)
-            r.lastCompleted = [mine.lastCompleted, theirs.lastCompleted].compactMap { $0 }.max()
-            return r
-        }
-
-        // For a word's memory strength the more practised copy is the true one: it has
-        // seen answers the other never saw, and its due date is the one that follows.
-        out.srs = srs.merging(remote.srs) { mine, theirs in
-            if theirs.reps != mine.reps { return theirs.reps > mine.reps ? theirs : mine }
-            return theirs.strength > mine.strength ? theirs : mine
-        }
-
         var days: [String: DaySnapshot] = [:]
         for day in history + remote.history {
             if let seen = days[day.day] {
@@ -63,33 +48,16 @@ extension PersistedState {
         }
         out.history = days.values.sorted { $0.day > $1.day }
 
-        out.unlockedLevels = unlockedLevels.union(remote.unlockedLevels)
-
-        // Mistakes: both banks, this phone's first, no duplicates, still capped.
-        var seenMistakes = Set<String>()
-        out.mistakesBank = (mistakesBank + remote.mistakesBank).filter {
-            seenMistakes.insert($0.id).inserted
+        // Course by course: the two phones may be on different courses right now, and
+        // lesson ids are the same in every one of them.
+        var courses = allCourses
+        for (code, theirs) in remote.allCourses {
+            courses[code] = courses[code].map { $0.merged(with: theirs) } ?? theirs
         }
-        if out.mistakesBank.count > Self.mistakeBankCap {
-            out.mistakesBank = Array(out.mistakesBank.suffix(Self.mistakeBankCap))
+        if let active = out.course {
+            out.currentProgress = courses.removeValue(forKey: active.rawValue) ?? CourseProgress()
         }
-
-        var seenQuestions = Set<String>()
-        out.recentCallQuestions = (recentCallQuestions + remote.recentCallQuestions).filter {
-            seenQuestions.insert($0).inserted
-        }
-        if out.recentCallQuestions.count > Self.recentQuestionCap {
-            out.recentCallQuestions = Array(out.recentCallQuestions.suffix(Self.recentQuestionCap))
-        }
-
-        // A looked-up meaning is paid for once and kept for good, on either phone.
-        out.wordGlosses = wordGlosses.merging(remote.wordGlosses) { mine, _ in mine }
-
-        out.acceptedAlternatives = acceptedAlternatives.merging(remote.acceptedAlternatives) { mine, theirs in
-            var list = mine
-            for alt in theirs where !list.contains(alt) { list.append(alt) }
-            return Array(list.suffix(8))
-        }
+        out.shelved = courses
 
         // Settings and "I can't speak right now" belong to the phone in her hand.
         out.settings = settings
@@ -134,5 +102,56 @@ extension PersistedState {
             return state
         }
         return try JSONDecoder().decode(PersistedState.self, from: data)
+    }
+}
+
+extension CourseProgress {
+    /// The same rule, for one course: larger numbers, later dates, unions of lists.
+    func merged(with remote: CourseProgress) -> CourseProgress {
+        var out = self
+        out.records = records.merging(remote.records) { mine, theirs in
+            var r = mine
+            r.completions = max(mine.completions, theirs.completions)
+            r.bestAccuracy = max(mine.bestAccuracy, theirs.bestAccuracy)
+            r.crowns = max(mine.crowns, theirs.crowns)
+            r.lastCompleted = [mine.lastCompleted, theirs.lastCompleted].compactMap { $0 }.max()
+            return r
+        }
+
+        // For a word's memory strength the more practised copy is the true one: it has
+        // seen answers the other never saw, and its due date is the one that follows.
+        out.srs = srs.merging(remote.srs) { mine, theirs in
+            if theirs.reps != mine.reps { return theirs.reps > mine.reps ? theirs : mine }
+            return theirs.strength > mine.strength ? theirs : mine
+        }
+
+        out.unlockedLevels = unlockedLevels.union(remote.unlockedLevels)
+
+        // Mistakes: both banks, this phone's first, no duplicates, still capped.
+        var seenMistakes = Set<String>()
+        out.mistakesBank = (mistakesBank + remote.mistakesBank).filter {
+            seenMistakes.insert($0.id).inserted
+        }
+        if out.mistakesBank.count > PersistedState.mistakeBankCap {
+            out.mistakesBank = Array(out.mistakesBank.suffix(PersistedState.mistakeBankCap))
+        }
+
+        var seenQuestions = Set<String>()
+        out.recentCallQuestions = (recentCallQuestions + remote.recentCallQuestions).filter {
+            seenQuestions.insert($0).inserted
+        }
+        if out.recentCallQuestions.count > PersistedState.recentQuestionCap {
+            out.recentCallQuestions = Array(out.recentCallQuestions.suffix(PersistedState.recentQuestionCap))
+        }
+
+        // A looked-up meaning is paid for once and kept for good, on either phone.
+        out.wordGlosses = wordGlosses.merging(remote.wordGlosses) { mine, _ in mine }
+
+        out.acceptedAlternatives = acceptedAlternatives.merging(remote.acceptedAlternatives) { mine, theirs in
+            var list = mine
+            for alt in theirs where !list.contains(alt) { list.append(alt) }
+            return Array(list.suffix(8))
+        }
+        return out
     }
 }

@@ -6,12 +6,12 @@ import XCTest
 final class GlossaryTests: XCTestCase {
 
     private let course = [
-        Pair(it: "Sono felice", uz: "Xursandman"),
-        Pair(it: "Sono stanco", uz: "Charchadim"),
-        Pair(it: "felice", uz: "xursand"),
-        Pair(it: "molto", uz: "juda"),
-        Pair(it: "acqua", uz: "suv"),
-        Pair(it: "parco / giardino", uz: "bog'")
+        Pair(en: "I'm happy", tx: "Xursandman"),
+        Pair(en: "I'm tired", tx: "Charchadim"),
+        Pair(en: "happy", tx: "xursand"),
+        Pair(en: "very", tx: "juda"),
+        Pair(en: "water", tx: "suv"),
+        Pair(en: "park / garden", tx: "bog'")
     ]
 
     override func setUp() {
@@ -21,13 +21,13 @@ final class GlossaryTests: XCTestCase {
     }
 
     func testPhraseTranslatesBothWays() {
-        XCTAssertEqual(Glossary.look(up: "Xursandman", from: .uz)?.text, "Sono felice")
-        XCTAssertEqual(Glossary.look(up: "Sono stanco", from: .it)?.text, "Charchadim")
+        XCTAssertEqual(Glossary.look(up: "Xursandman", from: .uz)?.text, "I'm happy")
+        XCTAssertEqual(Glossary.look(up: "I'm tired", from: .en)?.text, "Charchadim")
     }
 
     func testLookUpIgnoresCaseApostrophesAndPunctuation() {
-        XCTAssertEqual(Glossary.look(up: "  xursandman! ", from: .uz)?.text, "Sono felice")
-        XCTAssertEqual(Glossary.look(up: "BOGʻ.", from: .uz)?.text, "parco / giardino")
+        XCTAssertEqual(Glossary.look(up: "  xursandman! ", from: .uz)?.text, "I'm happy")
+        XCTAssertEqual(Glossary.look(up: "BOGʻ.", from: .uz)?.text, "park / garden")
     }
 
     func testUnknownTextHasNoTranslation() {
@@ -36,7 +36,7 @@ final class GlossaryTests: XCTestCase {
 
     func testWordByWordIsFlaggedAsLiteral() {
         let gloss = Glossary.look(up: "juda xursand", from: .uz)
-        XCTAssertEqual(gloss?.text, "molto felice")
+        XCTAssertEqual(gloss?.text, "very happy")
         XCTAssertEqual(gloss?.literal, true)
     }
 
@@ -47,26 +47,26 @@ final class GlossaryTests: XCTestCase {
     // MARK: - Exercise-aware look-up
 
     func testExerciseAnswerAlwaysHasAMeaningEvenOffCurriculum() {
-        let line = Pair(it: "Ci vediamo domani", uz: "Ertaga ko'rishamiz")   // story line
+        let line = Pair(en: "See you tomorrow.", tx: "Ertaga ko'rishamiz.")   // story line
         let ex = Exercise(kind: .type, pair: line,
-                          prompt: line.it, promptLanguage: .it,
-                          answer: line.uz, answerLanguage: .uz)
-        XCTAssertEqual(ex.meaning(of: line.uz)?.text, "Ci vediamo domani")
+                          prompt: line.en, promptLanguage: .en,
+                          answer: line.tx, answerLanguage: .uz)
+        XCTAssertEqual(ex.meaning(of: line.tx)?.text, "See you tomorrow.")
     }
 
     func testWrongOptionIsTranslatedToo() {
         let ex = Exercise(kind: .choice, pair: course[0],
-                          prompt: "Sono felice", promptLanguage: .it,
+                          prompt: "I'm happy", promptLanguage: .en,
                           answer: "Xursandman", answerLanguage: .uz,
                           options: ["Xursandman", "Charchadim"])
-        XCTAssertEqual(ex.meaning(of: "Charchadim")?.text, "Sono stanco")
+        XCTAssertEqual(ex.meaning(of: "Charchadim")?.text, "I'm tired")
     }
 
     func testAlternativeAnswerStillResolvesThroughItsOwnPair() {
         let ex = Exercise(kind: .type, pair: course[5],
                           prompt: "bog'", promptLanguage: .uz,
-                          answer: "parco / giardino", answerLanguage: .it)
-        XCTAssertEqual(ex.meaning(of: "giardino")?.text, "bog'")
+                          answer: "park / garden", answerLanguage: .en)
+        XCTAssertEqual(ex.meaning(of: "garden")?.text, "bog'")
     }
 
     func testFillBlankSolutionIsTheWholeSentence() {
@@ -75,7 +75,7 @@ final class GlossaryTests: XCTestCase {
                           answer: "Xursandman", answerLanguage: .uz,
                           blankIndex: 0)
         XCTAssertEqual(ex.solution, "Xursandman")
-        XCTAssertEqual(ex.meaning(of: ex.solution)?.text, "Sono felice")
+        XCTAssertEqual(ex.meaning(of: ex.solution)?.text, "I'm happy")
     }
 }
 
@@ -84,8 +84,9 @@ final class SpeakableTests: XCTestCase {
 
     func testOnlyTheLanguageBeingLearntIsSpokenAloud() {
         let state = AppState(persistent: false)
-        state.chooseCourse(native: .it)
+        state.chooseCourse(.uz)
         XCTAssertEqual(state.target, .uz)
+        XCTAssertEqual(state.native, .en)
 
         // the guard every tap goes through
         func wouldSpeak(_ text: String, _ language: Language?) -> Bool {
@@ -94,14 +95,8 @@ final class SpeakableTests: XCTestCase {
         }
 
         XCTAssertTrue(wouldSpeak("xursandman", .uz))
-        XCTAssertFalse(wouldSpeak("sono felice", .it), "her own language needs no pronunciation")
+        XCTAssertFalse(wouldSpeak("i'm happy", .en), "her own language needs no pronunciation")
         XCTAssertFalse(wouldSpeak("   ", .uz))
         XCTAssertFalse(wouldSpeak("xursandman", nil))
-    }
-
-    func testTheOtherCourseSpeaksTheOtherLanguage() {
-        let state = AppState(persistent: false)
-        state.chooseCourse(native: .uz)
-        XCTAssertEqual(state.target, .it)
     }
 }

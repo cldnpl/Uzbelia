@@ -15,7 +15,8 @@ enum AnswerJudge {
     static func isOpen(_ kind: Exercise.Kind) -> Bool {
         switch kind {
         case .type, .wordBank: return true
-        case .choice, .listenChoice, .listenType, .speak, .match, .fillBlank: return false
+        case .choice, .listenChoice, .listenMeaning, .listenType, .listenBuild,
+             .speak, .speakRepeat, .match, .fillBlank, .compose: return false
         }
     }
 

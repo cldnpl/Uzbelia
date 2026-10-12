@@ -30,29 +30,24 @@ enum FirebaseClient {
         /// The session is over and could not be renewed: sign in again.
         case signedOut
 
-        var errorDescription: String? { message.it }
+        var errorDescription: String? { message.en }
 
         /// Said in both interface languages, because every screen in this app is.
         var message: Bilingual {
             switch self {
             case .notConfigured:
-                return Bilingual(it: "Account non configurato in questa build.",
-                                 uz: "Bu versiyada akkaunt sozlanmagan.")
+                return Bilingual("Accounts aren't set up in this build.")
             case .auth(let code):
                 return Self.explain(code)
             case .http(let code, let body):
                 let detail = AIClient.readableMessage(from: body)
-                return Bilingual(it: "Errore del server (\(code)). \(detail)",
-                                 uz: "Server xatosi (\(code)). \(detail)")
+                return Bilingual("Server error (\(code)). \(detail)")
             case .noDocument:
-                return Bilingual(it: "Nessun progresso salvato sul server.",
-                                 uz: "Serverda saqlangan yutuq yo'q.")
+                return Bilingual("No progress saved on the server.")
             case .decoding:
-                return Bilingual(it: "Risposta del server non leggibile.",
-                                 uz: "Server javobini o'qib bo'lmadi.")
+                return Bilingual("The server's reply couldn't be read.")
             case .signedOut:
-                return Bilingual(it: "Sessione scaduta: accedi di nuovo.",
-                                 uz: "Sessiya tugadi: qayta kiring.")
+                return Bilingual("Session expired: sign in again.")
             }
         }
 
@@ -62,41 +57,29 @@ enum FirebaseClient {
             switch code.split(separator: ":").first.map(String.init)?
                        .trimmingCharacters(in: .whitespaces) ?? code {
             case "EMAIL_EXISTS":
-                return Bilingual(it: "Questa email ha già un account. Accedi invece di registrarti.",
-                                 uz: "Bu email allaqachon ro'yxatdan o'tgan. Ro'yxatdan o'tish o'rniga kiring.")
+                return Bilingual("This email already has an account. Sign in instead.")
             case "INVALID_LOGIN_CREDENTIALS", "INVALID_PASSWORD", "EMAIL_NOT_FOUND":
-                return Bilingual(it: "Email o password non corrette.",
-                                 uz: "Email yoki parol noto'g'ri.")
+                return Bilingual("Wrong email or password.")
             case "WEAK_PASSWORD":
-                return Bilingual(it: "La password deve avere almeno 6 caratteri.",
-                                 uz: "Parol kamida 6 belgidan iborat bo'lishi kerak.")
+                return Bilingual("The password needs at least 6 characters.")
             case "INVALID_EMAIL":
-                return Bilingual(it: "Questa email non è scritta bene.",
-                                 uz: "Bu email noto'g'ri yozilgan.")
+                return Bilingual("This email isn't written correctly.")
             case "TOO_MANY_ATTEMPTS_TRY_LATER":
-                return Bilingual(it: "Troppi tentativi. Riprova fra qualche minuto.",
-                                 uz: "Juda ko'p urinish. Bir necha daqiqadan keyin qayta urinib ko'ring.")
+                return Bilingual("Too many attempts. Try again in a few minutes.")
             case "USER_DISABLED":
-                return Bilingual(it: "Questo account è stato disattivato.",
-                                 uz: "Bu akkaunt o'chirilgan.")
+                return Bilingual("This account has been disabled.")
             case "CREDENTIAL_TOO_OLD_LOGIN_AGAIN", "TOKEN_EXPIRED", "USER_NOT_FOUND":
-                return Bilingual(it: "Sessione scaduta: accedi di nuovo.",
-                                 uz: "Sessiya tugadi: qayta kiring.")
+                return Bilingual("Session expired: sign in again.")
             case "OPERATION_NOT_ALLOWED":
-                return Bilingual(it: "Questo modo di accedere non è abilitato nel progetto Firebase.",
-                                 uz: "Bu kirish usuli Firebase loyihasida yoqilmagan.")
+                return Bilingual("This sign-in method isn't enabled in the Firebase project.")
             case "MISSING_OR_INVALID_NONCE":
-                return Bilingual(it: "Apple e il server non si sono trovati d'accordo. Riprova.",
-                                 uz: "Apple va server kelisha olmadi. Qayta urinib ko'ring.")
+                return Bilingual("Apple and the server didn't agree. Try again.")
             case "INVALID_IDP_RESPONSE", "INVALID_IDENTIFIER":
-                return Bilingual(it: "Il provider ha risposto in un modo che il server non accetta. Riprova.",
-                                 uz: "Provayder javobini server qabul qilmadi. Qayta urinib ko'ring.")
+                return Bilingual("The provider answered in a way the server doesn't accept. Try again.")
             case "FEDERATED_USER_ID_ALREADY_LINKED":
-                return Bilingual(it: "Questo profilo è già legato a un altro account. Accedi con quello.",
-                                 uz: "Bu profil boshqa akkauntga bog'langan. O'sha bilan kiring.")
+                return Bilingual("This profile is already linked to another account. Sign in with that one.")
             default:
-                return Bilingual(it: "Accesso non riuscito (\(code)).",
-                                 uz: "Kirish amalga oshmadi (\(code)).")
+                return Bilingual("Sign-in failed (\(code)).")
             }
         }
     }
@@ -178,8 +161,8 @@ enum FirebaseClient {
 
         var label: Bilingual {
             switch self {
-            case .apple: return Bilingual(it: "Continua con Apple", uz: "Apple bilan davom etish")
-            case .google: return Bilingual(it: "Continua con Google", uz: "Google bilan davom etish")
+            case .apple: return Bilingual("Continue with Apple")
+            case .google: return Bilingual("Continue with Google")
             }
         }
     }

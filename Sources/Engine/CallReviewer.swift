@@ -24,10 +24,10 @@ struct Correction: Hashable, Identifiable {
         }
         var label: Bilingual {
             switch self {
-            case .spelling: return Bilingual(it: "Ortografia", uz: "Imlo")
-            case .grammar: return Bilingual(it: "Grammatica", uz: "Grammatika")
-            case .wording: return Bilingual(it: "Più naturale", uz: "Tabiiyroq")
-            case .language: return Bilingual(it: "Lingua", uz: "Til")
+            case .spelling: return Bilingual("Spelling")
+            case .grammar: return Bilingual("Grammar")
+            case .wording: return Bilingual("More natural")
+            case .language: return Bilingual("Language")
             }
         }
     }
@@ -82,10 +82,10 @@ struct CallReview {
 enum CallReviewer {
 
     static func review(turns: [CallTurnRecord],
-                       native: Language,
+                       target: Language,
                        curriculum: Curriculum,
                        level: CEFR) -> CallReview {
-        let target = native.other
+        let native = Language.en
         let lexicon = Lexicon(curriculum: curriculum)
         var reviews: [TurnReview] = []
         var stats = CallStats()
@@ -97,7 +97,8 @@ enum CallReviewer {
         for turn in turns {
             stats.seconds += turn.seconds
             let said = Grader.normalise(turn.answer)
-            let words = said.split(separator: " ").map(String.init)
+            let words = WordSplitter.words(in: turn.answer, language: target)
+                .map(Grader.normalise).filter { !$0.isEmpty }
 
             guard !words.isEmpty else {
                 reviews.append(TurnReview(question: turn.question, said: "",
@@ -125,11 +126,7 @@ enum CallReviewer {
                     kind: .language,
                     original: turn.answer,
                     suggestion: "",
-                    note: native == .it
-                        ? Bilingual(it: "Hai risposto in italiano: prova a dirlo in uzbeko, anche con errori.",
-                                    uz: "Siz italyancha javob berdingiz.")
-                        : Bilingual(it: "Hai risposto in uzbeko.",
-                                    uz: "Siz o'zbekcha javob berdingiz: italyanchada aytishga urinib ko'ring, xato bo'lsa ham.")))
+                    note: Bilingual("You answered in English: try saying it in \(target.name), even with mistakes.")))
             } else {
                 // 2. Spelling: words that are one or two letters away from a real one.
                 corrections += spellingChecks(words: words, lexicon: lexicon, language: target)
@@ -147,8 +144,7 @@ enum CallReviewer {
                     kind: .wording,
                     original: turn.answer,
                     suggestion: better,
-                    note: Bilingual(it: "Dal corso, un modo più naturale di dirlo.",
-                                    uz: "Kursdan olingan tabiiyroq ifoda.")))
+                    note: Bilingual("From the course, a more natural way to say it.")))
             }
 
             reviews.append(TurnReview(question: turn.question,
@@ -167,7 +163,7 @@ enum CallReviewer {
         return CallReview(turns: reviews,
                           stats: stats,
                           headline: headline(for: reviews, stats: stats),
-                          tips: tips(for: reviews, stats: stats, native: native, level: level))
+                          tips: tips(for: reviews, stats: stats, target: target, level: level))
     }
 
     // MARK: - Spelling
@@ -183,8 +179,7 @@ enum CallReviewer {
                 kind: .spelling,
                 original: word,
                 suggestion: near,
-                note: Bilingual(it: "Forse volevi dire «\(near)».",
-                                uz: "Ehtimol «\(near)» demoqchi edingiz.")))
+                note: Bilingual("Did you mean “\(near)”?")))
         }
         return out
     }
@@ -197,8 +192,9 @@ enum CallReviewer {
         let note: Bilingual
     }
 
-    private static func grammarChecks(_ text: String, target: Language) -> [Correction] {
-        let rules = target == .uz ? uzbekRules : italianRules
+    /// Also read by the composition checker, for the sentences she adds of her own.
+    static func grammarChecks(_ text: String, target: Language) -> [Correction] {
+        let rules = target == .uz ? uzbekRules : []
         var out: [Correction] = []
         for rule in rules {
             guard out.count < 4 else { break }
@@ -219,66 +215,23 @@ enum CallReviewer {
         return out
     }
 
-    /// Mistakes an Italian speaker reliably makes in Uzbek.
+    /// Mistakes learners of Uzbek reliably make.
     private static let uzbekRules: [Rule] = [
         Rule(pattern: "\\b((?:bir|ikki|uch|to'rt|besh|olti|yetti|sakkiz|to'qqiz|o'n|nechta|necha|ko'p)(?:ta)?)\\s+(\\w+?)lar\\b",
              replacement: "$1 $2",
-             note: Bilingual(it: "Dopo un numero o una quantità il nome resta al singolare: niente -lar.",
-                             uz: "Sondan keyin ot birlikda qoladi: -lar qo'shilmaydi.")),
+             note: Bilingual("After a number or a quantity the noun stays singular: no -lar.")),
         Rule(pattern: "\\b(\\w+)\\s+(man|san|miz|siz)\\b",
              replacement: "$1$2",
-             note: Bilingual(it: "La desinenza personale si attacca alla parola, non si stacca.",
-                             uz: "Shaxs qo'shimchasi so'zga qo'shib yoziladi.")),
+             note: Bilingual("The personal ending is written together with the word, not separately.")),
         Rule(pattern: "\\bmen\\s+([a-z'’]+)\\s+emas\\b",
              replacement: "men $1 emasman",
-             note: Bilingual(it: "Con «men» la negazione diventa «emasman».",
-                             uz: "«Men» bilan inkor «emasman» bo'ladi.")),
+             note: Bilingual("With “men”, the negative becomes “emasman”.")),
         Rule(pattern: "\\bmen\\s+men\\b", replacement: "men",
-             note: Bilingual(it: "«men» ripetuto.", uz: "«men» takrorlangan.")),
+             note: Bilingual("“men” said twice.")),
         Rule(pattern: "\\bjuda\\s+juda\\b", replacement: "juda",
-             note: Bilingual(it: "«juda» ripetuto.", uz: "«juda» takrorlangan.")),
+             note: Bilingual("“juda” said twice.")),
         Rule(pattern: "\\bmen\\s+(\\w+)dan\\s+kelaman\\b", replacement: "men $1danman",
-             note: Bilingual(it: "Per dire la provenienza basta «-danman».",
-                             uz: "Kelib chiqishni aytish uchun «-danman» yetarli.")),
-    ]
-
-    /// Mistakes an Uzbek speaker reliably makes in Italian.
-    private static let italianRules: [Rule] = [
-        Rule(pattern: "\\bho\\s+(andato|andata|venuto|venuta|arrivato|arrivata|partito|partita|tornato|tornata|uscito|uscita|entrato|entrata|stato|stata|rimasto|rimasta|nato|nata)\\b",
-             replacement: "sono $1",
-             note: Bilingual(it: "I verbi di movimento e di stato vogliono «essere».",
-                             uz: "Harakat va holat fe'llari «essere» bilan keladi.")),
-        Rule(pattern: "\\bsono\\s+(mangiato|bevuto|fatto|letto|scritto|visto|comprato|studiato|lavorato|parlato|detto|preso|messo|finito|cominciato|dormito)\\b",
-             replacement: "ho $1",
-             note: Bilingual(it: "Questi verbi vogliono «avere».",
-                             uz: "Bu fe'llar «avere» bilan keladi.")),
-        Rule(pattern: "\\bin\\s+(roma|milano|napoli|firenze|venezia|torino|tashkent|toshkent|samarcanda|samarqand|bukhara|buxoro)\\b",
-             replacement: "a $1",
-             note: Bilingual(it: "Con le città si usa «a»: a Roma, a Tashkent.",
-                             uz: "Shaharlar bilan «a» ishlatiladi: a Roma, a Tashkent.")),
-        Rule(pattern: "\\ba\\s+(italia|uzbekistan|francia|germania|spagna|turchia|russia|cina|inghilterra|america)\\b",
-             replacement: "in $1",
-             note: Bilingual(it: "Con i paesi si usa «in»: in Italia, in Uzbekistan.",
-                             uz: "Davlatlar bilan «in» ishlatiladi: in Italia, in Uzbekistan.")),
-        Rule(pattern: "\\bmi piace\\s+(i|le|gli)\\s+(\\w+)\\b",
-             replacement: "mi piacciono $1 $2",
-             note: Bilingual(it: "Al plurale diventa «mi piacciono».",
-                             uz: "Ko'plikda «mi piacciono» bo'ladi.")),
-        Rule(pattern: "\\bsono\\s+(\\d+|venti|ventuno|venticinque|trenta|quaranta|diciotto|diciannove)\\s+anni\\b",
-             replacement: "ho $1 anni",
-             note: Bilingual(it: "L'età si dice con «avere»: ho 25 anni.",
-                             uz: "Yosh «avere» bilan aytiladi: ho 25 anni.")),
-        Rule(pattern: "\\b(io\\s+)?sono\\s+(fame|sete|freddo|caldo|ragione|paura|sonno)\\b",
-             replacement: "ho $2",
-             note: Bilingual(it: "Fame, sete, freddo, ragione: si dicono con «avere».",
-                             uz: "Fame, sete, freddo, ragione — «avere» bilan.")),
-        Rule(pattern: "\\bpiù\\s+(meglio|peggio)\\b", replacement: "$1",
-             note: Bilingual(it: "«Meglio» è già un comparativo: niente «più».",
-                             uz: "«Meglio» o'zi qiyosiy daraja: «più» kerak emas.")),
-        Rule(pattern: "\\bogni\\s+(giorni|anni|settimane|mesi)\\b",
-             replacement: "ogni giorno",
-             note: Bilingual(it: "Dopo «ogni» il nome va al singolare.",
-                             uz: "«Ogni» dan keyin ot birlikda bo'ladi.")),
+             note: Bilingual("To say where you're from, “-danman” is enough.")),
     ]
 
     // MARK: - A more natural version, taken from the course
@@ -310,19 +263,19 @@ enum CallReviewer {
         let ratio = stats.total == 0 ? 0 : Double(good) / Double(stats.total)
         switch ratio {
         case 0.85...:
-            return Bilingual(it: "Conversazione sciolta!", uz: "Suhbat ravon o'tdi!")
+            return Bilingual("A fluent conversation!")
         case 0.6..<0.85:
-            return Bilingual(it: "Bella chiacchierata", uz: "Yaxshi suhbat bo'ldi")
+            return Bilingual("A nice chat")
         case 0.3..<0.6:
-            return Bilingual(it: "Ci siamo quasi", uz: "Deyarli yaxshi")
+            return Bilingual("Almost there")
         default:
-            return Bilingual(it: "Riproviamo con calma", uz: "Keling, yana bir bor urinamiz")
+            return Bilingual("Let's try again, calmly")
         }
     }
 
     private static func tips(for turns: [TurnReview],
                              stats: CallStats,
-                             native: Language,
+                             target: Language,
                              level: CEFR) -> [Bilingual] {
         var out: [Bilingual] = []
         let short = turns.filter { $0.status == .tooShort }.count
@@ -332,35 +285,27 @@ enum CallReviewer {
         let grammar = turns.flatMap(\.corrections).filter { $0.kind == .grammar }.count
 
         if wrongLang > 0 {
-            out.append(Bilingual(it: "Resta nella lingua che stai imparando, anche sbagliando: è lì che si impara.",
-                                 uz: "O'rganayotgan tilingizda qoling, xato qilsangiz ham — o'rganish shunda."))
+            out.append(Bilingual("Stay in the language you're learning, even with mistakes: that's where the learning happens."))
         }
         if skipped >= 2 {
-            out.append(Bilingual(it: "Hai saltato \(skipped) domande: la prossima volta prova a dire anche solo una frase.",
-                                 uz: "\(skipped) ta savolni o'tkazib yubordingiz: keyingi safar hech bo'lmasa bitta jumla ayting."))
+            out.append(Bilingual("You skipped \(skipped) questions: next time try saying even just one sentence."))
         }
         if short >= 2 {
-            out.append(Bilingual(it: "Molte risposte erano brevi: prova ad aggiungere un «perché» o un esempio.",
-                                 uz: "Javoblar qisqa bo'ldi: «nega» yoki misol qo'shishga harakat qiling."))
+            out.append(Bilingual("Many answers were short: try adding a “because” or an example."))
         }
         if spelling >= 3 {
-            out.append(native == .it
-                       ? Bilingual(it: "Occhio agli apostrofi uzbeki: o‘ e g‘ cambiano la parola.",
-                                   uz: "O'zbek apostroflariga e'tibor bering.")
-                       : Bilingual(it: "Attenzione all'ortografia italiana.",
-                                   uz: "Italyan imlosiga e'tibor bering: qo'sh undoshlar va urg'u belgilari."))
+            out.append(target == .uz
+                       ? Bilingual("Watch the Uzbek apostrophes: o‘ and g‘ change the word.")
+                       : Bilingual("Watch the spelling: the corrections below show the words you mixed up."))
         }
         if grammar >= 2 {
-            out.append(Bilingual(it: "Rileggi le correzioni qui sotto: sono gli errori che ripeti più spesso.",
-                                 uz: "Quyidagi tuzatishlarni ko'rib chiqing: bular eng ko'p takrorlanadigan xatolar."))
+            out.append(Bilingual("Read the corrections below again: they're the mistakes you repeat most."))
         }
         if stats.averageWords >= Double(level <= .a2 ? 6 : 10) {
-            out.append(Bilingual(it: "Risposte lunghe e articolate: continua così.",
-                                 uz: "Javoblaringiz to'liq va mazmunli: shu ruhda davom eting."))
+            out.append(Bilingual("Long, well-built answers: keep it up."))
         }
         if out.isEmpty {
-            out.append(Bilingual(it: "Buona conversazione: riprova con un altro argomento.",
-                                 uz: "Yaxshi suhbat: boshqa mavzuda ham urinib ko'ring."))
+            out.append(Bilingual("A good conversation: try again with another subject."))
         }
         return out
     }
@@ -371,31 +316,35 @@ enum CallReviewer {
 struct Lexicon {
     struct Phrase { let raw: String; let normalised: String }
 
-    private var words: [Language: Set<String>] = [:]
-    private var phraseList: [Language: [Phrase]] = [:]
+    /// Two sides only: English, and the course's language.
+    private var words: [Bool: Set<String>] = [:]
+    private var phraseList: [Bool: [Phrase]] = [:]
 
     init(curriculum: Curriculum) {
-        for language in Language.allCases {
+        let target = Language.current
+        for english in [true, false] {
             var set = Set<String>()
             var phrases: [Phrase] = []
             for pair in curriculum.allPairs {
-                let raw = pair[language]
+                let raw = english ? pair.en : pair.tx
                 let norm = Grader.normalise(raw)
-                for word in norm.split(separator: " ") { set.insert(String(word)) }
-                if norm.split(separator: " ").count >= 3 {
+                let split = WordSplitter.words(in: raw, language: english ? .en : target)
+                    .map(Grader.normalise).filter { !$0.isEmpty }
+                for word in split { set.insert(word) }
+                if split.count >= 3 {
                     phrases.append(Phrase(raw: raw, normalised: norm))
                 }
             }
-            words[language] = set
-            phraseList[language] = phrases
+            words[english] = set
+            phraseList[english] = phrases
         }
     }
 
     func knows(_ word: String, language: Language) -> Bool {
-        words[language]?.contains(word) ?? false
+        words[language == .en]?.contains(word) ?? false
     }
 
-    func phrases(_ language: Language) -> [Phrase] { phraseList[language] ?? [] }
+    func phrases(_ language: Language) -> [Phrase] { phraseList[language == .en] ?? [] }
 
     /// The closest known word, when it is close enough to be a typo rather than a
     /// different word.
@@ -405,7 +354,7 @@ struct Lexicon {
     /// initial is almost never a slip — *deyman* is not a misspelt *yeyman*), and a
     /// two-letter distance is only accepted on long words.
     func nearest(_ word: String, language: Language) -> String? {
-        guard let set = words[language], let initial = word.first else { return nil }
+        guard let set = words[language == .en], let initial = word.first else { return nil }
         let budget = word.count >= 7 ? 2 : 1
         var best: (word: String, distance: Int)?
         for candidate in set where abs(candidate.count - word.count) <= budget

@@ -11,27 +11,36 @@ struct PathView: View {
     @State private var writingNode: PathNode?
 
     var body: some View {
-        VStack(spacing: 0) {
-            StatsHeader(levelLabel: level.label)
-            levelPicker
-            Divider().overlay(Palette.stroke)
-            ScrollViewReader { proxy in
-                ScrollView {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 20) {
+                        StatsHeader()
+                        TabHeader(eyebrow: S.homeHello[state.native], title: S.homeTitle(state.target)[state.native])
+                        levelPicker
+                        resumeCard(proxy)
+                    }
+                    .padding(.bottom, 26)
+                    .id("top")
+
                     LazyVStack(spacing: 0) {
                         ForEach(units) { unit in
                             unitSection(unit).id(unit.id)
                         }
                         levelFooter
                             .padding(.top, 8)
-                            .padding(.bottom, 30)
                     }
-                    .padding(.top, 10)
                 }
-                .onAppear { scrollToCurrent(proxy) }
-                .onChange(of: level) { _, _ in scrollToCurrent(proxy) }
+                .padding(.horizontal, Metrics.hPad)
+                .padding(.top, 6)
+                .padding(.bottom, Metrics.tabBarClearance)
+            }
+            .scrollIndicators(.hidden)
+            .onChange(of: level) { _, _ in
+                withAnimation(.easeInOut) { proxy.scrollTo("top", anchor: .top) }
             }
         }
-        .background(Palette.bg)
+        .background(AuroraBackground(mood: .home))
         .onAppear { level = startingLevel }
         .sheet(item: $selectedNode) { node in
             NodeSheet(node: node, level: level) { req in
@@ -44,8 +53,9 @@ struct PathView: View {
                 selectedNode = nil
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { writingNode = chapterNode }
             }
-            .presentationDetents([.height(430)])
+            .presentationDetents([.height(520)])
             .presentationDragIndicator(.visible)
+            .auroraSheet()
         }
         .sheet(item: $guidebookUnit) { unit in GuidebookView(unit: unit) }
         .sheet(item: $testTarget) { target in
@@ -53,8 +63,9 @@ struct PathView: View {
                 testTarget = nil
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { activeSession = req }
             }
-            .presentationDetents([.height(430)])
+            .presentationDetents([.height(500)])
             .presentationDragIndicator(.visible)
+            .auroraSheet()
         }
         .fullScreenCover(item: $activeSession) { req in
             LessonView(request: req)
@@ -83,46 +94,136 @@ struct PathView: View {
               let unitID = state.curriculum.allUnits.first(where: { unit in
                   unit.nodes(level: level, index: 0).contains { $0.id == current }
               })?.id else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            withAnimation(.easeInOut) { proxy.scrollTo(unitID, anchor: .top) }
-        }
+        withAnimation(.easeInOut(duration: 0.5)) { proxy.scrollTo(unitID, anchor: .top) }
+    }
+
+    /// What tapping "Continue" on a node starts.
+    private func launch(_ node: PathNode) {
+        guard let unit = state.curriculum.unit(id: node.unitID) else { return }
+        if node.isWriting { writingNode = node; return }
+        let done = state.sessionsDone(node.id)
+        let required = node.requiredSessions
+        activeSession = SessionRequest(node: node, unit: unit, level: level, mode: .lesson,
+                                       consumesHearts: !state.unlimited,
+                                       focus: state.focus(for: node, session: min(done, required - 1)),
+                                       sessionNumber: min(done + 1, required),
+                                       sessionsTotal: required)
     }
 
     // MARK: - Level picker
 
     private var levelPicker: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(CEFR.allCases) { lvl in
-                    let unlocked = state.isLevelUnlocked(lvl)
-                    Button {
-                        Feedback.tap()
-                        if unlocked {
-                            withAnimation { level = lvl }
-                        } else {
-                            testTarget = PlacementTest.target(unlocking: lvl, state: state)
-                        }
-                    } label: {
-                        HStack(spacing: 6) {
-                            if !unlocked {
-                                Image(systemName: "lock.fill").font(.system(size: 11, weight: .black))
-                            }
-                            Text(lvl.label).font(.heading(14))
-                            Text("\(Int(state.completion(of: lvl) * 100))%")
-                                .font(.plain(11.5))
-                                .opacity(unlocked ? 0.75 : 0)
-                        }
-                        .foregroundStyle(level == lvl ? .white : (unlocked ? Palette.ink : Palette.inkFaint))
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(Capsule().fill(level == lvl ? Palette.brand : Palette.locked))
+        HStack(spacing: 8) {
+            ForEach(CEFR.allCases) { lvl in
+                let unlocked = state.isLevelUnlocked(lvl)
+                let on = level == lvl
+                Button {
+                    Feedback.tap()
+                    if unlocked {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { level = lvl }
+                    } else {
+                        testTarget = PlacementTest.target(unlocking: lvl, state: state)
                     }
-                    .buttonStyle(.plain)
+                } label: {
+                    VStack(spacing: 1) {
+                        HStack(spacing: 4) {
+                            if !unlocked {
+                                Image(systemName: "lock.fill").font(.system(size: 10, weight: .bold))
+                            }
+                            Text(lvl.label).font(.heading(15))
+                        }
+                        Text(unlocked ? "\(Int(state.completion(of: lvl) * 100))%" : "test")
+                            .font(.plain(10.5))
+                            .opacity(0.8)
+                    }
+                    .foregroundStyle(on ? .white : (unlocked ? Palette.ink : Palette.inkFaint))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background {
+                        if on {
+                            Capsule().fill(Gradients.primary)
+                                .overlay(Capsule().fill(LinearGradient(colors: [.white.opacity(0.35), .clear],
+                                                                       startPoint: .top, endPoint: .center)))
+                                .shadow(color: Palette.brand.opacity(0.35), radius: 10, y: 5)
+                        } else {
+                            GlassPane(shape: Capsule(), tint: nil, material: false, shadow: false)
+                        }
+                    }
+                }
+                .buttonStyle(.pressable)
+            }
+        }
+    }
+
+    // MARK: - Resume card
+
+    @ViewBuilder
+    private func resumeCard(_ proxy: ScrollViewProxy) -> some View {
+        if let id = state.currentNodeID(in: level),
+           let node = state.nodes(for: level).first(where: { $0.id == id }),
+           let unit = state.curriculum.unit(id: node.unitID) {
+            let done = state.sessionsDone(node.id)
+            let required = node.requiredSessions
+            let finished = done >= required
+            let focus = state.focus(for: node, session: min(done, required - 1))
+            let accent = node.isWriting ? UnitAccent.writing : (required > 1 ? focus.tint : unit.accent)
+
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 16) {
+                    ZStack {
+                        ArcRing(progress: Double(done) / Double(max(1, required)), accent: accent, lineWidth: 5)
+                            .frame(width: 84, height: 84)
+                        OrbIcon(required > 1 && !finished ? focus.icon : node.icon, accent: accent, size: 64)
+                    }
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(finished ? S.homeAllDone[state.native] : S.homeResume[state.native])
+                            .font(.heading(12)).kerning(0.8).textCase(.uppercase)
+                            .foregroundStyle(accent.deep)
+                        Text(node.title[state.native])
+                            .font(.display(21)).foregroundStyle(Palette.ink)
+                            .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                        Text(unit.title[state.native])
+                            .font(.plain(13)).foregroundStyle(Palette.inkSoft)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+
+                if required > 1 {
+                    HStack(spacing: 6) {
+                        ForEach(Array(state.sessionPlan(for: node).enumerated()), id: \.offset) { i, f in
+                            Capsule()
+                                .fill(i < done ? AnyShapeStyle(Gradients.of(f.tint))
+                                               : AnyShapeStyle(i == done ? f.tint.main.opacity(0.35) : Palette.locked))
+                                .frame(height: 6)
+                        }
+                    }
+                }
+
+                HStack(spacing: 10) {
+                    Button {
+                        Feedback.pop(); launch(node)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: node.isWriting ? "paperplane.fill"
+                                  : (required > 1 ? focus.icon : "play.fill"))
+                                .font(.system(size: 15, weight: .bold))
+                            Text(finished ? S.repeatLesson[state.native]
+                                 : (required > 1 ? "\(S.continueLesson[state.native]) · \(focus.label[state.native])"
+                                                 : S.startLesson[state.native]))
+                        }
+                    }
+                    .buttonStyle(.primary(Tone(accent), height: 52))
+
+                    GlassCircleButton(icon: "scope", size: 52, tint: Palette.inkSoft,
+                                      accessibility: S.homeResume[state.native]) {
+                        Feedback.tap(); scrollToCurrent(proxy)
+                    }
                 }
             }
-            .padding(.horizontal, Metrics.hPad)
-            .padding(.vertical, 9)
+            .padding(18)
+            .glass(radius: 30, tint: accent.main)
         }
-        .background(Palette.bg)
     }
 
     // MARK: - Unit section
@@ -133,90 +234,76 @@ struct PathView: View {
         let currentID = state.currentNodeID(in: level)
         VStack(spacing: 0) {
             unitBanner(unit)
-                .padding(.horizontal, Metrics.hPad)
-                .padding(.bottom, 16)
+                .padding(.bottom, 22)
 
             ForEach(Array(nodes.enumerated()), id: \.element.id) { idx, node in
                 NodeBubble(node: node,
                            accent: unit.accent,
                            isUnlocked: state.isUnlocked(node),
                            isCurrent: currentID == node.id,
-                           sessionsDone: state.sessionsDone(node.id)) {
+                           sessionsDone: state.sessionsDone(node.id),
+                           nextFocus: state.nextFocus(for: node)) {
                     Feedback.pop()
                     selectedNode = node
                 }
                 .offset(x: waveOffset(idx))
-                .padding(.vertical, 1)
+                .padding(.vertical, 4)
             }
-            .padding(.bottom, 14)
+            .padding(.bottom, 26)
         }
     }
 
     private func waveOffset(_ i: Int) -> CGFloat {
-        let pattern: [CGFloat] = [0, 46, 70, 46, 0, -46, -70, -46]
+        let pattern: [CGFloat] = [0, 48, 72, 48, 0, -48, -72, -48]
         return pattern[i % pattern.count]
     }
 
     private func unitBanner(_ unit: Unit) -> some View {
         let progress = state.completion(ofUnit: unit, level: level)
         return HStack(spacing: 14) {
-            Image(systemName: unit.icon)
-                .font(.system(size: 22, weight: .black))
-                .foregroundStyle(.white)
-                .frame(width: 46, height: 46)
-                .background(Circle().fill(.white.opacity(0.22)))
-            VStack(alignment: .leading, spacing: 4) {
+            ZStack {
+                ArcRing(progress: progress, accent: unit.accent, lineWidth: 4)
+                    .frame(width: 62, height: 62)
+                OrbIcon(unit.icon, accent: unit.accent, size: 48)
+            }
+            VStack(alignment: .leading, spacing: 3) {
                 Text(unit.title[state.native])
-                    .font(.heading(18)).foregroundStyle(.white)
+                    .font(.heading(17.5)).foregroundStyle(Palette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
                 if let sub = unit.subtitle {
                     Text(sub[state.native])
-                        .font(.plain(12.5)).foregroundStyle(.white.opacity(0.85))
+                        .font(.plain(12.5)).foregroundStyle(Palette.inkSoft)
                         .lineLimit(2)
                 }
-                ProgressBar(value: progress, tint: .white, track: .white.opacity(0.25), height: 8)
-                    .frame(height: 8)
-                    .padding(.top, 2)
+                Text("\(Int(progress * 100))% \(S.completedShort[state.native])")
+                    .font(.heading(11.5)).foregroundStyle(unit.accent.deep)
+                    .padding(.top, 1)
             }
-            Button {
+            Spacer(minLength: 4)
+            GlassCircleButton(icon: "book.closed", size: 44, tint: unit.accent.deep,
+                              accessibility: S.unitGuide[state.native]) {
                 Feedback.tap(); guidebookUnit = unit
-            } label: {
-                Image(systemName: "book.fill")
-                    .font(.system(size: 17, weight: .black))
-                    .foregroundStyle(.white)
-                    .frame(width: 42, height: 42)
-                    .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(.white.opacity(0.2)))
             }
-            .buttonStyle(.plain)
         }
-        .padding(15)
-        .background(
-            RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous)
-                .fill(LinearGradient(colors: [unit.accent.main, unit.accent.deep],
-                                     startPoint: .topLeading, endPoint: .bottomTrailing))
-        )
-        .background(
-            RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous)
-                .fill(unit.accent.deep).offset(y: Metrics.chunkDepth)
-        )
+        .padding(14)
+        .glass(radius: 26, tint: unit.accent.main)
     }
 
     private var levelFooter: some View {
         VStack(spacing: 12) {
             if state.completion(of: level) >= 1 {
-                Mascot(mood: .cheer, size: 80)
-                Text(state.native == .it ? "Livello \(level.label) completato! 🎉"
-                                         : "\(level.label) darajasi tugadi! 🎉")
-                    .font(.heading(17)).foregroundStyle(Palette.ink)
+                MascotBubble(mood: .cheer, size: 92)
+                Text("Level \(level.label) complete!")
+                    .font(.display(20)).foregroundStyle(Gradients.holoLinear)
                 if let next = CEFR.allCases.first(where: { $0 > level }) {
                     Button {
                         Feedback.pop(); state.unlock(level: next); withAnimation { level = next }
                     } label: { Text(next.label) }
-                    .buttonStyle(.chunky(Palette.purple, Palette.purpleDeep, stretch: false))
+                    .buttonStyle(.primary(.violet, stretch: false))
                 }
             } else {
-                Mascot(mood: .think, size: 62)
-                Text(state.native == .it ? "Ancora \(remaining) sessioni in questo livello"
-                                         : "Ushbu darajada yana \(remaining) mashg'ulot")
+                MascotBubble(mood: .think, size: 64)
+                Text("\(remaining) sessions left in this level")
                     .font(.plain(13)).foregroundStyle(Palette.inkSoft)
             }
         }
@@ -240,6 +327,7 @@ struct NodeBubble: View {
     let isUnlocked: Bool
     let isCurrent: Bool
     let sessionsDone: Int
+    let nextFocus: SessionFocus
     let action: () -> Void
 
     @State private var pulse = false
@@ -247,69 +335,72 @@ struct NodeBubble: View {
     private var required: Int { node.requiredSessions }
     private var done: Bool { sessionsDone >= required }
     private var ratio: Double { min(1, Double(sessionsDone) / Double(max(1, required))) }
-    private var fill: Color { isUnlocked ? (done ? Palette.amber : accent.main) : Palette.locked }
-    private var edge: Color { isUnlocked ? (done ? Palette.amberDeep : accent.deep) : Palette.lockedDeep }
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 7) {
             if isCurrent && isUnlocked {
                 Text(callToAction)
                     .font(.heading(12)).kerning(0.6)
-                    .foregroundStyle(done ? Palette.amberDeep : accent.deep)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(
-                        Capsule().fill(Palette.card)
-                            .overlay(Capsule().stroke(Palette.stroke, lineWidth: 2))
-                    )
+                    .foregroundStyle(Palette.brand)
+                    .padding(.horizontal, 14).frame(height: 30)
+                    .glassCapsule(tint: Palette.brand)
                     .offset(y: pulse ? -3 : 2)
-                    .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
+                    .animation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: pulse)
                     .onAppear { pulse = true }
             }
 
             Button(action: action) {
                 ZStack {
-                    // session ring: one notch per required pass
-                    if required > 1 && isUnlocked {
+                    if isCurrent && isUnlocked {
                         Circle()
-                            .stroke(Palette.locked, style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                            .frame(width: 84, height: 84)
-                        Circle()
-                            .trim(from: 0, to: ratio)
-                            .stroke(done ? Palette.amber : accent.main,
-                                    style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                            .rotationEffect(.degrees(-90))
-                            .frame(width: 84, height: 84)
-                            .animation(.spring(response: 0.5), value: ratio)
+                            .fill(RadialGradient(colors: [tint.main.opacity(0.35), .clear],
+                                                 center: .center, startRadius: 30, endRadius: 64))
+                            .frame(width: 128, height: 128)
+                            .scaleEffect(pulse ? 1.08 : 0.92)
+                            .animation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true), value: pulse)
                     }
-
-                    Circle().fill(edge).frame(width: 70, height: 70).offset(y: 6)
-                    Circle().fill(fill).frame(width: 70, height: 70)
-                        .overlay(
-                            Circle().fill(.white.opacity(0.18))
-                                .frame(width: 44, height: 20).offset(y: -14).blur(radius: 3)
-                        )
-
-                    Image(systemName: symbol)
-                        .font(.system(size: 25, weight: .black))
-                        .foregroundStyle(isUnlocked ? .white : Palette.inkFaint)
+                    if required > 1 && isUnlocked {
+                        SessionRing(passes: state.sessionPlan(for: node).map(\.tint), done: sessionsDone,
+                                    lineWidth: 5)
+                            .frame(width: 88, height: 88)
+                    }
+                    orb
                 }
-                .scaleEffect(isCurrent ? 1.05 : 1)
-                .animation(.spring(response: 0.4), value: isCurrent)
+                .frame(width: 96, height: 96)
+                .scaleEffect(isCurrent ? 1.04 : 1)
             }
-            .buttonStyle(NodePressStyle())
+            .buttonStyle(PressableStyle(scale: 0.93))
 
             if isUnlocked && required > 1 && sessionsDone > 0 && !done {
                 Text("\(sessionsDone)/\(required)")
-                    .font(.heading(11)).foregroundStyle(Palette.inkFaint)
+                    .font(.heading(11)).foregroundStyle(Palette.inkSoft)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .glassCapsule(material: false, shadow: false)
             }
         }
         .frame(maxWidth: .infinity)
     }
 
+    @ViewBuilder
+    private var orb: some View {
+        if !isUnlocked {
+            OrbIcon("lock.fill", look: .muted, size: 70, symbolScale: 0.32)
+        } else if done {
+            OrbIcon(node.kind == .review ? "crown.fill" : "checkmark", look: .holo, size: 70, symbolScale: 0.36)
+        } else {
+            OrbIcon(symbol, accent: tint, size: 70, symbolScale: 0.36)
+        }
+    }
+
+    /// A lesson wears the colour of the pass it is about to run — every listening pass
+    /// on the path is the same aqua — and a writing chapter the colour of writing.
+    private var tint: UnitAccent {
+        if required > 1 { return nextFocus.tint }
+        return node.isWriting ? .writing : accent
+    }
+
     private var symbol: String {
-        if !isUnlocked { return "lock.fill" }
-        if done { return node.kind == .review ? "crown.fill" : "checkmark" }
-        if sessionsDone > 0 { return node.focus(forSession: sessionsDone).icon }
+        if sessionsDone > 0 && required > 1 { return nextFocus.icon }
         return node.icon
     }
 
@@ -317,14 +408,6 @@ struct NodeBubble: View {
         if done { return S.repeatLesson[state.native].uppercased() }
         if sessionsDone > 0 { return S.continueLesson[state.native].uppercased() }
         return S.startLesson[state.native].uppercased()
-    }
-}
-
-private struct NodePressStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .offset(y: configuration.isPressed ? 4 : 0)
-            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
     }
 }
 
@@ -343,10 +426,14 @@ struct NodeSheet: View {
     private var unlocked: Bool { state.isUnlocked(node) }
     private var done: Int { state.sessionsDone(node.id) }
     private var required: Int { node.requiredSessions }
-    private var focus: SessionFocus { node.focus(forSession: min(done, required - 1)) }
+    private var focus: SessionFocus { state.focus(for: node, session: min(done, required - 1)) }
+    private var accent: UnitAccent {
+        if required > 1 { return focus.tint }
+        return node.isWriting ? .writing : (unit?.accent ?? .purple)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 18) {
             header
 
             if case .writing(let chapter) = node.kind, unlocked {
@@ -354,21 +441,33 @@ struct NodeSheet: View {
             }
 
             if required > 1 {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 12) {
                     SectionHeader(title: S.sessionPlan[state.native].uppercased())
-                    HStack(spacing: 8) {
-                        ForEach(Array(node.sessionPlan.enumerated()), id: \.offset) { i, f in
+                    HStack(spacing: 6) {
+                        ForEach(Array(state.sessionPlan(for: node).enumerated()), id: \.offset) { i, f in
                             sessionChip(index: i, focus: f)
                         }
+                    }
+                    if unlocked && done < required {
+                        HStack(spacing: 8) {
+                            Image(systemName: focus.icon)
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(focus.tint.deep)
+                            Text(focus.blurb[state.native])
+                                .font(.plain(13.5)).foregroundStyle(Palette.ink)
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 9)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .glass(radius: 16, tint: focus.tint.main, material: false, shadow: false)
                     }
                 }
             }
 
             if case .lesson(let lesson) = node.kind, unlocked {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 8) {
                     SectionHeader(title: S.keyWords[state.native].uppercased())
                     FlowChips(items: Array(lesson.vocab.prefix(6)).map { $0[state.target] },
-                              language: state.target)
+                              tint: accent.deep, language: state.target)
                 }
             }
 
@@ -385,11 +484,11 @@ struct NodeSheet: View {
                     Feedback.pop(); startWriting(node)
                 } label: {
                     HStack(spacing: 8) {
-                        Image(systemName: "paperplane.fill").font(.system(size: 15, weight: .black))
+                        Image(systemName: "paperplane.fill").font(.system(size: 15, weight: .bold))
                         Text(S.writingStart[state.native])
                     }
                 }
-                .buttonStyle(.chunky(Palette.purple, Palette.purpleDeep))
+                .buttonStyle(.primary(.writing))
             } else if unlocked {
                 Button {
                     guard let unit else { return }
@@ -401,27 +500,28 @@ struct NodeSheet: View {
                                          sessionsTotal: required))
                 } label: {
                     HStack(spacing: 8) {
-                        Image(systemName: focus.icon).font(.system(size: 15, weight: .black))
+                        Image(systemName: required > 1 ? focus.icon : "play.fill")
+                            .font(.system(size: 15, weight: .bold))
                         Text(done >= required ? S.repeatLesson[state.native]
-                                              : "\(S.startLesson[state.native]) · \(focus.label[state.native])")
+                             : (required > 1 ? "\(S.startLesson[state.native]) · \(focus.label[state.native])"
+                                             : S.startLesson[state.native]))
                     }
                 }
-                .buttonStyle(.chunky(focus.tint.main, focus.tint.deep))
+                .buttonStyle(.primary(required > 1 ? Tone(focus.tint) : .violet))
             } else if let target = PlacementTest.target(skippingTo: node, state: state) {
                 Button {
                     Feedback.pop(); startTest(target)
                 } label: {
                     HStack(spacing: 8) {
-                        Image(systemName: "checkmark.seal.fill").font(.system(size: 15, weight: .black))
+                        Image(systemName: "checkmark.seal.fill").font(.system(size: 15, weight: .bold))
                         Text(S.testUnlockNode[state.native])
                     }
                 }
-                .buttonStyle(.chunky(Palette.purple, Palette.purpleDeep))
+                .buttonStyle(.primary(.violet))
             }
         }
         .padding(Metrics.hPad)
-        .padding(.top, 8)
-        .background(Palette.bgElevated)
+        .padding(.top, 14)
         .onAppear {
             // She is reading the chapter's key words; that is time enough for the
             // assistant to have written a few new sentences before she taps Start.
@@ -432,69 +532,73 @@ struct NodeSheet: View {
     }
 
     private var header: some View {
-        HStack(spacing: 12) {
-            Image(systemName: node.icon)
-                .font(.system(size: 20, weight: .black)).foregroundStyle(.white)
-                .frame(width: 46, height: 46)
-                .background(Circle().fill(unit?.accent.main ?? Palette.brand))
-            VStack(alignment: .leading, spacing: 3) {
-                Text(node.title[state.native]).font(.heading(19)).foregroundStyle(Palette.ink)
-                HStack(spacing: 8) {
-                    Tag(text: "\(node.xpReward) XP", tint: Palette.amberDeep)
+        HStack(spacing: 14) {
+            OrbIcon(unlocked ? node.icon : "lock.fill",
+                    look: unlocked ? .accent(accent) : .muted, size: 58)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(node.title[state.native])
+                    .font(.display(22)).foregroundStyle(Palette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 6) {
+                    GlassChip(text: "\(node.xpReward) XP", icon: "bolt.fill", tint: Palette.amberDeep)
                     if required > 1 {
-                        Tag(text: done >= required ? S.sessionDone[state.native]
-                                                   : "\(S.sessionOf[state.native]) \(min(done + 1, required))/\(required)",
-                            tint: Palette.brand)
+                        GlassChip(text: done >= required ? S.sessionDone[state.native]
+                                  : "\(S.sessionOf[state.native]) \(min(done + 1, required))/\(required)",
+                                  tint: Palette.brand)
                     }
                 }
             }
-            Spacer()
+            Spacer(minLength: 0)
         }
     }
 
     /// What this chapter is, in the two lines it takes to say it: who she is writing
     /// to, about what, and how much of it is being asked for.
     private func writingBrief(_ chapter: WritingChapter) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             Text(S.writingSub[state.native])
-                .font(.plain(13.5)).foregroundStyle(Palette.inkSoft)
+                .font(.plain(14)).foregroundStyle(Palette.inkSoft)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 10) {
-                Image(systemName: chapter.theme.icon)
-                    .font(.system(size: 17, weight: .black)).foregroundStyle(.white)
-                    .frame(width: 40, height: 40)
-                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Palette.purple))
+            HStack(spacing: 12) {
+                OrbIcon(chapter.theme.icon, accent: .writing, size: 44)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(chapter.theme.title[state.native])
-                        .font(.heading(15)).foregroundStyle(Palette.ink)
+                        .font(.heading(15.5)).foregroundStyle(Palette.ink)
                     Text("\(chapter.turns) × \(chapter.minimumWords)+ \(S.wordsShort[state.native])")
-                        .font(.plain(12)).foregroundStyle(Palette.inkSoft)
+                        .font(.plain(12.5)).foregroundStyle(Palette.inkSoft)
                 }
                 Spacer(minLength: 0)
             }
-            .padding(11)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous)
-                .fill(Palette.purple.opacity(0.12)))
+            .padding(12)
+            .glass(radius: 20, tint: UnitAccent.writing.main, material: false, shadow: false)
         }
     }
 
     private func sessionChip(index: Int, focus f: SessionFocus) -> some View {
         let completed = index < done
-        let current = index == done
-        return VStack(spacing: 4) {
-            Image(systemName: completed ? "checkmark" : f.icon)
-                .font(.system(size: 14, weight: .black))
-                .foregroundStyle(completed ? .white : (current ? .white : f.tint.main))
-                .frame(width: 38, height: 38)
-                .background(
-                    Circle().fill(completed ? Palette.green
-                                            : (current ? f.tint.main : f.tint.main.opacity(0.14)))
-                )
+        let current = index == done && unlocked
+        return VStack(spacing: 6) {
+            ZStack {
+                if current {
+                    Circle().strokeBorder(f.tint.main.opacity(0.5), lineWidth: 2)
+                        .frame(width: 50, height: 50)
+                }
+                if completed {
+                    OrbIcon("checkmark", look: .holo, size: 42, symbolScale: 0.34)
+                } else if current {
+                    OrbIcon(f.icon, accent: f.tint, size: 42, symbolScale: 0.36)
+                } else {
+                    Image(systemName: f.icon)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(f.tint.deep)
+                        .frame(width: 42, height: 42)
+                        .glassCircle(tint: f.tint.main, material: false, shadow: false)
+                }
+            }
+            .frame(width: 52, height: 52)
             Text(f.label[state.native])
-                .font(.plain(9.5))
-                .foregroundStyle(current ? f.tint.deep : Palette.inkFaint)
+                .font(.heading(10.5))
+                .foregroundStyle(current ? f.tint.deep : Palette.inkSoft)
                 .lineLimit(1).minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity)
@@ -510,13 +614,13 @@ struct FlowChips: View {
     var language: Language?
 
     var body: some View {
-        FlowLayout(spacing: 6, lineSpacing: 6) {
+        FlowLayout(spacing: 7, lineSpacing: 7) {
             ForEach(items, id: \.self) { item in
                 Text(item)
-                    .font(.plain(13))
+                    .font(.body(14))
                     .foregroundStyle(tint)
-                    .padding(.horizontal, 10).padding(.vertical, 5)
-                    .background(Capsule().fill(tint.opacity(0.12)))
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .glassCapsule(tint: tint, material: false, shadow: false)
                     .lineLimit(1)
                     .speakOnTap(item, language: language)
             }

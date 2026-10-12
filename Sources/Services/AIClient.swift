@@ -8,9 +8,9 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable {
 
     var label: Bilingual {
         switch self {
-        case .none: return Bilingual(it: "Nessuna", uz: "Yo'q")
-        case .gemini: return Bilingual(it: "Gemini (gratis)", uz: "Gemini (bepul)")
-        case .claude: return Bilingual(it: "Claude (a pagamento)", uz: "Claude (pullik)")
+        case .none: return Bilingual("None")
+        case .gemini: return Bilingual("Gemini (free)")
+        case .claude: return Bilingual("Claude (paid)")
         }
     }
 
@@ -40,32 +40,37 @@ enum AIClient {
     /// Tried in order, so the app survives a model being retired or being busy.
     /// The 2.5 generation is gone for keys issued from late 2026 onwards: Google answers
     /// them with "no longer available to new users", which is why the newest comes first.
-    static let geminiModels = ["gemini-3.6-flash", "gemini-flash-latest", "gemini-3.5-flash"]
+    ///
+    /// Each model has its own free quota, so a "too many requests" from one is a reason
+    /// to ask the next, not to give up: a call makes a request every few seconds.
+    static let geminiModels = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest"]
     static let claudeModel = "claude-sonnet-5"
 
     enum Failure: LocalizedError {
         case notConfigured
+        case overBudget
         case http(Int, String)
         case decoding
         case empty
 
         var errorDescription: String? {
             switch self {
-            case .notConfigured: return "Nessuna chiave configurata."
+            case .notConfigured: return "No key configured."
+            case .overBudget: return "The assistant has used up today's free requests."
             case .http(let code, let body):
                 let detail = AIClient.readableMessage(from: body)
                 switch code {
                 case 400, 401, 403:
-                    return "Chiave rifiutata (\(code)). \(detail.isEmpty ? "Controlla di averla copiata tutta." : detail)"
+                    return "Key refused (\(code)). \(detail.isEmpty ? "Check it was copied in full." : detail)"
                 case 429:
-                    return "Quota esaurita o troppe richieste (429). Riprova più tardi."
+                    return "Quota used up or too many requests (429). Try again later."
                 case 404:
-                    return "Modello non disponibile (404). \(detail)"
+                    return "Model not available (404). \(detail)"
                 default:
-                    return "Errore del servizio (\(code)). \(detail)"
+                    return "Service error (\(code)). \(detail)"
                 }
-            case .decoding: return "Risposta del modello non leggibile."
-            case .empty: return "Il modello non ha risposto."
+            case .decoding: return "The model's reply couldn't be read."
+            case .empty: return "The model didn't answer."
             }
         }
     }
@@ -74,10 +79,15 @@ enum AIClient {
         provider != .none && !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// Configured, and with requests left today for this kind of use.
+    static func isAvailable(provider: AIProvider, key: String, for use: AIBudget.Use) -> Bool {
+        isConfigured(provider: provider, key: key) && AIBudget.canSpend(use)
+    }
+
     // MARK: - A quick "does my key work?" check
 
     static func test(provider: AIProvider, key: String) async throws -> String {
-        let reply = try await complete(provider: provider, key: key,
+        let reply = try await complete(provider: provider, key: key, use: .conversation,
                                        system: "You reply with a single short sentence.",
                                        prompt: "Say hello to a language learner in one short sentence.",
                                        maxTokens: 100, json: false)
@@ -85,53 +95,15 @@ enum AIClient {
         return reply
     }
 
-    // MARK: - Questions for a call
+    // MARK: - Who Anorcha is
 
-    private struct GeneratedQuestion: Decodable { let target: String; let native: String }
-
-    /// Anorcha's persona, shared by the opening plan and every live turn.
+    /// Anorcha's persona, shared by every live turn.
     private static func persona(targetName: String, nativeName: String, level: CEFR) -> String {
         """
         You are Anorcha, a warm, curious \(targetName) speaker on a video call with a friend \
         who is learning \(targetName) at CEFR level \(level.label) and whose own language is \
-        \(nativeName). You are a person having a conversation, not a textbook: you ask open \
-        questions (never yes/no), one at a time, short enough to answer out loud, and always \
-        answerable with the vocabulary of the chapter she is on.
+        \(nativeName). You are a person having a conversation, not a textbook.
         """
-    }
-
-    /// The opening plan for a call: written from what this learner has actually studied,
-    /// and deliberately steered away from everything Anorcha has already asked her.
-    static func questions(provider: AIProvider,
-                          key: String,
-                          context: CallContext,
-                          target: Language,
-                          native: Language,
-                          count: Int) async throws -> [Bilingual] {
-        let targetName = target == .it ? "Italian" : "Uzbek"
-        let nativeName = native == .it ? "Italian" : "Uzbek"
-        let system = """
-        \(persona(targetName: targetName, nativeName: nativeName, level: context.level))
-        Reply with JSON only: an array of objects \
-        {"target": "<line in \(targetName)>", "native": "<same line in \(nativeName)>"}.
-        """
-        let prompt = """
-        \(context.briefing)
-
-        Write \(count) lines for this call: a warm opener that fits the time of day, \
-        \(max(1, count - 2)) questions about the chapter, and a closing line that ends the \
-        call kindly. Follow the angle above — it is what makes this call different from the \
-        last one. Reuse none of the wording from the list of earlier questions.
-        """
-        let text = try await complete(provider: provider, key: key, system: system,
-                                      prompt: prompt, maxTokens: 1200, json: true,
-                                      temperature: 1.15)
-        guard let decoded = try? JSONDecoder().decode([GeneratedQuestion].self,
-                                                      from: Data(extractJSON(text).utf8)) else {
-            throw Failure.decoding
-        }
-        return decoded.map { Bilingual(it: native == .it ? $0.native : $0.target,
-                                       uz: native == .it ? $0.target : $0.native) }
     }
 
     // MARK: - Answering back, mid-call
@@ -151,64 +123,82 @@ enum AIClient {
 
     /// Reads the conversation so far and writes the next turn.
     ///
-    /// This is what makes a call a conversation rather than a questionnaire: Anorcha
-    /// picks up what the learner actually said and follows it.
+    /// This is what makes a call a conversation rather than a questionnaire. The model
+    /// is made to write down first what it understood her to say and which subject it
+    /// is on — two fields nobody shows — because a model that has just put "she has
+    /// two brothers, one is a doctor" into words does not then ask about the weather.
     static func nextTurn(provider: AIProvider,
                          key: String,
                          context: CallContext,
-                         history: [CallTurnRecord],
+                         transcript: [CallLine],
                          target: Language,
                          native: Language,
                          closing: Bool) async throws -> Turn {
-        let targetName = target == .it ? "Italian" : "Uzbek"
-        let nativeName = native == .it ? "Italian" : "Uzbek"
+        let targetName = target.name
+        let nativeName = native.name
+        let address = target.informalAddress
         let system = """
         \(persona(targetName: targetName, nativeName: nativeName, level: context.level))
 
-        You are having ONE conversation, not working through a list of questions. Hold the \
-        thread: your question must follow from what she has just told you. Take a detail out \
-        of her answer and go further into that — which one, who with, why, what happened \
-        next, how it went. Stay on a subject for two or three exchanges before moving on, \
-        and when you do move on let the new subject grow out of the old one rather than \
-        arrive from nowhere. Never ask again something the transcript shows she has already \
-        answered, and refer back to what she said earlier when it is natural to.
+        This is ONE conversation, never a questionnaire. Every question you ask grows out of \
+        what she has just told you.
 
-        React to what she just said in one short, specific sentence — echo the detail she \
-        mentioned, never a generic "interesting". If her answer was empty, in the wrong \
-        language, or you could not make it out, say so kindly and ask the same thing in an \
-        easier way instead of moving on. Do not correct her mistakes during the call; that \
-        happens afterwards.
-        Reply with JSON only: {"reaction": {"target": "...", "native": "..."}\
-        \(closing ? "" : ", \"question\": {\"target\": \"...\", \"native\": \"...\"}")}.
+        1. First work out what she actually said in her last answer. It comes from speech \
+        recognition, so it may be misspelt, unpunctuated or cut short: read it generously, \
+        the way a friend would.
+        2. React to it in one short sentence that picks up its concrete detail — a name, a \
+        person, a place, a food, a number, a feeling — never a generic "interesting" or "good".
+        3. Then ask ONE open question (never yes/no) about that same detail, or about the \
+        subject she is on: who, what, where, when, why, how, what happened next. Stay on a \
+        subject for at least two or three exchanges; when it is exhausted, move to something \
+        right next to it, through a detail she gave you ("your brother is a doctor — and your \
+        sister, what does she do?"), never to an unrelated topic.
+        4. After the greeting, bring the talk round to the subject of her chapter, through \
+        something she said if you can; from then on follow her.
+        5. Never ask for something she has already told you, and bring back what she said \
+        earlier when it fits.
+        6. If nothing came through, or her answer is unclear or not in \(targetName), do not \
+        move on: say kindly that you did not catch it and ask the same thing again, more \
+        simply — you may offer two choices. If she skipped the question, say it is fine and \
+        ask something easier on the same subject.
+        7. Keep it short and simple enough for \(context.level.label): one reaction sentence, \
+        one question, the words of her chapter where you can. \(address) Do not correct her \
+        mistakes; that happens after the call.
+
+        Reply with JSON only:
+        {"understood": "<in English, a few words: what she told you>", \
+        "thread": "<in English: the subject you are on now>", \
+        "reaction": {"target": "<\(targetName)>", "native": "<the same in \(nativeName)>"}, \
+        "question": {"target": "<\(targetName)>", "native": "<the same in \(nativeName)>"}}
         """
-        let transcript = history.enumerated().map { i, turn in
-            "\(i + 1). You asked: \(turn.question[target])\n   She answered: "
-            + (turn.answer.isEmpty ? "(nothing — she skipped it)" : turn.answer)
+        let lines = transcript.map { line in
+            (line.speaker == .anorcha ? "Anorcha: " : "She: ") + line.text
         }.joined(separator: "\n")
         let prompt = """
         \(context.briefing)
 
         The call so far, oldest first:
-        \(transcript)
+        \(lines)
 
         \(closing
-           ? "React to her last answer, then say goodbye warmly, mentioning something she told you earlier in the call. Send no question."
-           : "React to her last answer, then ask the one question that genuinely follows from it — about a detail she just gave you, not a new subject. Keep the words inside what she has studied.")
+           ? "This is the end of the call. React to her last answer, then put in \"question\" a warm goodbye (not a question) that mentions something she told you during the call."
+           : "Write your next turn.")
         """
-        let text = try await complete(provider: provider, key: key, system: system,
-                                      prompt: prompt, maxTokens: 500, json: true,
-                                      temperature: 1.1)
+        let text = try await complete(provider: provider, key: key, use: .conversation,
+                                      system: system, prompt: prompt, maxTokens: 600, json: true,
+                                      temperature: 0.9, timeout: 15)
         guard let decoded = try? JSONDecoder().decode(GeneratedTurn.self,
                                                       from: Data(extractJSON(text).utf8)) else {
             throw Failure.decoding
         }
         func bilingual(_ line: GeneratedTurn.Line) -> Bilingual {
-            Bilingual(it: native == .it ? line.native : line.target,
-                      uz: native == .it ? line.target : line.native)
+            Bilingual(en: line.native, tx: line.target)
         }
         let reaction = bilingual(decoded.reaction)
-        guard !reaction.it.isEmpty, !reaction.uz.isEmpty else { throw Failure.empty }
-        return Turn(reaction: reaction, question: decoded.question.map(bilingual))
+        guard !reaction.en.isEmpty, !reaction.tx.isEmpty else { throw Failure.empty }
+        let question = decoded.question.map(bilingual)
+        guard let question, !question.en.isEmpty, !question.tx.isEmpty else { throw Failure.empty }
+        return Turn(reaction: reaction, question: question)
     }
 
     // MARK: - Messaging, not talking
@@ -227,8 +217,8 @@ enum AIClient {
                             native: Language,
                             level: CEFR,
                             closing: Bool) async throws -> Turn {
-        let targetName = target == .it ? "Italian" : "Uzbek"
-        let nativeName = native == .it ? "Italian" : "Uzbek"
+        let targetName = target.name
+        let nativeName = native.name
         let band = lengthBand(for: level)
         let opening = history.isEmpty
 
@@ -281,16 +271,15 @@ enum AIClient {
         \(instruction)
         """
 
-        let text = try await complete(provider: provider, key: key, system: system,
-                                      prompt: prompt, maxTokens: 600, json: true,
+        let text = try await complete(provider: provider, key: key, use: .conversation,
+                                      system: system, prompt: prompt, maxTokens: 600, json: true,
                                       temperature: 1.15)
         guard let decoded = try? JSONDecoder().decode(GeneratedTurn.self,
                                                       from: Data(extractJSON(text).utf8)) else {
             throw Failure.decoding
         }
-        let message = Bilingual(it: native == .it ? decoded.reaction.native : decoded.reaction.target,
-                                uz: native == .it ? decoded.reaction.target : decoded.reaction.native)
-        guard !message.it.isEmpty, !message.uz.isEmpty else { throw Failure.empty }
+        let message = Bilingual(en: decoded.reaction.native, tx: decoded.reaction.target)
+        guard !message.en.isEmpty, !message.tx.isEmpty else { throw Failure.empty }
         return Turn(reaction: message, question: nil)
     }
 
@@ -298,41 +287,45 @@ enum AIClient {
 
     private struct GeneratedGloss: Decodable {
         let word: String
-        let expression: String?
+        let phrase: String?
+        let phraseMeaning: String?
     }
 
-    /// The meaning of one word, read inside the line it appears in.
+    /// The meaning of one word, read inside the line it appears in — and, when that
+    /// word is part of an idiom or a set expression in the line, that expression.
     ///
-    /// The course teaches barely a fifth of its words as standalone vocabulary — the
-    /// rest only ever appear inside sentences — so without this a tap on most words
-    /// would come back empty. Answers are kept for good, so a word is looked up once
-    /// in the life of the app.
+    /// Never the whole sentence: a tap on one word asks about that word. The course
+    /// teaches barely a fifth of its words as standalone vocabulary — the rest only
+    /// ever appear inside sentences — so without this a tap on most words would come
+    /// back empty. Answers are kept for good, so a word is looked up once.
     static func wordMeaning(of word: String,
                             inside sentence: String,
                             language: Language,
                             native: Language,
                             provider: AIProvider,
-                            key: String) async throws -> (word: String, expression: String?) {
-        let languageName = language == .it ? "Italian" : "Uzbek"
-        let nativeName = native == .it ? "Italian" : "Uzbek"
+                            key: String) async throws -> (word: String, phrase: String?, phraseMeaning: String?) {
+        let languageName = language.name
+        let nativeName = native.name
         let system = """
         You gloss single words for a language learner, the way a dictionary footnote does.
         Give the meaning of the one \(languageName) word asked about, as it is used in the \
         sentence given, written in \(nativeName). At most four words, no sentence, no \
-        explanation, no repetition of the word itself. Give the dictionary form's sense, \
-        and mention the grammatical ending only if it changes the meaning.
-        If — and only if — the whole sentence is an idiom or a set phrase whose meaning is \
-        not the sum of its words, also give what the whole thing means in \(nativeName). \
-        For an ordinary sentence, leave that out.
-        Reply with JSON only: {"word": "<meaning>", "expression": "<meaning of the whole \
-        phrase, or null>"}.
+        explanation, no repetition of the word itself. Give the sense it has here, and \
+        mention the grammatical ending only if it changes the meaning.
+        If — and only if — that word is part of an idiom or a set expression of two to four \
+        words inside the sentence (such as a greeting, a fixed phrase, a phrasal verb) whose \
+        meaning is not the sum of its words, give that expression exactly as it appears in \
+        the sentence and its meaning in \(nativeName). Never give the meaning of the whole \
+        sentence; for an ordinary word, leave the expression out.
+        Reply with JSON only: {"word": "<meaning>", "phrase": "<the expression's words \
+        copied from the sentence, or null>", "phraseMeaning": "<its meaning, or null>"}.
         """
         let prompt = """
         Sentence: "\(sentence)"
         Word to gloss: "\(word)"
         """
-        let text = try await complete(provider: provider, key: key, system: system,
-                                      prompt: prompt, maxTokens: 300, json: true,
+        let text = try await complete(provider: provider, key: key, use: .extra,
+                                      system: system, prompt: prompt, maxTokens: 300, json: true,
                                       temperature: 0)
         guard let decoded = try? JSONDecoder().decode(GeneratedGloss.self,
                                                       from: Data(extractJSON(text).utf8)) else {
@@ -340,8 +333,22 @@ enum AIClient {
         }
         let meaning = decoded.word.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !meaning.isEmpty else { throw Failure.empty }
-        let whole = decoded.expression?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return (meaning, (whole?.isEmpty ?? true) ? nil : whole)
+
+        // an expression is only kept if it really is a short piece of this sentence
+        // that contains the word — not the sentence itself, and not something invented
+        var phrase = decoded.phrase?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let phraseMeaning = decoded.phraseMeaning?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let candidate = phrase {
+            let words = Grader.normalise(candidate).split(separator: " ")
+            let whole = Grader.normalise(sentence)
+            let fits = (2...4).contains(words.count)
+                && whole.contains(Grader.normalise(candidate))
+                && words.contains(Substring(Grader.normalise(word)))
+                && (Grader.normalise(candidate) != whole || whole.split(separator: " ").count <= 3)
+            if !fits { phrase = nil }
+        }
+        guard let phrase, let phraseMeaning, !phraseMeaning.isEmpty else { return (meaning, nil, nil) }
+        return (meaning, phrase, phraseMeaning)
     }
 
     // MARK: - Hearing Uzbek
@@ -360,20 +367,20 @@ enum AIClient {
     /// Writes down what was said, for a language iOS cannot hear.
     ///
     /// Gemini takes audio directly, so the key that writes the video calls also gives
-    /// the pronunciation exercises real Uzbek ears — and an AI Studio key is free and
-    /// asks for no card, which is the whole point.
+    /// the pronunciation exercises ears for a language the phone has none for.
     static func transcribe(wav: Data,
                            language: Language,
                            provider: AIProvider,
                            key: String) async throws -> String {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard provider == .gemini, !trimmed.isEmpty else { throw Failure.notConfigured }
-        let languageName = language == .it ? "Italian" : "Uzbek"
+        guard AIBudget.canSpend(.extra) else { throw Failure.overBudget }
+        let languageName = language.name
 
         let body: [String: Any] = [
             "system_instruction": ["parts": [["text":
                 "You transcribe short recordings of a language learner reading one sentence aloud. "
-                + "Write down exactly the \(languageName) words you hear, in Latin script, with no "
+                + "Write down exactly the \(languageName) words you hear, in \(language.scriptName) script, with no "
                 + "punctuation you did not hear and no commentary. If the recording has no speech, "
                 + "reply with nothing at all. Never translate, never correct, never complete a "
                 + "half-said word: the recording is being marked on pronunciation, so a tidied-up "
@@ -396,6 +403,7 @@ enum AIClient {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
             do {
+                AIBudget.spend()
                 let (data, response) = try await URLSession.shared.data(for: request)
                 try check(response, data)
                 guard let decoded = try? JSONDecoder().decode(Transcription.self, from: data) else {
@@ -403,7 +411,8 @@ enum AIClient {
                 }
                 let text = decoded.candidates?.first?.content?.parts?.compactMap(\.text).joined() ?? ""
                 return text.trimmingCharacters(in: .whitespacesAndNewlines)
-            } catch Failure.http(let code, let body) where code == 404 || code == 503 {
+            } catch Failure.http(let code, let body) where [404, 429, 500, 503].contains(code) {
+                if AIBudget.noteRefusal(code: code, body: body) { throw Failure.overBudget }
                 lastError = Failure.http(code, body)     // retired or busy: try the next
                 continue
             } catch {
@@ -418,7 +427,7 @@ enum AIClient {
     private struct GeneratedPhrase: Decodable {
         let target: String
         let native: String
-        let hint: String?
+        let rom: String?
     }
 
     /// How long a sentence is allowed to be, by level. A1 that runs to twelve words is
@@ -451,8 +460,8 @@ enum AIClient {
                              target: Language,
                              native: Language,
                              count: Int) async throws -> [Pair] {
-        let targetName = target == .it ? "Italian" : "Uzbek"
-        let nativeName = native == .it ? "Italian" : "Uzbek"
+        let targetName = target.name
+        let nativeName = native.name
         let band = lengthBand(for: level)
 
         let system = """
@@ -472,9 +481,10 @@ enum AIClient {
         · come with a faithful, equally natural \(nativeName) translation — not a \
           word-for-word gloss.
 
-        Uzbek is written in the Latin alphabet, with the apostrophes of o' and g' intact.
+        \(target.scriptNote)
         Reply with JSON only: an array of objects \
-        {"target": "<\(targetName)>", "native": "<\(nativeName)>"}.
+        {"target": "<\(targetName)>", "native": "<\(nativeName)>"\
+        \(target.isLatin ? "" : ", \"rom\": \"<romanisation of the \(targetName)>\"")}.
         """
 
         let vocabList = vocabulary.prefix(60).map { "· \($0[target])  =  \($0[native])" }
@@ -497,17 +507,15 @@ enum AIClient {
         Write \(count) new sentences.
         """
 
-        let text = try await complete(provider: provider, key: key, system: system,
-                                      prompt: prompt, maxTokens: 2200, json: true,
+        let text = try await complete(provider: provider, key: key, use: .extra,
+                                      system: system, prompt: prompt, maxTokens: 2200, json: true,
                                       temperature: 1.2)
         guard let decoded = try? JSONDecoder().decode([GeneratedPhrase].self,
                                                       from: Data(extractJSON(text).utf8)) else {
             throw Failure.decoding
         }
         let pairs = decoded.map {
-            Pair(it: native == .it ? $0.native : $0.target,
-                 uz: native == .it ? $0.target : $0.native,
-                 hint: $0.hint?.isEmpty == false ? $0.hint : nil)
+            Pair(en: $0.native, tx: $0.target, rom: $0.rom?.isEmpty == false ? $0.rom : nil)
         }
         guard !pairs.isEmpty else { throw Failure.empty }
         return pairs
@@ -534,9 +542,9 @@ enum AIClient {
                       answerLanguage: Language,
                       native: Language,
                       level: CEFR) async throws -> Judgement {
-        let answerName = answerLanguage == .it ? "Italian" : "Uzbek"
-        let askedName = askedLanguage == .it ? "Italian" : "Uzbek"
-        let nativeName = native == .it ? "Italian" : "Uzbek"
+        let answerName = answerLanguage.name
+        let askedName = askedLanguage.name
+        let nativeName = native.name
         let system = """
         You are a fair, experienced \(answerName) examiner marking one translation from a \
         CEFR \(level.label) learner whose own language is \(nativeName).
@@ -546,13 +554,14 @@ enum AIClient {
         capitalisation and optional pronouns never matter.
         In particular, all of these are RIGHT and must be accepted:
         · a subject or possessive pronoun left out because the ending already carries it \
-        (Uzbek "itim" for "mening itim", "Klaudiyaman" for "men Klaudiyaman"; Italian \
-        "sono Claudia" for "io sono Claudia"), or added where the textbook left it out;
+        (Uzbek "itim" for "mening itim", "Klaudiyaman" for "men Klaudiyaman"), or added \
+        where the textbook left it out; English contractions ("I'm" / "I am");
         · a longer or shorter form of the same greeting, thanks, apology or goodbye \
-        ("assalomu alaykum" / "salom", "ciao" / "salve", "tashakkur" / "rahmat");
+        ("assalomu alaykum" / "salom", "hi" / "hello", "tashakkur" / "rahmat");
         · a different but correct construction for the same meaning ("Menda kitob bor" / \
-        "Mening kitobim bor", "Il mio nome è" / "Mi chiamo"), a synonym, tu/Lei or sen/siz \
-        where the prompt does not make the register unmistakable;
+        "Mening kitobim bor", "My name is" / "I'm called"), a synonym, a familiar or polite \
+        "you" where the prompt does not make the register unmistakable;
+        · the polite particle of either gender where the language has two (Thai ครับ / ค่ะ);
         · a name spelled the learner's way ("Claudia" / "Klaudiya"), digits for a number;
         · a single-letter typo or a missing apostrophe in an otherwise right answer.
         Reject it only when it means something different, leaves out or adds meaning, is \
@@ -570,8 +579,8 @@ enum AIClient {
         What the learner wrote: "\(given)"
         Is what she wrote acceptable?
         """
-        let text = try await complete(provider: provider, key: key, system: system,
-                                      prompt: prompt, maxTokens: 300, json: true,
+        let text = try await complete(provider: provider, key: key, use: .extra,
+                                      system: system, prompt: prompt, maxTokens: 300, json: true,
                                       temperature: 0)
         guard let decoded = try? JSONDecoder().decode(Judgement.self,
                                                       from: Data(extractJSON(text).utf8)) else {
@@ -607,8 +616,8 @@ enum AIClient {
                        target: Language,
                        native: Language,
                        level: CEFR) async throws -> CallReview {
-        let targetName = target == .it ? "Italian" : "Uzbek"
-        let nativeName = native == .it ? "Italian" : "Uzbek"
+        let targetName = target.name
+        let nativeName = native.name
         let system = """
         You are a patient \(targetName) teacher reviewing a conversation with a CEFR \
         \(level.label) learner whose own language is \(nativeName). For every answer: say \
@@ -625,8 +634,8 @@ enum AIClient {
             "\(i + 1). Q: \(t.question[target])\n   A: \(t.answer.isEmpty ? "(no answer)" : t.answer)"
         }.joined(separator: "\n")
 
-        let text = try await complete(provider: provider, key: key, system: system,
-                                      prompt: transcript, maxTokens: 2000, json: true,
+        let text = try await complete(provider: provider, key: key, use: .feedback,
+                                      system: system, prompt: transcript, maxTokens: 2000, json: true,
                                       temperature: 0.2)
         guard let decoded = try? JSONDecoder().decode(GeneratedReview.self,
                                                       from: Data(extractJSON(text).utf8)) else {
@@ -656,38 +665,125 @@ enum AIClient {
             let fixes = item.corrections.map {
                 Correction(kind: Correction.Kind(rawValue: $0.kind) ?? .grammar,
                            original: $0.original, suggestion: $0.suggestion,
-                           note: Bilingual(it: $0.note, uz: $0.note))
+                           note: Bilingual($0.note))
             }
             let question = i < turns.count ? turns[i].question
-                                           : Bilingual(it: item.question, uz: item.question)
+                                           : Bilingual(item.question)
             return TurnReview(question: question, said: item.said, status: status,
                               corrections: fixes, betterVersion: item.better)
         }
 
         return CallReview(turns: reviews, stats: stats,
-                          headline: Bilingual(it: decoded.headline, uz: decoded.headline),
-                          tips: decoded.tips.map { Bilingual(it: $0, uz: $0) },
+                          headline: Bilingual(decoded.headline),
+                          tips: decoded.tips.map { Bilingual($0) },
                           source: .ai)
+    }
+
+    // MARK: - A short text, corrected
+
+    private struct GeneratedComposition: Decodable {
+        struct Issue: Decodable {
+            let fragment: String
+            let kind: String
+            let fix: String
+            let hint: String
+            let why: String?
+        }
+        let issues: [Issue]
+        let corrected: String
+    }
+
+    /// Corrects a short text written to a brief.
+    ///
+    /// Strict about real mistakes and generous about wording: the brief comes with a
+    /// model text, but she is not asked to reproduce it — anything natural that says
+    /// the things she was asked to say is right. Clues come back first, fixes second,
+    /// because the exercise is corrected over several rounds and the first round
+    /// should make her look, not copy.
+    static func correctComposition(provider: AIProvider,
+                                   key: String,
+                                   task: CompositionTask,
+                                   text: String) async throws -> CompositionReport {
+        let targetName = task.target.name
+        let nativeName = task.native.name
+        let system = """
+        You are a kind, precise \(targetName) teacher correcting a short text by a CEFR \
+        \(task.level.label) learner whose own language is \(nativeName). She was asked to \
+        write a few sentences that say given things; a model version is provided, but she \
+        does NOT have to match it: accept any natural, correct wording that says the same \
+        things, in any order, with or without optional pronouns. Extra sentences of her own \
+        are welcome — correct them, never call them extra.
+        Report only real mistakes: misspellings (\(task.target == .uz ? "Uzbek apostrophes in o' and g' count" : "in its own script")), wrong \
+        words, missing or superfluous words, wrong word order, grammar, a sentence in the \
+        wrong language, or one of the required points not said at all. Never invent mistakes; \
+        a correct text has an empty list.
+        For every mistake: "fragment" is the exact substring of her text (empty string for a \
+        missing point), "kind" is one of spelling|word|missingWord|extraWord|order|missingPart|\
+        grammar|language, "fix" is the corrected fragment in \(targetName), "hint" is a short \
+        nudge in \(nativeName) that says where to look WITHOUT giving the answer (at most 12 \
+        words), and "why" explains the rule in \(nativeName) (at most 15 words).
+        "corrected" is her whole text with only the necessary changes.
+        Reply with JSON only: {"issues": [{"fragment": "...", "kind": "...", "fix": "...", \
+        "hint": "...", "why": "..."}], "corrected": "..."}.
+        """
+        let points = task.outline.enumerated().map { i, pair in
+            "\(i + 1). \(pair[task.native])   (model: \(pair[task.target]))"
+        }.joined(separator: "\n")
+        let prompt = """
+        What she had to say:
+        \(points)
+
+        What she wrote:
+        \(text)
+        """
+        let reply = try await complete(provider: provider, key: key, use: .feedback,
+                                       system: system, prompt: prompt, maxTokens: 1200, json: true,
+                                       temperature: 0)
+        guard let decoded = try? JSONDecoder().decode(GeneratedComposition.self,
+                                                      from: Data(extractJSON(reply).utf8)) else {
+            throw Failure.decoding
+        }
+        let issues = decoded.issues.compactMap { item -> CompositionIssue? in
+            let kind = CompositionIssue.Kind(rawValue: item.kind) ?? .grammar
+            let fragment = item.fragment.trimmingCharacters(in: .whitespacesAndNewlines)
+            let range = fragment.isEmpty ? nil
+                : text.range(of: fragment, options: [.caseInsensitive, .diacriticInsensitive])
+            // a fix identical to what she wrote is not a mistake
+            if !fragment.isEmpty, Grader.normalise(fragment) == Grader.normalise(item.fix) { return nil }
+            let why = item.why.flatMap { $0.isEmpty ? nil : Bilingual($0) }
+            return CompositionIssue(kind: kind, range: range, fragment: fragment, fix: item.fix,
+                                    why: why, customHint: item.hint)
+        }
+        return CompositionReport(text: text, issues: issues,
+                                 corrected: decoded.corrected.isEmpty ? task.model : decoded.corrected,
+                                 source: .ai)
     }
 
     // MARK: - Transport
 
+    /// `timeout` is per request: a live call cannot sit through a minute of silence
+    /// waiting for one answer, so it asks for much less.
     static func complete(provider: AIProvider,
                          key: String,
+                         use: AIBudget.Use = .extra,
                          system: String,
                          prompt: String,
                          maxTokens: Int,
                          json: Bool,
-                         temperature: Double = 1) async throws -> String {
+                         temperature: Double = 1,
+                         timeout: TimeInterval = 60) async throws -> String {
         let key = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard provider != .none, !key.isEmpty else { throw Failure.notConfigured }
+        guard AIBudget.canSpend(use) else { throw Failure.overBudget }
         switch provider {
         case .claude: return try await callClaude(key: key, system: system, prompt: prompt,
                                                   maxTokens: maxTokens,
-                                                  temperature: min(1, temperature))
+                                                  temperature: min(1, temperature),
+                                                  timeout: timeout)
         case .gemini: return try await callGemini(key: key, system: system, prompt: prompt,
                                                   maxTokens: maxTokens, json: json,
-                                                  temperature: min(2, temperature))
+                                                  temperature: min(2, temperature),
+                                                  timeout: timeout)
         case .none: throw Failure.notConfigured
         }
     }
@@ -700,10 +796,11 @@ enum AIClient {
     }
 
     private static func callClaude(key: String, system: String, prompt: String,
-                                   maxTokens: Int, temperature: Double) async throws -> String {
+                                   maxTokens: Int, temperature: Double,
+                                   timeout: TimeInterval) async throws -> String {
         var request = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)
         request.httpMethod = "POST"
-        request.timeoutInterval = 60
+        request.timeoutInterval = timeout
         request.setValue(key, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.setValue("application/json", forHTTPHeaderField: "content-type")
@@ -715,6 +812,7 @@ enum AIClient {
             "messages": [["role": "user", "content": prompt]],
         ])
 
+        AIBudget.spend()
         let (data, response) = try await URLSession.shared.data(for: request)
         try check(response, data)
         guard let decoded = try? JSONDecoder().decode(ClaudeResponse.self, from: data),
@@ -736,13 +834,14 @@ enum AIClient {
     }
 
     private static func callGemini(key: String, system: String, prompt: String,
-                                   maxTokens: Int, json: Bool, temperature: Double) async throws -> String {
+                                   maxTokens: Int, json: Bool, temperature: Double,
+                                   timeout: TimeInterval) async throws -> String {
         var lastError: Error = Failure.empty
         for model in geminiModels {
             let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent")!
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
-            request.timeoutInterval = 60
+            request.timeoutInterval = timeout
             request.setValue(key, forHTTPHeaderField: "x-goog-api-key")
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
@@ -762,6 +861,7 @@ enum AIClient {
             ])
 
             do {
+                AIBudget.spend()
                 let (data, response) = try await URLSession.shared.data(for: request)
                 try check(response, data)
                 guard let decoded = try? JSONDecoder().decode(GeminiResponse.self, from: data),
@@ -769,8 +869,11 @@ enum AIClient {
                     throw Failure.decoding
                 }
                 return text
-            } catch Failure.http(let code, let body) where code == 404 || code == 503 {
-                // retired, or busy right now: either way the next name may work
+            } catch Failure.http(let code, let body) where [404, 429, 500, 503].contains(code) {
+                // out for the day: no other name will do better, and every further try
+                // only keeps her waiting
+                if AIBudget.noteRefusal(code: code, body: body) { throw Failure.overBudget }
+                // retired, busy, or out of requests for this minute: the next name may work
                 lastError = Failure.http(code, body)
                 continue
             } catch {
@@ -820,5 +923,163 @@ enum AIClient {
               let end = trimmed.lastIndex(of: opener.close),
               opener.start < end else { return trimmed }
         return String(trimmed[opener.start...end])
+    }
+}
+
+// MARK: - How many requests are left today
+
+/// The free Gemini tier allows twenty requests a day for the whole project — both
+/// phones together — and Google answers the twenty-first with a refusal that holds
+/// until the next day. Spent carelessly, that is gone before lunch: a tap on a word,
+/// a node sheet opening, a lesson warming up new sentences.
+///
+/// So requests are rationed by what they are for. A conversation (the video call,
+/// the writing chat) may always ask; corrections stop a little earlier, so there is
+/// always room for a call's report; and the extras — glosses, fresh sentences,
+/// second opinions — have a small share of their own and then quietly fall back to
+/// what the app does offline. Once Google has said "no more today", nothing asks
+/// again until the time it named, so the app never waits on an answer it cannot get.
+enum AIBudget {
+    enum Use { case conversation, feedback, extra }
+
+    /// How many requests this phone may have made today before a use stops asking.
+    static func ceiling(for use: Use) -> Int {
+        switch use {
+        case .conversation: return .max
+        case .feedback: return 16
+        case .extra: return 5
+        }
+    }
+
+    private static let store = UserDefaults.standard
+    private static let dayKey = "ai.budget.day"
+    private static let countKey = "ai.budget.count"
+    private static let pauseKey = "ai.budget.pausedUntil"
+    private static let lock = NSLock()
+
+    private static var today: String {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        // Google's day turns over at midnight in California, not here
+        f.timeZone = TimeZone(identifier: "America/Los_Angeles")
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: .now)
+    }
+
+    /// Requests made from this phone since Google's day began.
+    static var spentToday: Int {
+        lock.lock(); defer { lock.unlock() }
+        return store.string(forKey: dayKey) == today ? store.integer(forKey: countKey) : 0
+    }
+
+    static var pausedUntil: Date? {
+        guard let until = store.object(forKey: pauseKey) as? Date, until > .now else { return nil }
+        return until
+    }
+
+    static func canSpend(_ use: Use) -> Bool {
+        pausedUntil == nil && spentToday < ceiling(for: use)
+    }
+
+    static func spend() {
+        lock.lock(); defer { lock.unlock() }
+        if store.string(forKey: dayKey) != today {
+            store.set(today, forKey: dayKey)
+            store.set(0, forKey: countKey)
+        }
+        store.set(store.integer(forKey: countKey) + 1, forKey: countKey)
+    }
+
+    /// Reads a refusal. True when it is the daily one — in which case nothing asks
+    /// again until the moment Google gave, or the next day if it gave none.
+    @discardableResult
+    static func noteRefusal(code: Int, body: String) -> Bool {
+        guard code == 429, body.contains("PerDay") else { return false }
+        var wait: TimeInterval = 6 * 3600
+        if let range = body.range(of: #""retryDelay":\s*"(\d+)"#, options: .regularExpression) {
+            let digits = body[range].filter(\.isNumber)
+            if let seconds = TimeInterval(digits) { wait = seconds }
+        }
+        store.set(Date().addingTimeInterval(wait), forKey: pauseKey)
+        return true
+    }
+
+    /// For the tests: forget today's spending and any pause.
+    static func reset() {
+        store.removeObject(forKey: dayKey)
+        store.removeObject(forKey: countKey)
+        store.removeObject(forKey: pauseKey)
+    }
+}
+
+// MARK: - What the prompts need to know about a language
+
+extension Language {
+    /// How Anorcha addresses a friend in it.
+    var informalAddress: String {
+        switch self {
+        case .uz: return "Talk to her informally (sen)."
+        case .fa: return "Talk to her informally (to), in everyday spoken Persian."
+        case .th: return "Talk to her as a friend, casually; use polite particles only where natural."
+        case .tl: return "Talk to her as a friend, informally (no po/opo)."
+        case .ms: return "Talk to her as a friend, informally (kamu/awak)."
+        case .yue: return "Talk to her as a friend, in everyday spoken Hong Kong Cantonese."
+        case .pa: return "Talk to her as a friend, informally (tū)."
+        case .ta: return "Talk to her as a friend, informally (nī), in simple modern standard Tamil."
+        case .te: return "Talk to her as a friend, informally (nuvvu)."
+        case .ml: return "Talk to her as a friend, informally (nī)."
+        case .kn: return "Talk to her as a friend, informally (nīnu)."
+        case .kmr, .ckb: return "Talk to her as a friend, informally (tu/to)."
+        case .mn: return "Talk to her as a friend, informally (chi)."
+        case .km: return "Talk to her as a friend, casually."
+        case .lo: return "Talk to her as a friend, casually."
+        case .kk, .ky: return "Talk to her informally (sen)."
+        case .az: return "Talk to her informally (sən)."
+        case .ka: return "Talk to her informally (shen)."
+        case .hy: return "Talk to her informally (du)."
+        case .ur: return "Talk to her as a friend, informally (tum)."
+        case .bn: return "Talk to her as a friend, informally (tumi)."
+        case .en: return "Talk to her as a friend."
+        }
+    }
+
+    /// The name of the script it is written in.
+    var scriptName: String {
+        switch self {
+        case .th: return "Thai"
+        case .fa: return "Persian (Arabic)"
+        case .ckb: return "Kurdish (Arabic)"
+        case .ur: return "Urdu (Perso-Arabic, Nastaliq)"
+        case .yue: return "Traditional Chinese characters"
+        case .pa: return "Gurmukhi"
+        case .ta: return "Tamil"
+        case .te: return "Telugu"
+        case .ml: return "Malayalam"
+        case .kn: return "Kannada"
+        case .bn: return "Bengali"
+        case .mn, .kk, .ky: return "Cyrillic"
+        case .km: return "Khmer"
+        case .lo: return "Lao"
+        case .ka: return "Georgian"
+        case .hy: return "Armenian"
+        default: return "Latin"
+        }
+    }
+
+    /// One line on spelling, for prompts that write in it.
+    var scriptNote: String {
+        switch self {
+        case .uz: return "Uzbek is written in the Latin alphabet, with the apostrophes of o' and g' intact."
+        case .th: return "Write Thai in Thai script, and give each sentence a learner-friendly romanisation with tone marks."
+        case .fa: return "Write Persian in Persian script, and give each sentence a simple romanisation with the vowels written out."
+        case .tl: return "Write standard Tagalog as spoken in Manila."
+        case .ms: return "Write standard Malaysian Malay (Bahasa Melayu)."
+        case .yue: return "Write colloquial Hong Kong Cantonese in Traditional characters (係, 喺, 嘅, 咗, 唔), not Mandarin, and give each sentence its Jyutping with tone numbers."
+        case .kmr: return "Write Kurmanji Kurdish in the Latin (Hawar) alphabet, with ê, î, û, ç, ş."
+        case .az: return "Write Azerbaijani in the Latin alphabet, with ə, ğ, ı, ö, ş, ü, ç."
+        case .en: return ""
+        default: return "Write \(name) in \(scriptName) script, and give each sentence a simple learner-friendly romanisation."
+        }
     }
 }

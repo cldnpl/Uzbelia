@@ -5,7 +5,9 @@ enum ExerciseFactory {
     // MARK: - Public entry points
 
     /// Builds one pass over a node. `focus` changes what the pass drills, so the
-    /// five sessions a lesson needs are five genuinely different workouts.
+    /// five sessions a lesson needs are five genuinely different workouts — and a
+    /// pass is made only of exercises of its own skill: "Ascolto" is all listening,
+    /// "Scrittura" all writing (closing on a short text of her own), and so on.
     ///
     /// `fresh` is sentences written for this chapter by the assistant (see
     /// `PhraseForge`). They are mixed in from the second pass onwards: the first pass
@@ -20,10 +22,13 @@ enum ExerciseFactory {
                         curriculum: Curriculum,
                         native: Language,
                         settings: Settings,
-                        focus: SessionFocus = .discover,
+                        focus requested: SessionFocus = .discover,
                         fresh: [Pair] = [],
                         familiarity: (Pair) -> Int = { _ in 0 }) -> [Exercise] {
         let pool = curriculum.pairsUpTo(unitID: unit.id)
+        // a pass whose skill is switched off becomes a mixed review, never a
+        // "listening" pass full of something else
+        let focus = requested.available(with: settings)
         switch node.kind {
         case .lesson(let lesson):
             let pairs = focus == .discover
@@ -31,18 +36,28 @@ enum ExerciseFactory {
                 : rotation(words: lesson.vocab,
                            sentences: lesson.phrases + lesson.drills,
                            fresh: fresh, familiarity: familiarity,
-                           wordCount: 6, sentenceCount: 12)
-            return build(pairs: pairs, pool: pool, native: native,
-                         settings: settings, maxCount: 15,
-                         includeMatch: focus == .discover,
-                         productionBias: focus.productionBias,
-                         emphasis: focus.emphasis)
+                           wordCount: 4, sentenceCount: 8)
+            // the writing pass keeps its last slot for the short text — in a language
+            // she can type; a script she cannot is written with tiles instead
+            let text = focus == .writing && native.other.isLatin
+                ? CompositionPlanner.task(sentences: lesson.phrases + lesson.drills,
+                                          native: native, level: node.level,
+                                          familiarity: familiarity)
+                : nil
+            var out = build(pairs: pairs, pool: pool, native: native,
+                            settings: settings,
+                            maxCount: focus.length - (text == nil ? 0 : 1),
+                            includeMatch: focus == .discover,
+                            productionBias: focus.productionBias,
+                            onlySkill: focus.skill)
+            if let text { out.append(compose(text)) }
+            return out
         case .story(let dialogue):
-            let lines = dialogue.lines.map { Pair(it: $0.it, uz: $0.uz) }
-            return build(pairs: blend(taught: lines, fresh: fresh, want: 14),
+            let lines = dialogue.lines.map { Pair(en: $0.en, tx: $0.tx, rom: $0.rom) }
+            return build(pairs: blend(taught: lines, fresh: fresh, want: 12),
                          pool: pool, native: native,
-                         settings: settings, maxCount: 12, includeMatch: false,
-                         productionBias: 0.4, emphasis: .listening)
+                         settings: settings, maxCount: 9, includeMatch: false,
+                         productionBias: 0.4, onlySkill: focus.skill)
         case .writing:
             // Not a set of exercises at all — see `ChatChapterView`.
             return []
@@ -50,11 +65,23 @@ enum ExerciseFactory {
             let pairs = rotation(words: unit.lessons.flatMap(\.vocab),
                                  sentences: unit.lessons.flatMap(\.phrases) + unit.allDrills,
                                  fresh: fresh, familiarity: familiarity,
-                                 wordCount: 8, sentenceCount: 18)
+                                 wordCount: 6, sentenceCount: 12)
             return build(pairs: pairs, pool: pool, native: native,
-                         settings: settings, maxCount: 20, includeMatch: true,
-                         productionBias: 0.65, emphasis: nil)
+                         settings: settings, maxCount: 14, includeMatch: true,
+                         productionBias: 0.65)
         }
+    }
+
+    /// The short-text exercise for a brief.
+    static func compose(_ task: CompositionTask) -> Exercise {
+        let target = task.target
+        // the pair it trains, for spaced repetition and for the results screen
+        let pair = task.outline.first ?? Pair(en: "", tx: "")
+        return Exercise(kind: .compose, pair: pair,
+                        prompt: task.outline.map { $0[task.native] }.joined(separator: " "),
+                        promptLanguage: task.native,
+                        answer: task.model, answerLanguage: target,
+                        composition: task)
     }
 
     /// What a later pass over a lesson is made of: a handful of its words, and a
@@ -104,24 +131,32 @@ enum ExerciseFactory {
         s.speakingExercises = false          // a test should never depend on a microphone
         return build(pairs: Array(pairs.shuffled().prefix(count + 6)), pool: pool,
                      native: native, settings: s, maxCount: count,
-                     includeMatch: false, productionBias: 0.6, emphasis: nil)
+                     includeMatch: false, productionBias: 0.6)
     }
 
     static func practice(pairs: [Pair],
                          pool: [Pair],
                          native: Language,
                          settings: Settings,
-                         count: Int = 15,
+                         count: Int = 12,
                          productionBias: Double = 0.5,
-                         restrictTo skill: Skill? = nil) -> [Exercise] {
+                         restrictTo skill: Skill? = nil,
+                         level: CEFR = .a1) -> [Exercise] {
         var s = settings
         if let skill {
             s.listeningExercises = (skill == .listening)
             s.speakingExercises = (skill == .speaking)
         }
-        return build(pairs: pairs, pool: pool, native: native, settings: s,
-                     maxCount: count, includeMatch: skill == nil,
-                     productionBias: productionBias, onlySkill: skill)
+        // a writing drill ends, like the writing pass, on a short text
+        let text = skill == .writing
+            ? CompositionPlanner.task(sentences: pairs, native: native, level: level)
+            : nil
+        var out = build(pairs: pairs, pool: pool, native: native, settings: s,
+                        maxCount: count - (text == nil ? 0 : 1), includeMatch: skill == nil,
+                        productionBias: skill == .writing ? 0.85 : productionBias,
+                        onlySkill: skill)
+        if let text { out.append(compose(text)) }
+        return out
     }
 
     // MARK: - The distractor pool
@@ -191,11 +226,10 @@ enum ExerciseFactory {
                       maxCount: Int,
                       includeMatch: Bool,
                       productionBias: Double,
-                      onlySkill: Skill? = nil,
-                      emphasis: Skill? = nil) -> [Exercise] {
+                      onlySkill: Skill? = nil) -> [Exercise] {
 
         let target = native.other
-        let pairs = rawPairs.filter { !$0.it.isEmpty && !$0.uz.isEmpty }
+        let pairs = rawPairs.filter { !$0.en.isEmpty && !$0.tx.isEmpty }
         guard !pairs.isEmpty else { return [] }
         let pool = pool(for: rawPool.isEmpty ? pairs : rawPool)
 
@@ -205,20 +239,34 @@ enum ExerciseFactory {
         //    (bog' = giardino / parco) would make the game ambiguous, so keep one.
         let singles = unambiguous(pairs.filter { $0.wordCount(target) <= 2 },
                                   native: native, target: target)
+        var paired = Set<String>()
         if includeMatch, singles.count >= 4, onlySkill == nil || onlySkill == .reading {
             let picked = Array(singles.prefix(5))
             out.append(Exercise(kind: .match, pair: picked[0], matchPairs: picked))
+            paired = Set(picked.map(\.id))
+            // a lesson that is mostly words gets a second round of pairs further in,
+            // rather than a long run of one multiple choice after another
+            let more = Array(singles.dropFirst(5).prefix(5))
+            if onlySkill == .reading, more.count >= 4, singles.count >= 11 {
+                out.append(Exercise(kind: .match, pair: more[0], matchPairs: more))
+                paired.formUnion(more.map(\.id))
+            }
         }
+        // the words she has just paired up are not asked again one by one — as long
+        // as that still leaves a session's worth of questions
+        let unpaired = pairs.filter { !paired.contains($0.id) }
+        let items = unpaired.count >= maxCount / 2 ? unpaired : pairs
 
         // 2. One question per item. The two kind lists are shuffled once and then
         //    walked in order, so every available format gets used evenly.
-        let shortKinds = allowedKinds(short: true, settings: settings,
-                                      onlySkill: onlySkill, emphasis: emphasis)
-        let longKinds = allowedKinds(short: false, settings: settings,
-                                     onlySkill: onlySkill, emphasis: emphasis)
+        let shortKinds = allowedKinds(short: true, settings: settings, onlySkill: onlySkill)
+        let longKinds = allowedKinds(short: false, settings: settings, onlySkill: onlySkill)
         var shortIdx = 0, longIdx = 0
+        // the direction is dealt out evenly rather than rolled: a bias of 0.5 is one
+        // each way in turn, not five the same way by bad luck
+        var lean = Double.random(in: 0..<1)
 
-        for pair in pairs.shuffled() {
+        for pair in items.shuffled() {
             let isShort = pair.wordCount(target) <= 2
             let kind: Exercise.Kind
             if isShort {
@@ -228,7 +276,9 @@ enum ExerciseFactory {
                 guard !longKinds.isEmpty else { continue }
                 kind = longKinds[longIdx % longKinds.count]; longIdx += 1
             }
-            let produce = Double.random(in: 0...1) < productionBias
+            lean += productionBias
+            let produce = lean >= 1
+            if produce { lean -= 1 }
             if let ex = make(kind: kind, pair: pair, pool: pool,
                              native: native, target: target, produceTarget: produce) {
                 out.append(ex)
@@ -242,16 +292,24 @@ enum ExerciseFactory {
         if out.count > 2, case .match = out[0].kind { head = out.removeFirst() }
         out.shuffle()
         out = spread(out)
+        // a second round of pairs goes halfway through, never straight after the first
+        if let i = out.firstIndex(where: { $0.kind == .match }) {
+            let second = out.remove(at: i)
+            out.insert(second, at: min(out.count, max(2, out.count / 2)))
+        }
         if let head { out.insert(head, at: 0) }
         return Array(out.prefix(maxCount))
     }
 
-    /// Reorders a session so consecutive questions rarely share a format.
+    /// Reorders a session so consecutive questions rarely share a format — a format
+    /// being the kind of question and the direction it is asked in: reading Uzbek and
+    /// picking the Italian is not the same exercise as the other way round.
     private static func spread(_ list: [Exercise]) -> [Exercise] {
+        func format(_ e: Exercise) -> String { "\(e.kind)|\(e.promptLanguage)" }
         var remaining = list
         var out: [Exercise] = []
         while !remaining.isEmpty {
-            let idx = remaining.firstIndex { $0.kind != out.last?.kind } ?? 0
+            let idx = remaining.firstIndex { e in out.last.map { format($0) != format(e) } ?? true } ?? 0
             out.append(remaining.remove(at: idx))
         }
         return out
@@ -270,48 +328,36 @@ enum ExerciseFactory {
         return out
     }
 
+    /// The formats a session may use. With a skill, only that skill's formats —
+    /// never a reading question in a writing pass. Each list repeats its staples so
+    /// that walking it in order gives a sensible mix.
     private static func allowedKinds(short: Bool, settings: Settings,
-                                     onlySkill: Skill?, emphasis: Skill? = nil) -> [Exercise.Kind] {
+                                     onlySkill: Skill?) -> [Exercise.Kind] {
         var kinds: [Exercise.Kind]
-        if short {
-            kinds = [.choice, .type, .choice, .fillBlank]
-            if settings.listeningExercises { kinds.append(.listenChoice) }
-            if settings.speakingExercises { kinds.append(.speak) }
-        } else {
-            kinds = [.wordBank, .choice, .type, .fillBlank, .wordBank]
-            if settings.listeningExercises { kinds.append(.listenType) }
-            if settings.speakingExercises { kinds.append(.speak) }
-        }
-        // An emphasised skill takes about half the session and no more: every pass
-        // leans somewhere without ever turning into fifteen copies of one format.
-        if let emphasis, onlySkill == nil {
-            let favoured = kinds.filter { kindSkill($0) == emphasis }
-            let others = kinds.filter { kindSkill($0) != emphasis }
-            if !favoured.isEmpty, !others.isEmpty {
-                var boosted: [Exercise.Kind] = []
-                while boosted.count < others.count { boosted += favoured }
-                kinds = Array(boosted.prefix(others.count)) + others
-            }
-        }
-        if let onlySkill {
-            kinds = kinds.filter { kindSkill($0) == onlySkill }
-            if kinds.isEmpty {
-                kinds = onlySkill == .listening ? [short ? .listenChoice : .listenType]
-                      : onlySkill == .speaking ? [.speak]
-                      : onlySkill == .writing ? [.type]
-                      : [.choice]
+        switch onlySkill {
+        case .reading?:
+            kinds = short ? [.choice, .choice, .fillBlank]
+                          : [.wordBank, .choice, .fillBlank, .wordBank]
+        case .listening?:
+            kinds = short ? [.listenChoice, .listenMeaning, .listenType]
+                          : [.listenType, .listenBuild, .listenMeaning, .listenBuild, .listenChoice]
+        case .writing?:
+            kinds = [.type]
+        case .speaking?:
+            kinds = short ? [.speak, .speakRepeat, .speak]
+                          : [.speak, .speakRepeat]
+        case nil:
+            if short {
+                kinds = [.choice, .type, .choice, .fillBlank]
+                if settings.listeningExercises { kinds += [.listenChoice, .listenMeaning] }
+                if settings.speakingExercises { kinds.append(.speak) }
+            } else {
+                kinds = [.wordBank, .choice, .type, .fillBlank, .wordBank]
+                if settings.listeningExercises { kinds += [.listenType, .listenBuild] }
+                if settings.speakingExercises { kinds += [.speak, .speakRepeat] }
             }
         }
         return kinds.shuffled()
-    }
-
-    private static func kindSkill(_ k: Exercise.Kind) -> Skill {
-        switch k {
-        case .type: return .writing
-        case .listenType, .listenChoice: return .listening
-        case .speak: return .speaking
-        default: return .reading
-        }
     }
 
     // MARK: - Individual question makers
@@ -371,6 +417,11 @@ enum ExerciseFactory {
         case .type:
             let from: Language = produceTarget ? native : target
             let to: Language = from.other
+            // nobody starting Thai or Persian can type it: she builds it from tiles
+            if !to.isLatin {
+                return make(kind: .wordBank, pair: pair, pool: pool,
+                            native: native, target: target, produceTarget: produceTarget)
+            }
             return Exercise(kind: .type, pair: pair,
                             prompt: pair[from], promptLanguage: from,
                             answer: pair[to], answerLanguage: to,
@@ -379,6 +430,10 @@ enum ExerciseFactory {
                             hint: pair.hint)
 
         case .listenType:
+            if !target.isLatin {
+                return make(kind: .listenBuild, pair: pair, pool: pool,
+                            native: native, target: target, produceTarget: produceTarget)
+            }
             return Exercise(kind: .listenType, pair: pair,
                             prompt: "", promptLanguage: target,
                             answer: pair[target], answerLanguage: target,
@@ -408,14 +463,48 @@ enum ExerciseFactory {
             let opts = decoyWords(avoiding: words + [missing], lang: target, pool: pool,
                                   count: 3, similarTo: missing) + [missing]
             return Exercise(kind: .fillBlank, pair: pair,
-                            prompt: words.joined(separator: " "), promptLanguage: target,
+                            prompt: Grader.join(words, like: sentence), promptLanguage: target,
                             answer: missing, answerLanguage: target,
                             options: opts.shuffled(),
                             audioText: sentence, audioLanguage: target,
                             blankIndex: idx,
                             hint: pair[native])
 
-        case .match:
+        case .listenMeaning:
+            let correct = pair[native]
+            let opts = distractors(for: correct, lang: native, pool: pool, count: 3,
+                                   prompt: pair[target], promptLang: target) + [correct]
+            return Exercise(kind: .listenMeaning, pair: pair,
+                            prompt: "", promptLanguage: target,
+                            answer: correct, answerLanguage: native,
+                            options: opts.shuffled(),
+                            audioText: pair[target], audioLanguage: target,
+                            hint: pair.hint)
+
+        case .listenBuild:
+            let answer = pair[target]
+            var chips = Grader.tokenize(answer)
+            guard chips.count >= 2 else {
+                return make(kind: .listenChoice, pair: pair, pool: pool,
+                            native: native, target: target, produceTarget: produceTarget)
+            }
+            chips += decoyWords(avoiding: chips, lang: target, pool: pool,
+                                count: min(3, max(2, chips.count / 2)))
+            return Exercise(kind: .listenBuild, pair: pair,
+                            prompt: "", promptLanguage: target,
+                            answer: answer, answerLanguage: target,
+                            tokens: chips.shuffled(),
+                            audioText: answer, audioLanguage: target,
+                            hint: pair.hint)
+
+        case .speakRepeat:
+            return Exercise(kind: .speakRepeat, pair: pair,
+                            prompt: pair[target], promptLanguage: target,
+                            answer: pair[target], answerLanguage: target,
+                            audioText: pair[target], audioLanguage: target,
+                            hint: pair[native])
+
+        case .match, .compose:
             return nil
         }
     }

@@ -30,8 +30,8 @@ final class ChatEngine {
     }
 
     let chapter: WritingChapter
-    let native: Language
-    var target: Language { native.other }
+    let native: Language = .en
+    let target: Language
 
     private(set) var messages: [Message] = []
     private(set) var phase: Phase = .opening
@@ -46,9 +46,9 @@ final class ChatEngine {
     /// Switched off after one failed request, so a dead key costs one wait and not six.
     private var live = true
 
-    init(chapter: WritingChapter, native: Language) {
+    init(chapter: WritingChapter, target: Language) {
         self.chapter = chapter
-        self.native = native
+        self.target = target
     }
 
     // MARK: - Where we are
@@ -60,12 +60,13 @@ final class ChatEngine {
     /// The last thing Anorcha said, which is what the next reply answers.
     private var lastFromAnorcha: Bilingual? {
         guard let message = messages.last(where: { $0.who == .anorcha }) else { return nil }
-        return Bilingual(it: native == .it ? (message.translation ?? message.text) : message.text,
-                         uz: native == .it ? message.text : (message.translation ?? message.text))
+        return Bilingual(en: message.translation ?? message.text, tx: message.text)
     }
 
     var wordsInDraft: Int {
-        draft.split(whereSeparator: { $0 == " " || $0 == "\n" }).count
+        draft.split(separator: "\n").reduce(0) {
+            $0 + WordSplitter.words(in: String($1), language: target).count
+        }
     }
     /// Long enough to be an answer, and in the alphabet of the language being learned.
     var canSend: Bool {
@@ -73,7 +74,7 @@ final class ChatEngine {
     }
 
     var xpEarned: Int {
-        let words = records.reduce(0) { $0 + $1.answer.split(separator: " ").count }
+        let words = records.reduce(0) { $0 + WordSplitter.words(in: $1.answer, language: target).count }
         return 20 + min(40, words)
     }
 
@@ -142,10 +143,14 @@ final class ChatEngine {
     /// The fallback script. Not a conversation, but a sequence of real prompts on the
     /// chapter's own subject — enough to keep her writing for the whole chapter.
     private func offlineLine(closing: Bool) -> Bilingual {
-        if messages.isEmpty { return chapter.theme.opener }
-        if closing { return Self.closings.randomElement() ?? chapter.theme.opener }
+        let opener = Phrases.list("chat.opener.\(chapter.theme.id)").first
+            ?? Bilingual(en: chapter.theme.title.en, tx: chapter.theme.title.en)
+        if messages.isEmpty { return opener }
+        if closing { return Phrases.any("chat.goodbyes") ?? opener }
         let asked = records.count
-        let follow = Self.followUps[chapter.theme.id] ?? Self.genericFollowUps
+        var follow = Phrases.list("chat.thread.\(chapter.theme.id)")
+        if follow.isEmpty { follow = Phrases.list("chat.followUps") }
+        guard !follow.isEmpty else { return opener }
         return follow[(asked - 1 + follow.count) % follow.count]
     }
 
@@ -165,7 +170,7 @@ final class ChatEngine {
                 return
             }
         }
-        review = CallReviewer.review(turns: records, native: native,
+        review = CallReviewer.review(turns: records, target: target,
                                      curriculum: curriculum, level: chapter.level)
         phase = .done
     }
@@ -180,78 +185,15 @@ final class ChatEngine {
     /// The words she actually used, so the chapter feeds spaced repetition like any
     /// other node does — a word written under her own steam is a word she knows.
     func practisedPairs(from curriculum: Curriculum) -> [Pair] {
-        let said = Set(records.flatMap { Grader.normalise($0.answer).split(separator: " ").map(String.init) })
+        let said = Set(records.flatMap {
+            WordSplitter.words(in: Grader.normalise($0.answer), language: target)
+        })
         guard !said.isEmpty else { return [] }
         return chapter.vocabulary.filter { pair in
-            let words = Grader.normalise(pair[target]).split(separator: " ").map(String.init)
+            let words = WordSplitter.words(in: Grader.normalise(pair[target]),
+                                           language: target)
             return !words.isEmpty && words.allSatisfy { said.contains($0) }
         }
     }
 
-    // MARK: - Offline script
-
-    private static let genericFollowUps: [Bilingual] = [
-        Bilingual(it: "Ah sì? E perché?", uz: "Rostdanmi? Nega?"),
-        Bilingual(it: "Raccontami di più.", uz: "Ko'proq aytib ber."),
-        Bilingual(it: "E poi cos'è successo?", uz: "Keyin nima bo'ldi?"),
-        Bilingual(it: "Con chi eri?", uz: "Kim bilan eding?"),
-        Bilingual(it: "Tu cosa ne pensi?", uz: "Sen nima deb o'ylaysan?"),
-    ]
-
-    private static let closings: [Bilingual] = [
-        Bilingual(it: "Bello sentirti! Ci scriviamo domani?", uz: "Gaplashganimiz yaxshi bo'ldi! Ertaga yozishamizmi?"),
-        Bilingual(it: "Va bene, ora devo andare. A presto!", uz: "Mayli, endi ketishim kerak. Ko'rishguncha!"),
-        Bilingual(it: "Grazie per avermelo raccontato. A dopo!", uz: "Aytib berganing uchun rahmat. Keyinroq gaplashamiz!"),
-    ]
-
-    private static let followUps: [String: [Bilingual]] = [
-        "day": [
-            Bilingual(it: "E la mattina com'era?", uz: "Ertalab qanday o'tdi?"),
-            Bilingual(it: "Hai mangiato qualcosa di buono?", uz: "Mazali biror narsa yedingmi?"),
-            Bilingual(it: "Chi hai visto oggi?", uz: "Bugun kimni ko'rding?"),
-            Bilingual(it: "E domani cosa fai?", uz: "Ertaga nima qilasan?"),
-        ],
-        "plan": [
-            Bilingual(it: "A che ora ti va bene?", uz: "Soat nechada qulay?"),
-            Bilingual(it: "Dove ci troviamo?", uz: "Qayerda uchrashamiz?"),
-            Bilingual(it: "Chi altro invitiamo?", uz: "Yana kimni taklif qilamiz?"),
-            Bilingual(it: "Come ci arrivi?", uz: "U yerga qanday borasan?"),
-        ],
-        "favour": [
-            Bilingual(it: "Quando ti servirebbe?", uz: "Qachon kerak bo'ladi?"),
-            Bilingual(it: "Ti è già successo prima?", uz: "Avval ham shunday bo'lganmi?"),
-            Bilingual(it: "Come posso aiutarti?", uz: "Qanday yordam bera olaman?"),
-            Bilingual(it: "Sei sicura? Dimmi tutto.", uz: "Ishonchingiz komilmi? Hammasini ayting."),
-        ],
-        "place": [
-            Bilingual(it: "Com'è il tempo lì?", uz: "U yerda ob-havo qanday?"),
-            Bilingual(it: "Che cosa vedi dalla finestra?", uz: "Derazadan nima ko'rinadi?"),
-            Bilingual(it: "Ci torneresti?", uz: "Yana borarmiding?"),
-            Bilingual(it: "Con chi ci sei andata?", uz: "U yerga kim bilan bording?"),
-        ],
-        "food": [
-            Bilingual(it: "Cucini tu o ordiniamo?", uz: "O'zing pishirasanmi yoki buyurtma qilamizmi?"),
-            Bilingual(it: "Che cosa c'è in frigo?", uz: "Muzlatgichda nima bor?"),
-            Bilingual(it: "Qual è il tuo piatto preferito?", uz: "Eng yoqtirgan taoming qaysi?"),
-            Bilingual(it: "A che ora mangiamo?", uz: "Soat nechada ovqatlanamiz?"),
-        ],
-        "news": [
-            Bilingual(it: "Come hai reagito?", uz: "Qanday munosabat bildirding?"),
-            Bilingual(it: "L'hai detto a qualcuno?", uz: "Birovga aytdingmi?"),
-            Bilingual(it: "E adesso cosa farai?", uz: "Endi nima qilasan?"),
-            Bilingual(it: "Te lo aspettavi?", uz: "Buni kutgandingmi?"),
-        ],
-        "problem": [
-            Bilingual(it: "Quando è cominciato?", uz: "Qachon boshlandi?"),
-            Bilingual(it: "Hai già provato qualcosa?", uz: "Biror narsa qilib ko'rdingmi?"),
-            Bilingual(it: "Vuoi che ti aiuti?", uz: "Yordam berishimni xohlaysanmi?"),
-            Bilingual(it: "Secondo te di chi è la colpa?", uz: "Sencha kim aybdor?"),
-        ],
-        "memory": [
-            Bilingual(it: "Chi c'era con noi?", uz: "Biz bilan kim bor edi?"),
-            Bilingual(it: "In che stagione era?", uz: "Qaysi faslda edi?"),
-            Bilingual(it: "Che cosa ricordi meglio?", uz: "Eng yaxshi nimani eslaysan?"),
-            Bilingual(it: "Lo rifaresti?", uz: "Yana shunday qilarmiding?"),
-        ],
-    ]
 }

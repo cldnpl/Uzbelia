@@ -2,7 +2,7 @@ import XCTest
 @testable import Uzbelia
 
 /// A translation in her own words is right when it says the same thing. These are
-/// the wordings that used to come back red with "anche la mia è giusta" underneath.
+/// the wordings that used to come back red with "mine is right too" underneath.
 final class EquivalenceTests: XCTestCase {
 
     private func isSame(_ given: String, _ expected: String, _ language: Language,
@@ -22,14 +22,14 @@ final class EquivalenceTests: XCTestCase {
     // MARK: - The two cases she reported
 
     func testMyDogWithoutMening() {
-        isSame("itim", "Mening itim.", .uz, prompt: "Il mio cane.")
-        isSame("Itim!", "Mening itim.", .uz, prompt: "Il mio cane.")
+        isSame("itim", "Mening itim.", .uz, prompt: "My dog.")
+        isSame("Itim!", "Mening itim.", .uz, prompt: "My dog.")
     }
 
     func testHelloIAmClaudiaWithTheLongGreetingAndNoPronoun() {
-        isSame("assalomu alaykum claudiaman", "Salom, men Klaudiyaman.", .uz, prompt: "Ciao, sono Claudia.")
-        isSame("Assalomu alaykum, Klaudiyaman", "Salom, men Klaudiyaman.", .uz, prompt: "Ciao, sono Claudia.")
-        isSame("Salom, mening ismim Klaudiya", "Salom, men Klaudiyaman.", .uz, prompt: "Ciao, sono Claudia.")
+        isSame("assalomu alaykum claudiaman", "Salom, men Klaudiyaman.", .uz, prompt: "Hello, I'm Claudia.")
+        isSame("Assalomu alaykum, Klaudiyaman", "Salom, men Klaudiyaman.", .uz, prompt: "Hello, I'm Claudia.")
+        isSame("Salom, mening ismim Klaudiya", "Salom, men Klaudiyaman.", .uz, prompt: "Hello, I'm Claudia.")
     }
 
     // MARK: - Uzbek
@@ -54,9 +54,9 @@ final class EquivalenceTests: XCTestCase {
     }
 
     func testThatIsNotHe() {
-        // "quel libro": u is a demonstrative and cannot go
-        isNotSame("Kitob qiziq", "U kitob qiziq.", .uz, prompt: "Quel libro è interessante.")
-        isNotSame("Yerda", "U yerda.", .uz, prompt: "Là.")
+        // "that book": u is a demonstrative and cannot go
+        isNotSame("Kitob qiziq", "U kitob qiziq.", .uz, prompt: "That book is interesting.")
+        isNotSame("Yerda", "U yerda.", .uz, prompt: "There.")
     }
 
     func testGreetingsThanksAndApologies() {
@@ -65,8 +65,8 @@ final class EquivalenceTests: XCTestCase {
         isSame("assalomu aleykum", "Salom!", .uz)
         isSame("Tashakkur!", "Rahmat!", .uz)
         isSame("Uzr", "Kechirasiz!", .uz)
-        isSame("Xayr!", "Salom!", .uz, prompt: "Ciao!")
-        isNotSame("Xayr!", "Salom!", .uz, prompt: "Buongiorno!")
+        // goodbye is never hello
+        isNotSame("Xayr!", "Salom!", .uz, prompt: "Hello!")
     }
 
     func testATimeWordCanMove() {
@@ -89,33 +89,40 @@ final class EquivalenceTests: XCTestCase {
         isNotSame("itim", "Mening mushugim.", .uz)
     }
 
-    // MARK: - Italian
+    // MARK: - English
 
-    func testItalianSubjectPronouns() {
-        isSame("Sono Claudia", "Io sono Claudia.", .it)
-        isSame("Io sono Claudia", "Sono Claudia.", .it)
-        isSame("Lei è italiana", "È italiana.", .it)
-        isSame("ciao io sono claudia", "Ciao, sono Claudia.", .it)
-        isNotSame("Tu sono Claudia", "Sono Claudia.", .it)
-        isNotSame("Vado a Roma con lui", "Vado a Roma con lei.", .it)
-        isNotSame("E?", "E tu?", .it)
+    func testEnglishContractions() {
+        isSame("I'm Claudia", "I am Claudia.", .en)
+        isSame("I am Claudia", "I'm Claudia.", .en)
+        isSame("Im Claudia", "I'm Claudia.", .en)          // the apostrophe she skipped
+        isSame("I don't know", "I do not know.", .en)
+        isSame("She's Italian", "She is Italian.", .en)
+        isSame("hi im claudia", "Hello, I'm Claudia.", .en)
+        isNotSame("You're Claudia", "I'm Claudia.", .en)
+        isNotSame("I'm going to Rome with him", "I'm going to Rome with her.", .en)
+        isNotSame("And?", "And you?", .en)
     }
 
-    func testItalianSameThingOtherWords() {
-        isSame("Ciao, mi chiamo Claudia", "Ciao, il mio nome è Claudia.", .it)
-        isSame("Cos'è?", "Che cosa è?", .it)
-        isSame("Abito a Roma", "Vivo a Roma.", .it)
-        isSame("Per piacere", "Per favore.", .it)
-        isSame("Scusi!", "Scusa!", .it)
-        isSame("Domani vado a Roma", "Vado a Roma domani.", .it)
-        isSame("Ho 20 anni", "Ho venti anni.", .it)
+    func testEnglishSameThingOtherWords() {
+        isSame("I'm Claudia", "My name is Claudia.", .en)
+        isSame("Thanks!", "Thank you!", .en)
+        isSame("Thanks a lot!", "Thank you very much!", .en)
+        isSame("Hey!", "Hello!", .en)
+        isSame("Bye!", "Goodbye!", .en)
+        isSame("OK", "Okay.", .en)
+        isSame("I can't swim", "I cannot swim.", .en)
+        isSame("Tomorrow I'm going to Tashkent", "I'm going to Tashkent tomorrow.", .en)
+        isSame("I'm 20 years old", "I'm twenty years old.", .en)
+        isSame("I'm 21", "I'm twenty-one.", .en)
     }
 
-    func testCiaoDependsOnWhatWasSaid() {
-        isSame("Salve!", "Ciao!", .it, prompt: "Salom!")
-        isSame("Ciao!", "Arrivederci!", .it, prompt: "Xayr!")
-        isNotSame("Salve!", "Arrivederci!", .it, prompt: "Xayr!")
-        isNotSame("Buonasera!", "Buongiorno!", .it, prompt: "Xayrli kun!")
+    func testExcuseMeDependsOnWhatWasSaid() {
+        // "excuse me" is "sorry" when the Uzbek was an apology…
+        isSame("Excuse me!", "Sorry!", .en, prompt: "Kechirasiz!")
+        isSame("Pardon me", "Sorry.", .en, prompt: "Uzr.")
+        // …and not when "sorry" is "what a pity"
+        isNotSame("Excuse me!", "Sorry!", .en, prompt: "Afsus!")
+        isNotSame("Hi!", "Goodbye!", .en, prompt: "Xayr!")
     }
 
     // MARK: - Spelling on top
@@ -131,11 +138,12 @@ final class EquivalenceTests: XCTestCase {
     }
 
     func testNumberWords() {
-        XCTAssertEqual(Equivalence.italianNumber(21), "ventuno")
-        XCTAssertEqual(Equivalence.italianNumber(28), "ventotto")
-        XCTAssertEqual(Equivalence.italianNumber(23), "ventitre")
-        XCTAssertEqual(Equivalence.italianNumber(100), "cento")
-        XCTAssertEqual(Equivalence.italianNumber(2000), "duemila")
+        // "twenty-one" normalises to "twenty one", which is what the figures become
+        XCTAssertEqual(Equivalence.englishNumber(21), "twenty one")
+        XCTAssertEqual(Equivalence.englishNumber(15), "fifteen")
+        XCTAssertEqual(Equivalence.englishNumber(40), "forty")
+        XCTAssertEqual(Equivalence.englishNumber(100), "one hundred")
+        XCTAssertEqual(Equivalence.englishNumber(2000), "two thousand")
         XCTAssertEqual(Equivalence.uzbekNumber(25), "yigirma besh")
         XCTAssertEqual(Equivalence.uzbekNumber(300), "uch yuz")
         XCTAssertEqual(Equivalence.uzbekNumber(1000), "ming")
@@ -143,14 +151,14 @@ final class EquivalenceTests: XCTestCase {
 
     // MARK: - In a lesson
 
-    private func question(_ kind: Exercise.Kind, it: String, uz: String) -> Exercise {
-        Exercise(kind: kind, pair: Pair(it: it, uz: uz),
-                 prompt: it, promptLanguage: .it, answer: uz, answerLanguage: .uz,
+    private func question(_ kind: Exercise.Kind, en: String, uz: String) -> Exercise {
+        Exercise(kind: kind, pair: Pair(en: en, tx: uz),
+                 prompt: en, promptLanguage: .en, answer: uz, answerLanguage: .uz,
                  tokens: kind == .wordBank ? ["itim", "mening", "uyim"] : [])
     }
 
     func testTheLessonMarksItRightStraightAway() {
-        let ex = question(.type, it: "Il mio cane.", uz: "Mening itim.")
+        let ex = question(.type, en: "My dog.", uz: "Mening itim.")
         let engine = LessonEngine(exercises: [ex])
         engine.typed = "itim"
         engine.commit(engine.grade())
@@ -163,14 +171,14 @@ final class EquivalenceTests: XCTestCase {
     }
 
     func testTheWordBankToo() {
-        let ex = question(.wordBank, it: "Il mio cane.", uz: "Mening itim.")
+        let ex = question(.wordBank, en: "My dog.", uz: "Mening itim.")
         let engine = LessonEngine(exercises: [ex])
         engine.built = [0]                        // just "itim"
         XCTAssertEqual(engine.grade(), .alternative(canonical: "Mening itim.", note: nil))
     }
 
     func testDictationStillWantsWhatWasSaid() {
-        let ex = question(.listenType, it: "Il mio cane.", uz: "Mening itim.")
+        let ex = question(.listenType, en: "My dog.", uz: "Mening itim.")
         let engine = LessonEngine(exercises: [ex])
         engine.typed = "itim"
         guard case .wrong = engine.grade() else {
@@ -179,10 +187,20 @@ final class EquivalenceTests: XCTestCase {
     }
 
     func testANameSpelledHerWayIsNotASpellingMistake() {
-        let ex = question(.type, it: "Sono Claudia.", uz: "Men Klaudiyaman.")
+        let ex = question(.type, en: "I'm Claudia.", uz: "Men Klaudiyaman.")
         let engine = LessonEngine(exercises: [ex])
         engine.typed = "Men Claudiaman"
         XCTAssertEqual(engine.grade(), .alternative(canonical: "Men Klaudiyaman.", note: nil))
+    }
+
+    func testAContractionInEnglishIsHerOwnWordingAndNotASlip() {
+        // the way back, from Uzbek into English
+        let ex = Exercise(kind: .type, pair: Pair(en: "I am Claudia.", tx: "Men Klaudiyaman."),
+                          prompt: "Men Klaudiyaman.", promptLanguage: .uz,
+                          answer: "I am Claudia.", answerLanguage: .en)
+        let engine = LessonEngine(exercises: [ex])
+        engine.typed = "I'm Claudia"
+        XCTAssertEqual(engine.grade(), .alternative(canonical: "I am Claudia.", note: nil))
     }
 }
 

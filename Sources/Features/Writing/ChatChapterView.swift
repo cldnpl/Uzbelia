@@ -15,15 +15,16 @@ struct ChatChapterView: View {
     var onFinish: (() -> Void)?
 
     @State private var engine: ChatEngine?
-    @State private var showQuit = false
+    @State private var quitDialog: GlassDialog?
     @State private var recorded = false
+    @State private var streak: StreakMoment?
     @FocusState private var writing: Bool
 
     private var lang: Language { state.native }
 
     var body: some View {
         ZStack {
-            Palette.bg.ignoresSafeArea()
+            AuroraBackground(mood: .lesson)
             if let engine {
                 switch engine.phase {
                 case .reviewing: building(engine)
@@ -31,21 +32,17 @@ struct ChatChapterView: View {
                 default: thread(engine)
                 }
             } else {
-                ProgressView().tint(Palette.purple)
+                ProgressView().tint(Palette.brand)
             }
         }
         .task {
             guard engine == nil else { return }
-            let new = ChatEngine(chapter: chapter, native: state.native)
+            let new = ChatEngine(chapter: chapter, target: state.target)
             engine = new
             await new.begin(provider: state.aiProvider, apiKey: state.aiKey)
         }
-        .alert(S.writingEndEarly[lang], isPresented: $showQuit) {
-            Button(S.cancel[lang], role: .cancel) {}
-            Button(S.confirm[lang]) {
-                if let engine, !engine.records.isEmpty { engine.finishEarly() } else { dismiss() }
-            }
-        } message: { Text(S.writingEndMsg[lang]) }
+        .glassDialog($quitDialog)
+        .streakCelebration($streak) { onFinish?(); dismiss() }
     }
 
     // MARK: - The thread
@@ -53,15 +50,16 @@ struct ChatChapterView: View {
     private func thread(_ engine: ChatEngine) -> some View {
         VStack(spacing: 0) {
             header(engine)
-            Divider().overlay(Palette.stroke)
 
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 10) {
                         Text(S.tapToTranslate[lang])
-                            .font(.plain(11)).foregroundStyle(Palette.inkFaint)
+                            .font(.heading(11)).foregroundStyle(Palette.inkSoft)
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .glassCapsule(material: false, shadow: false)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
+                            .padding(.vertical, 8)
 
                         ForEach(engine.messages) { message in
                             bubble(message, engine: engine).id(message.id)
@@ -91,15 +89,17 @@ struct ChatChapterView: View {
 
     private func header(_ engine: ChatEngine) -> some View {
         HStack(spacing: 12) {
-            Button {
-                Feedback.tap(); showQuit = true
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 17, weight: .black)).foregroundStyle(Palette.inkFaint)
+            GlassCircleButton(icon: "xmark", size: 40, tint: Palette.inkSoft,
+                              accessibility: S.writingEndEarly[lang]) {
+                Feedback.tap()
+                quitDialog = GlassDialog(title: S.writingEndEarly[lang], message: S.writingEndMsg[lang],
+                                         confirm: S.confirm[lang], cancel: S.cancel[lang],
+                                         icon: "bubble.left.and.text.bubble.right.fill") {
+                    if !engine.records.isEmpty { engine.finishEarly() } else { dismiss() }
+                }
             }
-            .buttonStyle(.plain)
 
-            Mascot(mood: engine.phase == .thinking ? .think : .happy, size: 38)
+            MascotBubble(mood: engine.phase == .thinking ? .think : .happy, size: 44)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Anorcha").font(.heading(16)).foregroundStyle(Palette.ink)
@@ -112,14 +112,16 @@ struct ChatChapterView: View {
 
             VStack(alignment: .trailing, spacing: 3) {
                 Text("\(engine.written)/\(chapter.turns)")
-                    .font(.heading(14)).foregroundStyle(Palette.purple)
-                ProgressBar(value: engine.progress, tint: Palette.purple)
-                    .frame(width: 62)
+                    .font(.heading(14)).foregroundStyle(UnitAccent.writing.deep)
+                ProgressBar(value: engine.progress, tint: UnitAccent.writing.main, height: 6)
+                    .frame(width: 66)
             }
         }
-        .padding(.horizontal, Metrics.hPad)
+        .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(Palette.bgElevated)
+        .glass(radius: 28)
+        .padding(.horizontal, 12)
+        .padding(.top, 4)
     }
 
     @ViewBuilder
@@ -141,21 +143,21 @@ struct ChatChapterView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .padding(.horizontal, 13).padding(.vertical, 10)
-            .background(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: 16, bottomLeadingRadius: mine ? 16 : 5,
-                    bottomTrailingRadius: mine ? 5 : 16, topTrailingRadius: 16,
+            .padding(.horizontal, 15).padding(.vertical, 11)
+            .background {
+                let shape = UnevenRoundedRectangle(
+                    topLeadingRadius: 22, bottomLeadingRadius: mine ? 22 : 6,
+                    bottomTrailingRadius: mine ? 6 : 22, topTrailingRadius: 22,
                     style: .continuous)
-                    .fill(mine ? Palette.purple : Palette.card)
-            )
-            .overlay(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: 16, bottomLeadingRadius: mine ? 16 : 5,
-                    bottomTrailingRadius: mine ? 5 : 16, topTrailingRadius: 16,
-                    style: .continuous)
-                    .stroke(mine ? .clear : Palette.stroke, lineWidth: 1.5)
-            )
+                if mine {
+                    shape.fill(Gradients.primary)
+                        .overlay(shape.fill(LinearGradient(colors: [.white.opacity(0.25), .clear],
+                                                           startPoint: .top, endPoint: .center)))
+                        .shadow(color: Palette.brand.opacity(0.3), radius: 10, y: 5)
+                } else {
+                    GlassPane(shape: shape, tint: nil, material: false)
+                }
+            }
             .contentShape(Rectangle())
             .onTapGesture {
                 guard message.translation != nil else { return }
@@ -180,10 +182,8 @@ struct ChatChapterView: View {
                         .modifier(TypingDot(delay: Double(i) * 0.18))
                 }
             }
-            .padding(.horizontal, 14).padding(.vertical, 13)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Palette.card))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Palette.stroke, lineWidth: 1.5))
+            .padding(.horizontal, 16).padding(.vertical, 14)
+            .glass(radius: 22, material: false)
             Spacer(minLength: 44)
         }
     }
@@ -196,15 +196,12 @@ struct ChatChapterView: View {
         return VStack(spacing: 7) {
             HStack(alignment: .bottom, spacing: 10) {
                 TextField(S.writeHere[lang], text: $engine.draft, axis: .vertical)
-                    .font(.plain(15))
+                    .font(.plain(16))
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1...5)
                     .focused($writing)
-                    .padding(.horizontal, 13).padding(.vertical, 11)
-                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Palette.card))
-                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Palette.stroke, lineWidth: 2))
+                    .padding(.horizontal, 16).padding(.vertical, 13)
+                    .glass(radius: 24, tint: writing ? Palette.brand : nil)
                     .disabled(engine.phase != .yourTurn)
 
                 Button {
@@ -213,44 +210,46 @@ struct ChatChapterView: View {
                     Task { await engine.send(provider: state.aiProvider, apiKey: state.aiKey) }
                 } label: {
                     Image(systemName: "paperplane.fill")
-                        .font(.system(size: 17, weight: .black))
-                        .foregroundStyle(.white)
-                        .frame(width: 46, height: 46)
-                        .background(Circle().fill(engine.canSend ? Palette.purple : Palette.locked))
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(engine.canSend ? .white : Palette.inkFaint)
+                        .frame(width: 50, height: 50)
+                        .background {
+                            if engine.canSend {
+                                Circle().fill(Gradients.primary)
+                                    .shadow(color: Palette.brand.opacity(0.4), radius: 10, y: 5)
+                            } else {
+                                Circle().fill(Palette.locked)
+                            }
+                        }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressableStyle(scale: 0.92))
                 .disabled(!engine.canSend)
             }
 
             HStack(spacing: 6) {
                 Image(systemName: short ? "pencil" : "checkmark.circle.fill")
-                    .font(.system(size: 10, weight: .black))
-                    .foregroundStyle(short ? Palette.inkFaint : Palette.green)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(short ? Palette.inkSoft : Palette.greenDeep)
                 Text("\(engine.wordsInDraft)/\(chapter.minimumWords) \(S.wordsShort[lang])")
-                    .font(.plain(11)).foregroundStyle(short ? Palette.inkFaint : Palette.green)
+                    .font(.heading(11)).foregroundStyle(short ? Palette.inkSoft : Palette.greenDeep)
                 Spacer(minLength: 0)
                 Text(engine.remaining <= 1 ? S.writingLastOne[lang]
                                            : "\(engine.remaining) \(S.writingLeft[lang])")
-                    .font(.plain(11)).foregroundStyle(Palette.inkFaint)
+                    .font(.plain(11)).foregroundStyle(Palette.inkSoft)
             }
             .padding(.horizontal, 4)
         }
         .padding(.horizontal, Metrics.hPad)
         .padding(.top, 9)
         .padding(.bottom, 10)
-        .background(
-            Palette.bgElevated
-                .overlay(alignment: .top) { Palette.stroke.frame(height: 1.5) }
-                .ignoresSafeArea(edges: .bottom)
-        )
     }
 
     // MARK: - The report
 
     private func building(_ engine: ChatEngine) -> some View {
         VStack(spacing: 16) {
-            Mascot(mood: .think, size: 110)
-            ProgressView().tint(Palette.purple)
+            MascotBubble(mood: .think, size: 120)
+            ProgressView().tint(Palette.brand)
             Text(S.writingReview[lang])
                 .font(.heading(15)).foregroundStyle(Palette.inkSoft)
                 .multilineTextAlignment(.center)
@@ -266,10 +265,10 @@ struct ChatChapterView: View {
     private func recap(_ engine: ChatEngine) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                VStack(spacing: 9) {
-                    Mascot(mood: engine.records.isEmpty ? .happy : .cheer, size: 92)
+                VStack(spacing: 10) {
+                    MascotBubble(mood: engine.records.isEmpty ? .happy : .cheer, size: 104)
                     Text(engine.review?.headline[lang] ?? S.writingRecap[lang])
-                        .font(.display(22)).foregroundStyle(Palette.ink)
+                        .font(.display(25)).foregroundStyle(Gradients.title)
                         .multilineTextAlignment(.center)
                     if engine.records.isEmpty {
                         Text(S.writingNoWords[lang])
@@ -282,10 +281,10 @@ struct ChatChapterView: View {
 
                 if let stats = engine.review?.stats {
                     HStack(spacing: 10) {
-                        statCard("\(stats.answered)", S.writingLeft[lang], Palette.purple)
+                        statCard("\(stats.answered)", S.writingLeft[lang], UnitAccent.writing.main)
                         statCard("\(stats.words)", S.wordsShort[lang], Palette.brand)
                         statCard("\(stats.distinctWords)", S.statsWords[lang], Palette.teal)
-                        statCard("+\(engine.xpEarned)", "XP", Palette.amber)
+                        statCard("+\(engine.xpEarned)", "XP", Palette.pink)
                     }
                 }
 
@@ -295,17 +294,16 @@ struct ChatChapterView: View {
                         ForEach(Array(tips.enumerated()), id: \.offset) { _, tip in
                             HStack(alignment: .top, spacing: 8) {
                                 Image(systemName: "lightbulb.fill")
-                                    .font(.system(size: 12, weight: .black))
-                                    .foregroundStyle(Palette.amber).padding(.top, 2)
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(UnitAccent.writing.main).padding(.top, 2)
                                 Text(tip[lang]).font(.plain(13)).foregroundStyle(Palette.ink)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                     }
-                    .padding(13)
+                    .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous)
-                        .fill(Palette.amber.opacity(0.12)))
+                    .glass(radius: 22, tint: UnitAccent.writing.main)
                 }
 
                 if let turns = engine.review?.turns, !turns.isEmpty {
@@ -316,10 +314,14 @@ struct ChatChapterView: View {
                 Button {
                     Feedback.pop()
                     register(engine)
-                    onFinish?()
-                    dismiss()
+                    if let moment = state.takeStreakMoment() {
+                        streak = moment
+                    } else {
+                        onFinish?()
+                        dismiss()
+                    }
                 } label: { Text(S.done[lang]) }
-                .buttonStyle(.chunky(Palette.purple, Palette.purpleDeep))
+                .buttonStyle(.primary(.violet))
                 .padding(.top, 6)
             }
             .padding(.horizontal, Metrics.hPad)
@@ -336,10 +338,8 @@ struct ChatChapterView: View {
                 .multilineTextAlignment(.center).lineLimit(2)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 11)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Palette.card))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .stroke(Palette.stroke, lineWidth: 1.5))
+        .padding(.vertical, 12)
+        .glass(radius: 18, tint: tint, material: false)
     }
 
     private func turnCard(_ turn: TurnReview) -> some View {
@@ -359,14 +359,14 @@ struct ChatChapterView: View {
             ForEach(turn.corrections) { fix in
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: fix.kind.icon)
-                        .font(.system(size: 11, weight: .black))
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(Palette.redDeep).padding(.top, 2)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
                             Text(fix.original).font(.plain(12.5))
                                 .strikethrough().foregroundStyle(Palette.inkSoft)
                             Image(systemName: "arrow.right")
-                                .font(.system(size: 8, weight: .black)).foregroundStyle(Palette.inkFaint)
+                                .font(.system(size: 8, weight: .bold)).foregroundStyle(Palette.inkFaint)
                             Text(fix.suggestion).font(.heading(12.5)).foregroundStyle(Palette.green)
                         }
                         Text(fix.note[lang]).font(.plain(11.5)).foregroundStyle(Palette.inkSoft)
@@ -382,16 +382,14 @@ struct ChatChapterView: View {
                     Text(better).font(.plain(13.5)).foregroundStyle(Palette.green)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(9)
+                .padding(11)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Palette.greenSoft))
+                .glass(radius: 16, tint: Palette.green, material: false, shadow: false)
             }
         }
-        .padding(13)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous).fill(Palette.card))
-        .overlay(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous)
-            .stroke(Palette.stroke, lineWidth: 2))
+        .glass(radius: 24)
     }
 
     // MARK: - Writing it down

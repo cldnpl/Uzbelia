@@ -49,8 +49,8 @@ struct Settings: Codable, Hashable {
     /// sometimes hands over the answer still teaches more than a blank stare.
     var wordHints = true
     /// Let the assistant write new sentences for the chapter being studied, so the
-    /// fifth pass over a lesson is not the first one again. Needs a key; without one
-    /// it simply never fires. See `PhraseForge`.
+    /// fifth pass over a lesson is not the first one again. Always on: it is part of
+    /// how the app works, not a choice she should have to make. See `PhraseForge`.
     var freshPhrases = true
     var speechRate: Double = 0.44     // AVSpeechUtterance rate
     var dailyGoal: Int = 50           // xp
@@ -58,9 +58,11 @@ struct Settings: Codable, Hashable {
     var reminderOn = false
     var reminderHour = 19
     var reminderMinute = 0
-    /// Hearts and gems never run out. On by default: this build is a gift, not a shop.
+    /// Hearts and gems never run out. There is no switch for it any more: this build
+    /// is a gift, not a shop. Only the tests turn it off, to watch hearts move.
     var unlimitedResources = true
-    /// Optional AI assistant for the video call. `none` = fully offline.
+    /// An assistant chosen by hand, from before the key was built in. Never asked for
+    /// any more — the app ships with its own — but a key saved back then still wins.
     var aiProvider = AIProvider.none
     var aiKey = ""
 }
@@ -68,7 +70,8 @@ struct Settings: Codable, Hashable {
 // MARK: - The whole persisted blob
 
 struct PersistedState: Codable {
-    var nativeLanguage: Language?
+    /// The language being learnt. The interface is always English.
+    var course: Language?
     var xp: Int = 0
     var gems: Int = 120
     var hearts: Int = 5
@@ -93,6 +96,60 @@ struct PersistedState: Codable {
     /// norm(expected answer) → the other ways of saying it she has had accepted.
     /// Once learnt they are accepted offline, for good.
     var acceptedAlternatives: [String: [String]] = [:]
+    /// The progress of every course she is not taking right now, by course code.
+    var shelved: [String: CourseProgress] = [:]
+    /// Set while reading a save from the Italian-and-Uzbek days: its word memory is
+    /// keyed by the Italian side and has to be re-keyed onto the English course.
+    var needsEnglishRebase = false
+}
+
+/// Everything that belongs to one course rather than to the learner: which lessons
+/// are done, how well each word is known, what she got wrong. Lesson ids are the
+/// same in every course, so switching course puts the old one on the shelf whole and
+/// takes the new one down — nothing is ever mixed, and nothing is lost.
+struct CourseProgress: Codable, Hashable {
+    var records: [String: LessonRecord] = [:]
+    var srs: [String: SRSItem] = [:]
+    var unlockedLevels: Set<String> = ["a1"]
+    var mistakesBank: [Pair] = []
+    var recentCallQuestions: [String] = []
+    var wordGlosses: [String: String] = [:]
+    var acceptedAlternatives: [String: [String]] = [:]
+}
+
+extension PersistedState {
+    /// The course being taken, as one piece.
+    var currentProgress: CourseProgress {
+        get {
+            CourseProgress(records: records, srs: srs, unlockedLevels: unlockedLevels,
+                           mistakesBank: mistakesBank, recentCallQuestions: recentCallQuestions,
+                           wordGlosses: wordGlosses, acceptedAlternatives: acceptedAlternatives)
+        }
+        set {
+            records = newValue.records
+            srs = newValue.srs
+            unlockedLevels = newValue.unlockedLevels
+            mistakesBank = newValue.mistakesBank
+            recentCallQuestions = newValue.recentCallQuestions
+            wordGlosses = newValue.wordGlosses
+            acceptedAlternatives = newValue.acceptedAlternatives
+        }
+    }
+
+    /// Every course she has touched, the current one included.
+    var allCourses: [String: CourseProgress] {
+        var out = shelved
+        if let course { out[course.rawValue] = currentProgress }
+        return out
+    }
+
+    /// Shelves the current course and takes `new` down from the shelf (or starts it).
+    mutating func switchCourse(to new: Language) {
+        guard new != course else { return }
+        if let course { shelved[course.rawValue] = currentProgress }
+        currentProgress = shelved.removeValue(forKey: new.rawValue) ?? CourseProgress()
+        course = new
+    }
 }
 
 // MARK: - Observable app state
@@ -109,11 +166,11 @@ final class AppState {
     static let sessionsPerLesson = 5
 
     // MARK: derived language config
-    /// The language the user already speaks (drives the UI language).
-    var native: Language { s.nativeLanguage ?? .it }
+    /// The language of the interface, and the one every course is taught from.
+    var native: Language { .en }
     /// The language being learned.
-    var target: Language { native.other }
-    var isOnboarded: Bool { s.onboarded && s.nativeLanguage != nil }
+    var target: Language { s.course ?? Language.courses.first { ContentStore.hasCourse($0) } ?? .th }
+    var isOnboarded: Bool { s.onboarded && s.course != nil }
 
     var xp: Int { s.xp }
     var gems: Int { s.gems }
@@ -161,6 +218,10 @@ final class AppState {
     /// minus anything she has just said she cannot do right now.
     var effectiveSettings: Settings {
         var out = s.settings
+        // a language the phone cannot hear has no speaking exercises at all
+        if !target.canBeHeard { out.speakingExercises = false }
+        // nor listening ones in a language nothing can read aloud
+        if !target.canBeSpoken { out.listeningExercises = false }
         if isSnoozed(.speaking) { out.speakingExercises = false }
         if isSnoozed(.listening) { out.listeningExercises = false }
         return out
@@ -229,9 +290,9 @@ final class AppState {
 
     init(persistent: Bool = true) {
         self.persistent = persistent
-        curriculum = ContentStore.loadCurriculum()
-        questions = ContentStore.loadQuestions()
         if persistent, let loaded = Self.read() { s = loaded }
+        loadCourseContent()
+        if s.needsEnglishRebase { rebaseOntoEnglish() }
         normaliseHearts()
         if persistent {
             Task { @MainActor in self.account.attach(to: self) }
@@ -250,7 +311,10 @@ final class AppState {
 
     /// Replaces the whole profile — used only by the merge that follows a sign-in.
     func adopt(_ new: PersistedState) {
+        let courseChanged = new.course != s.course
         s = new
+        if courseChanged { loadCourseContent() }
+        if s.needsEnglishRebase { rebaseOntoEnglish() }
         normaliseHearts()
         guard persistent else { return }
         // Written straight through rather than through `save()`, so that adopting the
@@ -267,8 +331,45 @@ final class AppState {
 
     // MARK: - Onboarding
 
-    func chooseCourse(native: Language) {
-        s.nativeLanguage = native
+    /// Starts or resumes a course. The one being left goes on the shelf with all its
+    /// progress, ready for when she comes back to it.
+    func chooseCourse(_ course: Language) {
+        guard course != s.course || curriculum.levels.isEmpty else { return }
+        s.switchCourse(to: course)
+        loadCourseContent()
+        save()
+    }
+
+    /// Reads the current course out of the bundle.
+    private func loadCourseContent() {
+        let course = target
+        Language.current = course
+        curriculum = ContentStore.loadCurriculum(course)
+        questions = ContentStore.loadQuestions(course)
+        Phrases.table = ContentStore.loadPhrases(course)
+        if course.isLatin { Romanisation.table = [:] } else { Romanisation.index(curriculum) }
+    }
+
+    /// A save from before the course was taught from English kept every word's memory
+    /// under its Italian side. The Uzbek side has not changed, so each item is found
+    /// again by its Uzbek — and the glosses, which were Italian, are dropped.
+    private func rebaseOntoEnglish() {
+        var byUzbek: [String: Pair] = [:]
+        for pair in curriculum.allPairs + curriculum.allDrills where byUzbek[pair.tx] == nil {
+            byUzbek[pair.tx] = pair
+        }
+        var srs: [String: SRSItem] = [:]
+        for (key, item) in s.srs {
+            let uzbek = key.split(separator: "|", maxSplits: 1).last.map(String.init) ?? ""
+            guard let pair = byUzbek[uzbek] else { continue }
+            var moved = item
+            moved.pairID = pair.id
+            srs[pair.id] = moved
+        }
+        s.srs = srs
+        s.mistakesBank = s.mistakesBank.compactMap { byUzbek[$0.tx] }
+        s.wordGlosses = [:]
+        s.needsEnglishRebase = false
         save()
     }
 
@@ -307,7 +408,18 @@ final class AppState {
 
     /// The focus of the next session on this node.
     func nextFocus(for node: PathNode) -> SessionFocus {
-        node.focus(forSession: sessionsDone(node.id))
+        focus(for: node, session: sessionsDone(node.id))
+    }
+
+    /// What the n-th pass over a node will actually be, with her settings: a pass
+    /// whose skill she has switched off is a mixed review, and is labelled as one.
+    func focus(for node: PathNode, session index: Int) -> SessionFocus {
+        node.focus(forSession: index).available(with: effectiveSettings)
+    }
+
+    /// The five passes of a node as they will run, for the node sheet.
+    func sessionPlan(for node: PathNode) -> [SessionFocus] {
+        (0..<node.requiredSessions).map { focus(for: node, session: $0) }
     }
 
     /// Every node of the course in learning order.
@@ -432,15 +544,15 @@ final class AppState {
     /// A no-hearts practice run over everything a unit teaches.
     func unitPracticeRequest(for unit: Unit, level: CEFR) -> SessionRequest {
         // the words, and a changing selection of the unit's sentences
-        let pairs = Array(unit.allPairs.shuffled().prefix(14))
+        let pairs = Array(unit.allPairs.shuffled().prefix(10))
             + ExerciseFactory.rotation(words: [], sentences: unit.allDrills, fresh: [],
                                        familiarity: familiarity(with:),
-                                       wordCount: 0, sentenceCount: 10)
+                                       wordCount: 0, sentenceCount: 8)
         let exercises = ExerciseFactory.practice(pairs: pairs,
                                                  pool: curriculum.pairsUpTo(unitID: unit.id),
                                                  native: native,
                                                  settings: effectiveSettings,
-                                                 count: 18,
+                                                 count: 14,
                                                  productionBias: 0.6)
         return SessionRequest(mode: .practice,
                               customExercises: exercises,
@@ -488,7 +600,10 @@ final class AppState {
         save()
     }
 
+    /// Any work that earns XP keeps the streak alive — a practice run, a call, a deck
+    /// of flashcards — not only a lesson on the path.
     func addXP(_ amount: Int, minutes: Int = 0) {
+        defer { if amount > 0 { bumpStreak() } }
         s.xp += amount
         let key = Self.dayKey()
         if let i = s.history.firstIndex(where: { $0.day == key }) {
@@ -503,15 +618,48 @@ final class AppState {
     fileprivate func bumpStreak() {
         let today = Self.dayKey()
         guard s.lastPracticeDay != today else { return }
+        let before = s.streak
+        var frozen = false
         if let last = s.lastPracticeDay, last == Self.dayKey(daysAgo: 1) {
             s.streak += 1
         } else if let last = s.lastPracticeDay, last < Self.dayKey(daysAgo: 1), s.freezes > 0, last == Self.dayKey(daysAgo: 2) {
             s.freezes -= 1                 // a freeze covers exactly one missed day
             s.streak += 1
+            frozen = true
         } else {
             s.streak = 1
         }
         s.lastPracticeDay = today
+        streakMoment = StreakMoment(from: before, to: s.streak, freezeUsed: frozen,
+                                    week: practisedThisWeek())
+    }
+
+    // MARK: - The day the streak grows
+
+    /// Set the first time each day that work is finished, and shown once, by whichever
+    /// screen that work happened on, before it closes. Never saved: a moment missed
+    /// because the app was killed is not worth replaying a day later.
+    @ObservationIgnored private(set) var streakMoment: StreakMoment?
+
+    /// True once something today has kept the streak going.
+    var practisedToday: Bool { s.lastPracticeDay == Self.dayKey() }
+
+    /// Hands the pending moment over, so it is celebrated exactly once.
+    func takeStreakMoment() -> StreakMoment? {
+        defer { streakMoment = nil }
+        return streakMoment
+    }
+
+    /// Monday to Sunday of this week: which days she worked.
+    func practisedThisWeek(now: Date = .now) -> [Bool] {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.firstWeekday = 2                       // Italy and Uzbekistan both start on Monday
+        let start = calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? now
+        let worked = Set(s.history.filter { $0.xp > 0 }.map(\.day))
+        return (0..<7).map { offset in
+            let day = calendar.date(byAdding: .day, value: offset, to: start) ?? now
+            return worked.contains(Self.dayKey(from: day))
+        }
     }
 
     // MARK: - Hearts & shop
@@ -638,7 +786,7 @@ final class AppState {
             vocabulary = lesson.allPairs
             lessonTitle = lesson.title[native]
         case .story(let dialogue):
-            vocabulary = dialogue.lines.map { Pair(it: $0.it, uz: $0.uz) }
+            vocabulary = dialogue.lines.map { Pair(en: $0.en, tx: $0.tx, rom: $0.rom) }
             lessonTitle = dialogue.title[native]
         case .review:
             vocabulary = Array(unit.allPairs.shuffled().prefix(40))
@@ -717,7 +865,8 @@ extension Settings {
         haptics = try c.decodeIfPresent(Bool.self, forKey: .haptics) ?? true
         speakingExercises = try c.decodeIfPresent(Bool.self, forKey: .speakingExercises) ?? true
         listeningExercises = try c.decodeIfPresent(Bool.self, forKey: .listeningExercises) ?? true
-        freshPhrases = try c.decodeIfPresent(Bool.self, forKey: .freshPhrases) ?? true
+        // no longer a setting: whatever an older build saved, it is on
+        freshPhrases = true
         wordHints = try c.decodeIfPresent(Bool.self, forKey: .wordHints) ?? true
         speechRate = try c.decodeIfPresent(Double.self, forKey: .speechRate) ?? 0.44
         dailyGoal = try c.decodeIfPresent(Int.self, forKey: .dailyGoal) ?? 50
@@ -725,7 +874,8 @@ extension Settings {
         reminderOn = try c.decodeIfPresent(Bool.self, forKey: .reminderOn) ?? false
         reminderHour = try c.decodeIfPresent(Int.self, forKey: .reminderHour) ?? 19
         reminderMinute = try c.decodeIfPresent(Int.self, forKey: .reminderMinute) ?? 0
-        unlimitedResources = try c.decodeIfPresent(Bool.self, forKey: .unlimitedResources) ?? true
+        // no longer a setting either: hearts and gems are simply unlimited
+        unlimitedResources = true
         aiKey = try c.decodeIfPresent(String.self, forKey: .aiKey) ?? ""
         aiProvider = try c.decodeIfPresent(AIProvider.self, forKey: .aiProvider) ?? .none
         // migrate the earlier Claude-only field
@@ -782,13 +932,21 @@ extension SRSItem {
 
 extension PersistedState {
     enum CodingKeys: String, CodingKey {
-        case nativeLanguage, xp, gems, hearts, heartsStamp, streak, lastPracticeDay, freezes
+        case course, xp, gems, hearts, heartsStamp, streak, lastPracticeDay, freezes
         case records, srs, history, unlockedLevels, settings, onboarded, mistakesBank
-        case recentCallQuestions, acceptedAlternatives, skillSnoozes, wordGlosses
+        case recentCallQuestions, acceptedAlternatives, skillSnoozes, wordGlosses, shelved
+        case nativeLanguage      // read only: the Italian-and-Uzbek days
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        nativeLanguage = try c.decodeIfPresent(Language.self, forKey: .nativeLanguage)
+        if let code = try c.decodeIfPresent(String.self, forKey: .course) {
+            course = Language(rawValue: code)
+        } else if let old = try c.decodeIfPresent(String.self, forKey: .nativeLanguage) {
+            // An Italian learning Uzbek carries on with Uzbek, now taught from English.
+            // The Italian course for Uzbek speakers is gone: that learner picks again.
+            course = old == "it" ? .uz : nil
+            needsEnglishRebase = old == "it"
+        }
         xp = try c.decodeIfPresent(Int.self, forKey: .xp) ?? 0
         gems = try c.decodeIfPresent(Int.self, forKey: .gems) ?? 120
         hearts = try c.decodeIfPresent(Int.self, forKey: .hearts) ?? 5
@@ -808,5 +966,30 @@ extension PersistedState {
                                                      forKey: .acceptedAlternatives) ?? [:]
         skillSnoozes = try c.decodeIfPresent([String: Date].self, forKey: .skillSnoozes) ?? [:]
         wordGlosses = try c.decodeIfPresent([String: String].self, forKey: .wordGlosses) ?? [:]
+        shelved = try c.decodeIfPresent([String: CourseProgress].self, forKey: .shelved) ?? [:]
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(course?.rawValue, forKey: .course)
+        try c.encode(xp, forKey: .xp)
+        try c.encode(gems, forKey: .gems)
+        try c.encode(hearts, forKey: .hearts)
+        try c.encode(heartsStamp, forKey: .heartsStamp)
+        try c.encode(streak, forKey: .streak)
+        try c.encodeIfPresent(lastPracticeDay, forKey: .lastPracticeDay)
+        try c.encode(freezes, forKey: .freezes)
+        try c.encode(records, forKey: .records)
+        try c.encode(srs, forKey: .srs)
+        try c.encode(history, forKey: .history)
+        try c.encode(unlockedLevels, forKey: .unlockedLevels)
+        try c.encode(settings, forKey: .settings)
+        try c.encode(onboarded, forKey: .onboarded)
+        try c.encode(mistakesBank, forKey: .mistakesBank)
+        try c.encode(recentCallQuestions, forKey: .recentCallQuestions)
+        try c.encode(acceptedAlternatives, forKey: .acceptedAlternatives)
+        try c.encode(skillSnoozes, forKey: .skillSnoozes)
+        try c.encode(wordGlosses, forKey: .wordGlosses)
+        try c.encode(shelved, forKey: .shelved)
     }
 }

@@ -8,7 +8,9 @@ final class DrillsTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        curriculum = ContentStore.loadCurriculum()
+        curriculum = ContentStore.loadCurriculum(.uz)
+        // the engines read the course's language from here; AppState sets it on load
+        Language.current = .uz
     }
 
     // MARK: - The content
@@ -21,17 +23,17 @@ final class DrillsTests: XCTestCase {
     }
 
     func testPracticeSentencesAreSentencesAndNotRepeats() {
-        let taught = Set(curriculum.allPairs.map { Grader.normalise($0.uz) })
+        let taught = Set(curriculum.allPairs.map { Grader.normalise($0.tx) })
         var seen = Set<String>()
         for unit in curriculum.allUnits {
             var inUnit = Set<String>()
             for pair in unit.allDrills {
-                let key = Grader.normalise(pair.uz)
-                XCTAssertFalse(taught.contains(key), "'\(pair.uz)' is already a course item")
-                XCTAssertTrue(inUnit.insert(key).inserted, "'\(pair.uz)' twice in \(unit.id)")
-                XCTAssertGreaterThanOrEqual(pair.wordCount(.uz), 2, "'\(pair.uz)' is not a sentence")
-                XCTAssertFalse(pair.uz.contains("\u{2019}") || pair.uz.contains("\u{02BB}"),
-                               "curly apostrophe in '\(pair.uz)'")
+                let key = Grader.normalise(pair.tx)
+                XCTAssertFalse(taught.contains(key), "'\(pair.tx)' is already a course item")
+                XCTAssertTrue(inUnit.insert(key).inserted, "'\(pair.tx)' twice in \(unit.id)")
+                XCTAssertGreaterThanOrEqual(pair.wordCount(.uz), 2, "'\(pair.tx)' is not a sentence")
+                XCTAssertFalse(pair.tx.contains("\u{2019}") || pair.tx.contains("\u{02BB}"),
+                               "curly apostrophe in '\(pair.tx)'")
                 seen.insert(key)
             }
         }
@@ -49,10 +51,10 @@ final class DrillsTests: XCTestCase {
     // MARK: - The rotation
 
     private func lesson(drills: Int) -> Lesson {
-        var l = Lesson(id: "t1", title: Bilingual(it: "Prova", uz: "Sinov"))
-        l.vocab = (0..<10).map { Pair(it: "parola\($0)", uz: "so'z\($0)") }
-        l.phrases = (0..<4).map { Pair(it: "Frase del corso \($0).", uz: "Kurs jumlasi \($0).") }
-        l.drills = (0..<drills).map { Pair(it: "Frase nuova numero \($0).", uz: "Yangi jumla raqam \($0).") }
+        var l = Lesson(id: "t1", title: Bilingual(en: "Test", tx: "Sinov"))
+        l.vocab = (0..<10).map { Pair(en: "word\($0)", tx: "so'z\($0)") }
+        l.phrases = (0..<4).map { Pair(en: "Course sentence \($0).", tx: "Kurs jumlasi \($0).") }
+        l.drills = (0..<drills).map { Pair(en: "New sentence number \($0).", tx: "Yangi jumla raqam \($0).") }
         return l
     }
 
@@ -76,10 +78,10 @@ final class DrillsTests: XCTestCase {
 
     func testTheFirstPassIsStillTheLessonItself() {
         let l = lesson(drills: 24)
-        let unit = Unit(id: "tu", title: Bilingual(it: "U", uz: "U"), lessons: [l])
+        let unit = Unit(id: "tu", title: Bilingual(en: "U", tx: "U"), lessons: [l])
         let node = PathNode(kind: .lesson(l), unitID: unit.id, level: .a1, indexInUnit: 0)
         let session = ExerciseFactory.session(for: node, unit: unit, curriculum: curriculum,
-                                              native: .it, settings: Settings(), focus: .discover)
+                                              native: .en, settings: Settings(), focus: .discover)
         let drillIDs = Set(l.drills.map(\.id))
         XCTAssertFalse(session.contains { drillIDs.contains($0.pair.id) },
                        "new words are met in the course's own sentences first")
@@ -87,12 +89,19 @@ final class DrillsTests: XCTestCase {
 
     func testLaterPassesUseThePracticeSentences() {
         let l = lesson(drills: 24)
-        let unit = Unit(id: "tu", title: Bilingual(it: "U", uz: "U"), lessons: [l])
+        let unit = Unit(id: "tu", title: Bilingual(en: "U", tx: "U"), lessons: [l])
         let node = PathNode(kind: .lesson(l), unitID: unit.id, level: .a1, indexInUnit: 0)
-        let session = ExerciseFactory.session(for: node, unit: unit, curriculum: curriculum,
-                                              native: .it, settings: Settings(), focus: .writing)
         let drillIDs = Set(l.drills.map(\.id))
-        XCTAssertGreaterThanOrEqual(session.filter { drillIDs.contains($0.pair.id) }.count, 5)
+        // sessions are short now, so measure the share over several of them
+        var drillQuestions = 0, total = 0
+        for _ in 0..<10 {
+            let session = ExerciseFactory.session(for: node, unit: unit, curriculum: curriculum,
+                                                  native: .en, settings: Settings(), focus: .writing)
+            drillQuestions += session.filter { drillIDs.contains($0.pair.id) }.count
+            total += session.count
+        }
+        XCTAssertGreaterThan(Double(drillQuestions) / Double(total), 0.4,
+                             "most of a later pass is made of practice sentences")
     }
 
     func testARealLessonOffersFarMoreThanFourSentences() {
@@ -104,7 +113,7 @@ final class DrillsTests: XCTestCase {
         var answered: [String: Int] = [:]
         for focus in [SessionFocus.listening, .writing, .speaking, .review] {
             let session = ExerciseFactory.session(for: node, unit: unit, curriculum: curriculum,
-                                                  native: .it, settings: Settings(), focus: focus,
+                                                  native: .en, settings: Settings(), focus: focus,
                                                   familiarity: { answered[$0.id] ?? 0 })
             for ex in session {
                 answered[ex.pair.id, default: 0] += 1

@@ -8,7 +8,7 @@ struct LessonView: View {
     var onFinish: ((SessionResults) -> Void)?
 
     @State private var engine: LessonEngine?
-    @State private var showQuitAlert = false
+    @State private var quitDialog: GlassDialog?
     @State private var showStory = false
     @State private var outOfHearts = false
     @State private var results: SessionResults?
@@ -18,13 +18,19 @@ struct LessonView: View {
     @State private var writingPhrases = false
     /// The unit's practice sentences: made of words she already has, so never "new".
     @State private var drills: Set<String> = []
+    /// What the badges above a question said when it appeared. Answering grades the
+    /// word, which would make "new" vanish mid-question and the screen jump.
+    @State private var badgeMemo: [UUID: (new: Bool, mistake: Bool)] = [:]
+    /// The streak grew with this session: shown after the results, before closing.
+    @State private var streak: StreakMoment?
 
     var body: some View {
         ZStack {
-            Palette.bg.ignoresSafeArea()
+            AuroraBackground(mood: results == nil ? .lesson : .celebrate)
 
             if let results {
-                ResultsView(results: results) { dismiss() }
+                ResultsView(results: results) { leave() }
+                    .transition(.opacity)
             } else if showStory, case .story(let dialogue)? = request.node?.kind {
                 StoryReadingView(dialogue: dialogue) {
                     withAnimation(.easeInOut) { showStory = false }
@@ -34,7 +40,8 @@ struct LessonView: View {
             } else if let engine {
                 lessonBody(engine)
             } else {
-                VStack(spacing: 12) {
+                VStack(spacing: 14) {
+                    MascotBubble(mood: .think, size: 84)
                     ProgressView().tint(Palette.brand)
                     if writingPhrases {
                         Text(S.writingPhrases[state.native])
@@ -53,13 +60,12 @@ struct LessonView: View {
             guard !Task.isCancelled else { return }
             withAnimation(.easeOut(duration: 0.25)) { pausedNotice = nil }
         }
-        .alert(S.quitLesson[state.native], isPresented: $showQuitAlert) {
-            Button(S.stay[state.native], role: .cancel) {}
-            Button(S.quit[state.native], role: .destructive) { dismiss() }
-        } message: { Text(S.quitLessonMsg[state.native]) }
+        .glassDialog($quitDialog)
+        .streakCelebration($streak) { dismiss() }
         .sheet(isPresented: $outOfHearts) {
             HeartsSheet(onQuit: { outOfHearts = false; dismiss() })
-                .presentationDetents([.height(380)])
+                .presentationDetents([.height(420)])
+                .auroraSheet()
         }
     }
 
@@ -83,7 +89,8 @@ struct LessonView: View {
         } else {
             list = []
         }
-        Glossary.prime(with: state.curriculum.allPairs + state.curriculum.allDrills)
+        Glossary.prime(with: state.curriculum.allPairs + state.curriculum.allDrills,
+                       vocabulary: state.curriculum.allLessons.flatMap(\.vocab))
         // story lines, and every sentence the assistant writes, live in no file
         Glossary.learn(list.map(\.pair))
         drills = Set((request.unit?.allDrills ?? []).map(\.id))
@@ -95,8 +102,8 @@ struct LessonView: View {
     /// The first pass over a node teaches the words themselves and wants none of
     /// this. Every later pass takes whatever is on disk — instantly — and, when the
     /// pool is still thin, waits a few seconds for a first batch rather than serving
-    /// the same fifteen questions a fourth time. Either way another batch is ordered
-    /// on the way out, so the wait is paid at most once per chapter.
+    /// the same questions a fourth time. Either way another batch is ordered on the
+    /// way out, so the wait is paid at most once per chapter.
     private func freshPhrases(for node: PathNode, unit: Unit) async -> [Pair] {
         guard request.focus != .discover,
               let level = state.curriculum.level(of: unit.id),
@@ -108,7 +115,7 @@ struct LessonView: View {
             return held
         }
         withAnimation { writingPhrases = true }
-        let ready = await PhraseForge.shared.ready(brief, waitingUpTo: 9)
+        let ready = await PhraseForge.shared.ready(brief, waitingUpTo: 4)
         writingPhrases = false
         PhraseForge.shared.warm(brief)
         return ready
@@ -122,15 +129,17 @@ struct LessonView: View {
             topBar(engine)
 
             if let ex = engine.current {
+                ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(ex.instruction[state.native])
-                                .font(.heading(21))
-                                .foregroundStyle(Palette.ink)
+                    VStack(alignment: .leading, spacing: 20) {
+                        VStack(alignment: .leading, spacing: 9) {
                             badges(for: ex)
+                            Text(ex.instruction[state.native])
+                                .font(.display(25))
+                                .foregroundStyle(Palette.ink)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                        .padding(.top, 14)
+                        .padding(.top, 10)
 
                         ExerciseHost(exercise: ex, engine: engine)
                             .id(ex.id)
@@ -139,6 +148,18 @@ struct LessonView: View {
                     .padding(.bottom, 30)
                 }
                 .scrollDismissesKeyboard(.interactively)
+                .scrollIndicators(.hidden)
+                // a checked text: straight to the marks and the clues
+                .onChange(of: engine.composeRound) { _, round in
+                    guard round > 0 else { return }
+                    // after the keyboard has gone, or the scroll lands short
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        withAnimation(.easeInOut(duration: 0.4)) {
+                            proxy.scrollTo(ComposeExercise.reviewID, anchor: .top)
+                        }
+                    }
+                }
+                }
             } else {
                 Spacer()
             }
@@ -148,51 +169,49 @@ struct LessonView: View {
         .onChange(of: engine.finished) { _, done in
             if done { finish(engine) }
         }
+        .onChange(of: engine.current?.id, initial: true) { _, _ in
+            guard let ex = engine.current, badgeMemo[ex.id] == nil else { return }
+            let wordLike = ex.kind != .match && ex.kind != .compose
+            badgeMemo[ex.id] = (new: wordLike && state.isNew(ex.pair) && !drills.contains(ex.pair.id),
+                                mistake: !ex.isRetry && wordLike && state.isPastMistake(ex.pair))
+        }
     }
 
     /// Says what this question is, when it is something worth knowing: a word she has
     /// never met, or one she got wrong and is meeting again.
     @ViewBuilder
     private func badges(for ex: Exercise) -> some View {
-        let isNew = ex.kind != .match && state.isNew(ex.pair) && !drills.contains(ex.pair.id)
-        let isOldMistake = !ex.isRetry && ex.kind != .match && state.isPastMistake(ex.pair)
+        let isNew = badgeMemo[ex.id]?.new ?? false
+        let isOldMistake = badgeMemo[ex.id]?.mistake ?? false
         if ex.isRetry || isNew || isOldMistake {
             HStack(spacing: 7) {
                 if ex.isRetry {
-                    badge(S.previousMistake[state.native], icon: "arrow.uturn.left", tint: Palette.amberDeep,
-                          fill: Palette.amber.opacity(0.18))
+                    GlassChip(text: S.previousMistake[state.native], icon: "arrow.uturn.left",
+                              tint: Palette.amberDeep)
                 } else if isOldMistake {
-                    badge(S.previousMistake[state.native], icon: "bandage.fill", tint: Palette.redDeep,
-                          fill: Palette.red.opacity(0.14))
+                    GlassChip(text: S.previousMistake[state.native], icon: "bandage.fill",
+                              tint: Palette.redDeep)
                 }
                 if isNew {
-                    badge(S.newWord[state.native], icon: "sparkles", tint: Palette.teal,
-                          fill: Palette.teal.opacity(0.18))
+                    GlassChip(text: S.newWord[state.native], icon: "sparkles", tint: Palette.teal)
                 }
                 Spacer(minLength: 0)
             }
         }
     }
 
-    private func badge(_ text: String, icon: String, tint: Color, fill: Color) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon).font(.system(size: 9.5, weight: .black))
-            Text(text).font(.heading(10)).kerning(0.6)
-        }
-        .foregroundStyle(tint)
-        .padding(.horizontal, 8).padding(.vertical, 4)
-        .background(Capsule().fill(fill))
-    }
-
     private func topBar(_ engine: LessonEngine) -> some View {
-        VStack(spacing: 7) {
-            HStack(spacing: 14) {
-                Button {
-                    Feedback.tap(); showQuitAlert = true
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 19, weight: .black))
-                        .foregroundStyle(Palette.inkFaint)
+        VStack(spacing: 10) {
+            HStack(spacing: 12) {
+                GlassCircleButton(icon: "xmark", size: 42, tint: Palette.inkSoft,
+                                  accessibility: S.quit[state.native]) {
+                    Feedback.tap()
+                    quitDialog = GlassDialog(title: S.quitLesson[state.native],
+                                             message: S.quitLessonMsg[state.native],
+                                             confirm: S.quit[state.native],
+                                             cancel: S.stay[state.native],
+                                             destructive: true,
+                                             icon: "door.left.hand.open") { dismiss() }
                 }
                 ProgressBar(value: engine.progress, tint: barTint)
                 if request.mode == .test {
@@ -200,44 +219,43 @@ struct LessonView: View {
                              text: "\(engine.mistakePairs.count)/\(request.testTarget?.allowedMistakes ?? 3)",
                              tint: Palette.purple)
                 } else if request.consumesHearts && !state.unlimited {
-                    StatPill(icon: "heart.fill", text: "\(state.hearts)", tint: Palette.red)
+                    StatPill(icon: "heart.fill", text: "\(state.hearts)", tint: Palette.brand)
                         .contentTransition(.numericText())
                 } else {
-                    HStack(spacing: 3) {
-                        Image(systemName: "heart.fill").font(.system(size: 14, weight: .black))
-                        Image(systemName: "infinity").font(.system(size: 14, weight: .black))
-                    }
-                    .foregroundStyle(Palette.red)
+                    InfinityPill(icon: "heart.fill", tint: Palette.brand)
                 }
             }
             sessionBadge
         }
         .padding(.horizontal, Metrics.hPad)
-        .padding(.vertical, 10)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
     }
 
     private var barTint: Color {
-        request.mode == .test ? Palette.purple : Palette.green
+        if request.mode == .test { return Palette.purple }
+        if request.mode == .lesson { return request.focus.tint.main }
+        return request.accent?.main ?? Palette.brand
     }
 
     @ViewBuilder
     private var sessionBadge: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 0) {
             if request.mode == .test {
-                Image(systemName: "checkmark.seal.fill").font(.system(size: 11, weight: .black))
-                Text(S.testTitle[state.native].uppercased()).font(.heading(11)).kerning(0.7)
-            } else if request.mode == .lesson, request.sessionsTotal > 1 {
-                Image(systemName: request.focus.icon).font(.system(size: 11, weight: .black))
-                Text("\(request.focus.label[state.native].uppercased()) · \(request.sessionNumber)/\(request.sessionsTotal)")
-                    .font(.heading(11)).kerning(0.7)
+                GlassChip(text: S.testTitle[state.native].uppercased(), icon: "checkmark.seal.fill",
+                          tint: Palette.purpleDeep)
+            } else if request.mode == .lesson, request.node != nil {
+                let label = request.focus.label[state.native].uppercased()
+                GlassChip(text: request.sessionsTotal > 1 ? "\(label) · \(request.sessionNumber)/\(request.sessionsTotal)"
+                                                          : label,
+                          icon: request.focus.icon, tint: request.focus.tint.deep)
             } else if let title = request.customTitle {
-                Image(systemName: "dumbbell.fill").font(.system(size: 11, weight: .black))
-                Text(title[state.native].uppercased()).font(.heading(11)).kerning(0.7)
+                GlassChip(text: title[state.native].uppercased(), icon: "dumbbell.fill",
+                          tint: request.accent?.deep ?? Palette.brand)
             }
             Spacer(minLength: 0)
         }
-        .foregroundStyle(request.mode == .test ? Palette.purple : request.focus.tint.deep)
-        .padding(.leading, 34)
+        .padding(.leading, 54)
     }
 
     // MARK: - Footer: check / continue + feedback
@@ -249,86 +267,94 @@ struct LessonView: View {
             // the matching game grades itself: no action bar at all
             Color.clear.frame(height: 0)
         } else {
-        VStack(spacing: 12) {
-            if let pausedNotice {
-                pausedBanner(pausedNotice)
-            }
-            if let verdict {
-                feedbackBanner(verdict, engine: engine)
-            }
-
-            HStack(spacing: 12) {
-                // "not right now": puts the whole skill aside for a quarter of an hour,
-                // here and in every session started while the hold lasts
-                if verdict == nil, let skill = engine.current?.trainsSkill,
-                   skill == .speaking || skill == .listening {
-                    Button {
-                        Feedback.tap()
-                        state.snooze(skill)
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            pausedNotice = S.pausedNotice(skill, minutes: AppState.snoozeMinutes)
-                            engine.setAside(skill, native: state.native)
-                        }
-                    } label: {
-                        Text((skill == .speaking ? S.cantSpeak : S.cantListen)[state.native])
-                            .font(.heading(13))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                    }
-                    .buttonStyle(.chunky(Palette.card, Palette.strokeDeep, text: Palette.inkSoft, height: 50))
+            VStack(spacing: 14) {
+                if let pausedNotice {
+                    GlassToast(icon: "clock.badge.xmark", text: pausedNotice[state.native], tint: Palette.amber)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-
-                if engine.current?.kind != .match {
-                    Button {
-                        if verdict == nil { performCheck(engine) } else { performContinue(engine) }
-                    } label: {
-                        if engine.checking {
-                            HStack(spacing: 8) {
-                                ProgressView().tint(.white)
-                                Text(S.doubleChecking[state.native])
-                            }
-                        } else {
-                            Text(verdict == nil ? S.checkAnswer[state.native] : S.continueBtn[state.native])
-                        }
-                    }
-                    .buttonStyle(.chunky(buttonFill(verdict), buttonEdge(verdict)))
-                    .disabled(verdict == nil && !engine.canCheck)
-                    .opacity(verdict == nil && !engine.canCheck ? 0.45 : 1)
+                if let verdict {
+                    feedbackBanner(verdict, engine: engine)
+                }
+                // the Uzbek letters sit right above the button, which always sits right
+                // above the keyboard: where the eye already is, never under the keys
+                if verdict == nil, let ex = engine.current, ex.answerLanguage == .uz,
+                   [.type, .listenType, .compose].contains(ex.kind), !engine.checking {
+                    UzbekKeyRow { engine.typed.append($0) }
+                        .transition(.opacity)
+                }
+                buttons(engine, verdict: verdict)
+            }
+            .padding(.horizontal, Metrics.hPad)
+            .padding(.top, verdict == nil ? 12 : 18)
+            .padding(.bottom, 12)
+            .background {
+                if verdict != nil {
+                    GlassPane(shape: UnevenRoundedRectangle(topLeadingRadius: 32, bottomLeadingRadius: 0,
+                                                            bottomTrailingRadius: 0, topTrailingRadius: 32,
+                                                            style: .continuous),
+                              tint: bannerTint(verdict))
+                        .ignoresSafeArea(edges: .bottom)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-        }
-        .padding(.horizontal, Metrics.hPad)
-        .padding(.top, 12)
-        .padding(.bottom, 14)
-        .background(
-            (bannerTint(verdict)?.opacity(0.14) ?? Palette.bgElevated)
-                .overlay(alignment: .top) { Palette.stroke.frame(height: 1.5).opacity(verdict == nil ? 1 : 0) }
-                .ignoresSafeArea(edges: .bottom)
-        )
-        .animation(.easeOut(duration: 0.18), value: engine.verdict)
+            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: engine.verdict)
         }
     }
 
-    /// "Speaking is off for the next quarter of an hour" — said once, where she is
-    /// already looking, and gone on its own before it gets in the way.
-    private func pausedBanner(_ text: Bilingual) -> some View {
-        HStack(spacing: 9) {
-            Image(systemName: "clock.badge.xmark")
-                .font(.system(size: 15, weight: .black))
-                .foregroundStyle(Palette.amberDeep)
-            Text(text[state.native])
-                .font(.plain(13.5))
-                .foregroundStyle(Palette.ink)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
+    @ViewBuilder
+    private func buttons(_ engine: LessonEngine, verdict: Verdict?) -> some View {
+        let isCompose = engine.current?.kind == .compose
+        HStack(spacing: 10) {
+            // "not right now": puts the whole skill aside for a quarter of an hour,
+            // here and in every session started while the hold lasts
+            if verdict == nil, let skill = engine.current?.trainsSkill,
+               skill == .speaking || skill == .listening {
+                Button {
+                    Feedback.tap()
+                    state.snooze(skill)
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        pausedNotice = S.pausedNotice(skill, minutes: AppState.snoozeMinutes)
+                        engine.setAside(skill, native: state.native)
+                    }
+                } label: {
+                    Text((skill == .speaking ? S.cantSpeak : S.cantListen)[state.native])
+                        .font(.heading(13.5))
+                }
+                .buttonStyle(.glass(nil, height: 56, text: Palette.inkSoft))
+            }
+
+            // the short text has a way out once she has had a couple of clues
+            if verdict == nil, isCompose, engine.composeRound >= 2, !engine.checking {
+                Button {
+                    Feedback.tap()
+                    guard let ex = engine.current else { return }
+                    engine.revealComposition()
+                    settle(engine.grade(), ex: ex, engine: engine)
+                } label: {
+                    Text(S.composeReveal[state.native]).font(.heading(13.5))
+                }
+                .buttonStyle(.glass(Palette.amber, height: 56))
+            }
+
+            Button {
+                if verdict == nil { performCheck(engine) } else { performContinue(engine) }
+            } label: {
+                if engine.checking {
+                    HStack(spacing: 8) {
+                        ProgressView().tint(.white)
+                        Text(isCompose ? S.composeChecking[state.native] : S.doubleChecking[state.native])
+                    }
+                } else if verdict != nil {
+                    Text(S.continueBtn[state.native])
+                } else if isCompose {
+                    Text(engine.composeReport == nil ? S.composeCheck[state.native] : S.composeRecheck[state.native])
+                } else {
+                    Text(S.checkAnswer[state.native])
+                }
+            }
+            .buttonStyle(.primary(buttonTone(verdict)))
+            .disabled(verdict == nil && !engine.canCheck)
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Metrics.radiusSmall, style: .continuous)
-            .fill(Palette.amber.opacity(0.16)))
-        .overlay(RoundedRectangle(cornerRadius: Metrics.radiusSmall, style: .continuous)
-            .stroke(Palette.amber.opacity(0.45), lineWidth: 1.5))
-        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
     private func bannerTint(_ v: Verdict?) -> Color? {
@@ -338,18 +364,9 @@ struct LessonView: View {
         case nil: return nil
         }
     }
-    private func buttonFill(_ v: Verdict?) -> Color {
-        switch v {
-        case .wrong: return Palette.red
-        default: return Palette.green
-        }
-    }
-    private func buttonEdge(_ v: Verdict?) -> Color {
-        switch v {
-        case .wrong: return Palette.redDeep
-        default: return Palette.greenDeep
-        }
-    }
+
+    /// One colour for the button, whatever happened: the banner above says how it went.
+    private func buttonTone(_ v: Verdict?) -> Tone { .violet }
 
     /// One line of the banner: what was said, and what it means.
     private struct FeedbackLine {
@@ -391,7 +408,8 @@ struct LessonView: View {
         let key = Grader.normalise(raw)
         let accepted = Grader.alternatives(ex.answer).map(Grader.normalise)
         guard !accepted.contains(key), key != Grader.normalise(ex.solution) else { return nil }
-        return FeedbackLine(label: ex.kind == .speak ? S.heardYou[state.native] : S.yourAnswer[state.native],
+        let spoken = ex.kind == .speak || ex.kind == .speakRepeat
+        return FeedbackLine(label: spoken ? S.heardYou[state.native] : S.yourAnswer[state.native],
                             text: raw,
                             meaning: ex.meaning(of: raw))
     }
@@ -426,29 +444,29 @@ struct LessonView: View {
 
     @ViewBuilder
     private func feedbackBanner(_ v: Verdict, engine: LessonEngine) -> some View {
+        if let ex = engine.current, ex.kind == .compose {
+            composeBanner(v, ex: ex, engine: engine)
+        } else {
+            answerBanner(v, engine: engine)
+        }
+    }
+
+    @ViewBuilder
+    private func answerBanner(_ v: Verdict, engine: LessonEngine) -> some View {
         let ex = engine.current
         let solution = ex.flatMap { solutionLine(v, ex: $0, engine: engine) }
         let given = ex.flatMap { givenLine(v, ex: $0, engine: engine) }
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: {
-                switch v {
-                case .correct: return "checkmark.circle.fill"
-                case .alternative: return "checkmark.circle.fill"
-                case .almost: return "exclamationmark.circle.fill"
-                case .wrong: return "xmark.circle.fill"
-                }
-            }())
-            .font(.system(size: 26, weight: .black))
-            .foregroundStyle(bannerTint(v) ?? Palette.green)
+            verdictOrb(v)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 switch v {
                 case .correct:
                     Text(S.correct[state.native])
-                        .font(.heading(17)).foregroundStyle(Palette.greenDeep)
+                        .font(.display(19)).foregroundStyle(Palette.greenDeep)
                 case .alternative:
                     Text(S.alsoRight[state.native])
-                        .font(.heading(17)).foregroundStyle(Palette.greenDeep)
+                        .font(.display(19)).foregroundStyle(Palette.greenDeep)
                         .accessibilityLabel(S.alsoRight[state.native])
                 case .almost:
                     Text(S.almost[state.native]).font(.heading(15)).foregroundStyle(Palette.greenDeep)
@@ -457,7 +475,7 @@ struct LessonView: View {
                 }
 
                 if let solution {
-                    render(solution, size: 16, tint: Palette.ink)
+                    render(solution, size: 16.5, tint: Palette.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .speakOnTap(solution.text, language: ex?.answerLanguage)
                 }
@@ -481,36 +499,80 @@ struct LessonView: View {
                         acceptAnyway(engine, ex: ex)
                     } label: {
                         Label(S.mineIsRightToo[state.native], systemImage: "flag")
-                            .font(.plain(12))
+                            .font(.heading(12))
                             .foregroundStyle(Palette.inkSoft)
-                            .padding(.horizontal, 10).padding(.vertical, 5)
-                            .overlay(Capsule().stroke(Palette.strokeDeep, lineWidth: 1))
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            .glassCapsule(material: false, shadow: false)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                     .padding(.top, 4)
                 }
-                if let ex, ex.kind == .speak, let score = engine.speechScore {
+                if let ex, ex.kind == .speak || ex.kind == .speakRepeat, let score = engine.speechScore {
                     Text("\(Int(score * 100))%")
-                        .font(.plain(12)).foregroundStyle(Palette.inkSoft)
+                        .font(.heading(12)).foregroundStyle(Palette.inkSoft)
                 }
                 // the note only earns its line when it says something the
                 // translation above has not already said
-                if let ex, let hint = ex.hint, ex.kind != .speak,
+                if let ex, let hint = ex.hint, ex.kind != .speak, ex.kind != .speakRepeat,
                    hint != solution?.meaning?.text, case .wrong = v {
-                    Text(hint).font(.plain(13)).foregroundStyle(Palette.inkFaint)
+                    Text(hint).font(.plain(13)).foregroundStyle(Palette.inkSoft)
                 }
             }
             Spacer(minLength: 0)
 
             if let ex, let audio = ex.audioText ?? (ex.answerLanguage == state.target ? ex.answer : nil) {
-                Button {
+                GlassCircleButton(icon: "speaker.wave.2.fill", size: 40,
+                                  tint: v.isAccepted ? Palette.greenDeep : Palette.redDeep,
+                                  accessibility: S.listenAgain[state.native]) {
                     SpeechService.shared.speak(audio, language: state.target, rate: state.settings.speechRate)
-                } label: {
-                    Image(systemName: "speaker.wave.2.fill")
-                        .font(.system(size: 17, weight: .black))
-                        .foregroundStyle(bannerTint(v) ?? Palette.green)
                 }
-                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    private func verdictOrb(_ v: Verdict) -> some View {
+        let symbol: String
+        switch v {
+        case .correct, .alternative: symbol = "checkmark"
+        case .almost: symbol = "exclamationmark"
+        case .wrong: symbol = "xmark"
+        }
+        return OrbIcon(symbol, accent: v.isAccepted ? .green : .red, size: 40, symbolScale: 0.4)
+    }
+
+    /// The end of a short text: how it went, and the text as it now stands.
+    private func composeBanner(_ v: Verdict, ex: Exercise, engine: LessonEngine) -> some View {
+        let headline: String
+        let text: String
+        switch v {
+        case .correct:
+            headline = S.composeClean[state.native]
+            text = engine.typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .almost, .alternative:
+            headline = S.composeFixed[state.native]
+            text = engine.typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .wrong(let corrected):
+            headline = S.composeSeeFix[state.native]
+            text = corrected
+        }
+        return HStack(alignment: .top, spacing: 12) {
+            verdictOrb(v)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(headline)
+                    .font(.display(19))
+                    .foregroundStyle(v.isAccepted ? Palette.greenDeep : Palette.redDeep)
+                Text(text)
+                    .font(.body(15.5)).foregroundStyle(Palette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .speakOnTap(text, language: state.target)
+            }
+            Spacer(minLength: 0)
+            GlassCircleButton(icon: "speaker.wave.2.fill", size: 40,
+                              tint: v.isAccepted ? Palette.greenDeep : Palette.redDeep,
+                              accessibility: S.listenAgain[state.native]) {
+                SpeechService.shared.speak(text, language: state.target, rate: state.settings.speechRate)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -520,8 +582,9 @@ struct LessonView: View {
     // MARK: - Actions
 
     private func performCheck(_ engine: LessonEngine) {
-        let v = engine.grade()
         guard let ex = engine.current else { return }
+        if ex.kind == .compose { checkComposition(engine, ex: ex); return }
+        let v = engine.grade()
 
         // A translation she wrote herself can be right in more than one way. Before
         // the miss is recorded, see whether the course, her own history, or the
@@ -558,6 +621,41 @@ struct LessonView: View {
         }
     }
 
+    /// One round of correcting the short text: the assistant when there is one, the
+    /// offline checker otherwise. A clean text ends the exercise; anything else goes
+    /// back to her, with clues that get more precise each round.
+    private func checkComposition(_ engine: LessonEngine, ex: Exercise) {
+        guard let task = ex.composition else { return }
+        let text = engine.typed
+        let provider = state.aiProvider, key = state.aiKey
+        let curriculum = state.curriculum
+        // the keyboard goes away while the text is read, so the marks can be seen
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        engine.checking = true
+        Task {
+            var report: CompositionReport?
+            if AIClient.isConfigured(provider: provider, key: key) {
+                report = try? await AIClient.correctComposition(provider: provider, key: key,
+                                                                task: task, text: text)
+            }
+            let final = report ?? CompositionChecker.check(text, task: task, curriculum: curriculum)
+            await MainActor.run {
+                engine.checking = false
+                // she may have typed on while it was reading: the report is about
+                // the text it read, and the next check will read the new one
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                    let clean = engine.recordComposeRound(final)
+                    if clean {
+                        settle(engine.grade(), ex: ex, engine: engine)
+                    } else {
+                        // not a wrong answer: a draft with things to fix
+                        Feedback.pop()
+                    }
+                }
+            }
+        }
+    }
+
     /// Records the verdict, and pays for it.
     private func settle(_ v: Verdict, ex: Exercise, engine: LessonEngine) {
         withAnimation(.easeOut(duration: 0.18)) { engine.commit(v) }
@@ -565,7 +663,8 @@ struct LessonView: View {
             Feedback.success(); Feedback.dingCorrect()
         } else {
             Feedback.failure(); Feedback.dingWrong()
-            if request.consumesHearts {
+            // a text she needed to see corrected is a lesson, not a fault
+            if request.consumesHearts && ex.kind != .compose {
                 state.loseHeart()
                 if state.hearts == 0 { outOfHearts = true }
             }
@@ -573,7 +672,8 @@ struct LessonView: View {
         state.gradePair(ex.pair, correct: v.isAccepted)
 
         // read the answer back on production exercises
-        guard ex.answerLanguage == state.target, ex.kind != .speak else { return }
+        guard ex.answerLanguage == state.target, ex.kind != .speak, ex.kind != .speakRepeat,
+              ex.kind != .compose else { return }
         switch v {
         case .correct:
             readBack(ex.answer, after: ex, engine: engine)
@@ -613,6 +713,11 @@ struct LessonView: View {
         Feedback.tap()
         SpeechService.shared.stop()
         withAnimation(.easeInOut(duration: 0.2)) { engine.advance() }
+    }
+
+    /// Closes the lesson — by way of the streak, the first time today.
+    private func leave() {
+        if let moment = state.takeStreakMoment() { streak = moment } else { dismiss() }
     }
 
     private func finish(_ engine: LessonEngine) {

@@ -11,12 +11,18 @@ final class GraderTests: XCTestCase {
 
     func testPunctuationAndCaseIgnored() {
         XCTAssertEqual(Grader.grade("salom, qalaysan", expected: "Salom, qalaysan?"), .correct)
-        XCTAssertEqual(Grader.grade("  Sto   bene grazie ", expected: "Sto bene, grazie."), .correct)
+        XCTAssertEqual(Grader.grade("  i'm   fine thank you ", expected: "I'm fine, thank you."), .correct)
     }
 
-    func testItalianAccentsForgiven() {
-        XCTAssertEqual(Grader.grade("perche", expected: "perché"), .correct)
-        XCTAssertEqual(Grader.grade("e tu?", expected: "È tu?"), .correct)
+    func testAccentsForgiven() {
+        XCTAssertEqual(Grader.grade("cafe", expected: "café"), .correct)
+        XCTAssertEqual(Grader.grade("naive", expected: "Naïve"), .correct)
+    }
+
+    func testANoteInBracketsIsNotPartOfTheAnswer() {
+        // "(formal)" tells her which "you" is meant; nobody is expected to type it
+        XCTAssertEqual(Grader.grade("How are you?", expected: "How are you? (formal)"), .correct)
+        XCTAssertEqual(Grader.grade("Qalaysiz", expected: "Qalaysiz? (formal)"), .correct)
     }
 
     func testSmallTypoIsAlmost() {
@@ -39,8 +45,8 @@ final class GraderTests: XCTestCase {
     }
 
     func testAlternativesAccepted() {
-        XCTAssertEqual(Grader.grade("ciao", expected: "ciao / salve"), .correct)
-        XCTAssertEqual(Grader.grade("salve", expected: "ciao / salve"), .correct)
+        XCTAssertEqual(Grader.grade("park", expected: "park / garden"), .correct)
+        XCTAssertEqual(Grader.grade("garden", expected: "park / garden"), .correct)
     }
 
     func testPronunciationScore() {

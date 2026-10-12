@@ -68,22 +68,24 @@ enum Equivalence {
     static func form(_ raw: String, language: Language, context: Set<String>) -> Form {
         var out = Form()
         var adverbs: [String] = []
-        let movable = language == .uz ? uzMovable : itMovable
+        let movable = language == .uz ? uzMovable : language == .en ? enMovable : []
 
         for clause in clauses(of: raw) {
             var text = Grader.normalise(clause)
             guard !text.isEmpty else { continue }
             text = spellNumbers(text, language: language)
-            if language == .it { text = italianElisions(text) }
+            if language == .en { text = englishContractions(text) }
             text = applyRules(text, language: language, context: context)
             var tokens = text.split(separator: " ").map(String.init)
             if language == .uz, let last = tokens.last, last.count > 5, last.hasSuffix("dir") {
                 // the bookish copula: `bu kitobdir` is `bu kitob`
                 tokens[tokens.count - 1] = String(last.dropLast(3))
             }
+            // English never leaves its pronouns out, and the other courses' rules are
+            // still to be written: their tokens are compared as they are
             let (kept, dropped) = language == .uz
                 ? dropUzbekPronouns(tokens, context: context)
-                : dropItalianPronouns(tokens)
+                : (tokens, [])
             out.dropped += dropped
             for token in kept {
                 if movable.contains(token) { adverbs.append(token) } else { out.tokens.append(token) }
@@ -240,63 +242,14 @@ enum Equivalence {
         return tokens.contains { $0.range(of: pattern, options: .regularExpression) != nil }
     }
 
-    private static let itSubject: [String: Person] = [
-        "io": .s1, "tu": .s2, "lui": .s3, "lei": .s3, "egli": .s3, "ella": .s3,
-        "noi": .p1, "voi": .p2, "loro": .p3, "essi": .p3, "esse": .p3,
-    ]
-    /// A subject pronoun is only set aside where a subject goes: at the start of a
-    /// clause, or right after one of these. `con lei` keeps its `lei`.
-    private static let itClauseOpeners: Set<String> = [
-        "e", "ma", "pero", "perche", "quando", "se", "che", "poi", "anche", "quindi",
-        "cosi", "allora", "oggi", "domani", "ieri", "ora", "stasera", "mentre", "infatti",
-        "ciao", "salve", "buongiorno", "buonasera", "si", "no", "grazie", "scusa", "ecco",
-    ]
-    /// "io e te" would lose its "io" — but plain "e" is not in here: once accents are
-    /// folded it is also "è", and "lei è italiana" must be able to become "è italiana".
-    private static let itKeepBefore: Set<String> = [
-        "ed", "o", "con", "di", "a", "da", "per", "stesso", "stessa", "stessi", "solo", "sola",
-    ]
-    private static let itClitics: Set<String> = [
-        "mi", "ti", "ci", "vi", "si", "lo", "la", "li", "le", "ne", "non", "gli", "glie",
-    ]
-
-    private static func dropItalianPronouns(_ tokens: [String])
-        -> ([String], [(word: String, agrees: Bool)]) {
-        guard tokens.count > 1 else { return (tokens, []) }
-        var kept: [String] = []
-        var dropped: [(word: String, agrees: Bool)] = []
-        for (i, token) in tokens.enumerated() {
-            guard let person = itSubject[token], i + 1 < tokens.count,
-                  !itKeepBefore.contains(tokens[i + 1]),
-                  i == 0 || itClauseOpeners.contains(tokens[i - 1]) else {
-                kept.append(token); continue
-            }
-            let verb = tokens[(i + 1)...].first { !itClitics.contains($0) } ?? ""
-            dropped.append((token, itAgrees(person, verb)))
-        }
-        guard !kept.isEmpty else { return (tokens, []) }
-        return (kept, dropped)
-    }
-
-    private static func itAgrees(_ person: Person, _ verb: String) -> Bool {
-        switch person {
-        case .s1: return verb == "ho" || verb.hasSuffix("o") || verb.hasSuffix("ei")
-        case .s2: return verb.hasSuffix("i")
-        case .s3: return verb.hasSuffix("a") || verb.hasSuffix("e")
-        case .p1: return verb.hasSuffix("mo")
-        case .p2: return verb.hasSuffix("te")
-        case .p3: return verb.hasSuffix("no")
-        }
-    }
-
     // MARK: - Words that may move
 
     private static let uzMovable: Set<String> = [
         "bugun", "ertaga", "kecha", "hozir", "endi", "indinga", "doim", "hamisha",
         "ertalab", "kechqurun", "kunduzi", "kechasi",
     ]
-    private static let itMovable: Set<String> = [
-        "oggi", "domani", "ieri", "stasera", "stamattina", "stanotte", "dopodomani",
+    private static let enMovable: Set<String> = [
+        "today", "tomorrow", "yesterday", "now", "tonight",
     ]
 
     // MARK: - Same thing, other words
@@ -327,53 +280,53 @@ enum Equivalence {
         Rule(pattern: #"\bbir (yuz|ming)\b"#, template: "$1"),
     ]
 
-    private static let itRules: [Rule] = [
-        Rule(pattern: #"\bche cosa\b"#, template: "cosa"),
-        Rule(pattern: #"\bil mio nome e\b"#, template: "mi chiamo"),
-        Rule(pattern: #"\bqual e il tuo nome\b"#, template: "come ti chiami"),
-        Rule(pattern: #"\bqual e il suo nome\b"#, template: "come si chiama"),
-        Rule(pattern: #"\bqual e il vostro nome\b"#, template: "come vi chiamate"),
-        Rule(pattern: #"\bper (piacere|cortesia)\b"#, template: "per favore"),
-        Rule(pattern: #"\b(molte grazie|grazie tante|tante grazie)\b"#, template: "grazie mille"),
-        Rule(pattern: #"\b(mi scusi|mi scusa|scusami|scusate|scusi)\b"#, template: "scusa"),
-        Rule(pattern: #"\badesso\b"#, template: "ora"),
-        Rule(pattern: #"\b(ok|okay)\b"#, template: "va bene"),
-        // salom is "ciao" and "salve" alike; xayr is "ciao" and "arrivederci"
-        Rule(pattern: #"\b(salve|buongiorno|buonasera)\b"#, template: "ciao",
-             when: { $0.contains("salom") || $0.contains { $0.hasPrefix("assalom") || $0.hasPrefix("asalom") } }),
-        Rule(pattern: #"\b(arrivederci|arrivederla|ciao)\b"#, template: "arrivederci",
-             when: { $0.contains("xayr") || $0.contains("hayr") }),
-        // abitare and vivere, where they mean the same
-        Rule(pattern: #"\babit(o|i|a|iamo|ate|ano|avo|avi|ava|avamo|avate|avano|are)\b"#, template: "viv$1"),
-        Rule(pattern: #"\bviva\b"#, template: "vive"),
-        Rule(pattern: #"\bvivate\b"#, template: "vivete"),
-        Rule(pattern: #"\bvivano\b"#, template: "vivono"),
-        Rule(pattern: #"\bvivare\b"#, template: "vivere"),
-        Rule(pattern: #"\bvivavo\b"#, template: "vivevo"),
-        Rule(pattern: #"\bvivavi\b"#, template: "vivevi"),
-        Rule(pattern: #"\bvivava\b"#, template: "viveva"),
-        Rule(pattern: #"\bvivavamo\b"#, template: "vivevamo"),
-        Rule(pattern: #"\bvivavate\b"#, template: "vivevate"),
-        Rule(pattern: #"\bvivavano\b"#, template: "vivevano"),
-        Rule(pattern: #"\babitato\b"#, template: "vissuto"),
+    private static let enRules: [Rule] = [
+        // "my name is Claudia" and "I am Claudia" are one introduction
+        Rule(pattern: #"\bmy name is\b"#, template: "i am"),
+        Rule(pattern: #"\bi am called\b"#, template: "i am"),
+        Rule(pattern: #"\bwhat is your name\b"#, template: "what are you called"),
+        Rule(pattern: #"\b(hi|hey|hiya)\b"#, template: "hello"),
+        Rule(pattern: #"\b(bye|bye bye|see you)\b"#, template: "goodbye"),
+        Rule(pattern: #"\b(thank you very much|thanks a lot|many thanks|thanks very much)\b"#,
+             template: "thank you very much"),
+        Rule(pattern: #"\bthanks\b"#, template: "thank you"),
+        Rule(pattern: #"\b(ok|alright|all right)\b"#, template: "okay"),
+        Rule(pattern: #"\b(excuse me|pardon me|pardon)\b"#, template: "sorry",
+             when: { $0.contains { $0.hasPrefix("kechir") || $0 == "uzr" } }),
+        Rule(pattern: #"\bcan not\b"#, template: "cannot"),
     ]
 
     private static func applyRules(_ text: String, language: Language, context: Set<String>) -> String {
         var s = text
-        for rule in language == .uz ? uzRules : itRules {
+        for rule in language == .uz ? uzRules : language == .en ? enRules : [] {
             if let when = rule.when, !when(context) { continue }
             s = s.replacingOccurrences(of: rule.pattern, with: rule.template, options: .regularExpression)
         }
         return s.split(separator: " ").joined(separator: " ")
     }
 
-    /// l'amico → l amico, anch'io → anche io, cos'è → cosa e, c'è → ci e.
-    private static func italianElisions(_ text: String) -> String {
-        let expand = ["anch": "anche", "dov": "dove", "com": "come", "cos": "cosa",
-                      "quand": "quando", "c": "ci"]
-        return text.replacingOccurrences(of: "'", with: " ")
-            .split(separator: " ")
-            .map { expand[String($0)] ?? String($0) }
+    /// I'm → i am, don't → do not — with or without the apostrophe she may have skipped.
+    private static func englishContractions(_ text: String) -> String {
+        let table: [String: String] = [
+            "i'm": "i am", "im": "i am", "you're": "you are", "youre": "you are",
+            "he's": "he is", "she's": "she is", "it's": "it is", "its": "it is",
+            "we're": "we are", "they're": "they are", "theyre": "they are",
+            "i've": "i have", "ive": "i have", "you've": "you have", "we've": "we have",
+            "they've": "they have", "i'll": "i will", "you'll": "you will", "he'll": "he will",
+            "she'll": "she will", "we'll": "we will", "they'll": "they will", "it'll": "it will",
+            "i'd": "i would", "you'd": "you would", "we'd": "we would", "they'd": "they would",
+            "don't": "do not", "dont": "do not", "doesn't": "does not", "doesnt": "does not",
+            "didn't": "did not", "didnt": "did not", "isn't": "is not", "isnt": "is not",
+            "aren't": "are not", "arent": "are not", "wasn't": "was not", "wasnt": "was not",
+            "weren't": "were not", "can't": "cannot", "cant": "cannot", "won't": "will not",
+            "haven't": "have not", "havent": "have not", "hasn't": "has not", "hadn't": "had not",
+            "couldn't": "could not", "shouldn't": "should not", "wouldn't": "would not",
+            "mustn't": "must not", "that's": "that is", "thats": "that is", "what's": "what is",
+            "whats": "what is", "where's": "where is", "there's": "there is", "here's": "here is",
+            "who's": "who is", "how's": "how is", "let's": "let us", "lets": "let us",
+        ]
+        return text.split(separator: " ")
+            .map { table[String($0)] ?? String($0) }
             .joined(separator: " ")
     }
 
@@ -384,7 +337,8 @@ enum Equivalence {
             let token = String(piece)
             let digits = token.prefix { $0.isASCII && $0.isNumber }
             guard !digits.isEmpty, let n = Int(digits),
-                  let words = language == .uz ? uzbekNumber(n) : italianNumber(n) else { return token }
+                  let words = language == .uz ? uzbekNumber(n) : language == .en ? englishNumber(n) : nil
+            else { return token }
             return words + token.dropFirst(digits.count)
         }.joined(separator: " ")
     }
@@ -408,27 +362,23 @@ enum Equivalence {
         }
     }
 
-    private static let itUnder20 = ["zero", "uno", "due", "tre", "quattro", "cinque", "sei", "sette", "otto", "nove",
-                                    "dieci", "undici", "dodici", "tredici", "quattordici", "quindici", "sedici",
-                                    "diciassette", "diciotto", "diciannove"]
-    private static let itTens = ["", "", "venti", "trenta", "quaranta", "cinquanta", "sessanta", "settanta",
-                                 "ottanta", "novanta"]
+    private static let enUnder20 = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
+                                    "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
+                                    "sixteen", "seventeen", "eighteen", "nineteen"]
+    private static let enTens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
 
-    static func italianNumber(_ n: Int) -> String? {
+    static func englishNumber(_ n: Int) -> String? {
         switch n {
-        case 0..<20: return itUnder20[n]
+        case 0..<20: return enUnder20[n]
         case 20..<100:
-            var tens = itTens[n / 10]
             let rest = n % 10
-            if rest == 1 || rest == 8 { tens.removeLast() }          // ventuno, ventotto
-            return rest == 0 ? tens : tens + itUnder20[rest]
+            return enTens[n / 10] + (rest == 0 ? "" : " " + enUnder20[rest])
         case 100..<1000:
-            let head = n / 100 == 1 ? "cento" : itUnder20[n / 100] + "cento"
-            return n % 100 == 0 ? head : head + (italianNumber(n % 100) ?? "")
-        case 1000: return "mille"
-        case 1001..<10000:
-            let head = n / 1000 == 1 ? "mille" : itUnder20[n / 1000] + "mila"
-            return n % 1000 == 0 ? head : head + (italianNumber(n % 1000) ?? "")
+            let head = enUnder20[n / 100] + " hundred"
+            return n % 100 == 0 ? head : head + " " + (englishNumber(n % 100) ?? "")
+        case 1000..<10000:
+            let head = enUnder20[n / 1000] + " thousand"
+            return n % 1000 == 0 ? head : head + " " + (englishNumber(n % 1000) ?? "")
         default: return nil
         }
     }

@@ -3,18 +3,25 @@ import SwiftUI
 /// Tap a word, hear it and see what it means.
 ///
 /// Nothing written in the language being learnt should sit on screen without a way to
-/// hear it, and the tap target is the word itself rather than the line. A tap also
-/// opens a small card underneath with the meaning of that word — and, when the line is
-/// an expression the course teaches as a whole, what the whole thing means, because
-/// `ertaga ko'rishguncha` is not "tomorrow until-we-see".
+/// hear it, and the tap target is the word itself rather than the line. A tap opens a
+/// small card underneath with the meaning of **that word** — never of the whole
+/// sentence. When the word is part of a set expression the course teaches as a unit,
+/// the card says what the expression means, because `xayrli tong` is not
+/// "auspicious morning": the expression is lit up in the line, and explained whole.
 
 /// What a tapped word turned out to mean.
 struct WordHint: Equatable {
+    /// Which word of the line was tapped.
+    var index: Int
     var word: String
     var meaning: String?
-    /// Set only when the line means something its words do not add up to.
+    /// The dictionary form, when an inflected word was read back to one:
+    /// `bordim` → `bormoq`. The meaning is then that form's.
+    var base: String?
+    /// The set expression the word belongs to, its meaning, and where it sits.
     var phrase: String?
     var phraseMeaning: String?
+    var span: ClosedRange<Int>?
 
     /// Nothing worth opening a card for.
     var isEmpty: Bool { meaning == nil && phraseMeaning == nil }
@@ -33,15 +40,15 @@ struct SpeakableText: View {
     var speakWholeOnLongPress: Bool = true
     /// Whether a tap may open the meaning card. Off where there is no room for it.
     var showsMeaning: Bool = true
-    /// The line to look the expression up under, when what is on screen is not it —
-    /// a fill-in-the-blank shows a gap where a word belongs.
+    /// The line to read a word in, when what is on screen is not it — a
+    /// fill-in-the-blank shows a gap where a word belongs.
     var glossaryText: String?
 
     @State private var hint: WordHint?
-    @State private var looking = false
+    @State private var looking: Int?
 
     private var words: [String] {
-        text.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        WordSplitter.words(in: text, language: language)
     }
 
     var body: some View {
@@ -50,12 +57,19 @@ struct SpeakableText: View {
                 WordFlow(lineSpacing: 3, alignment: alignment) {
                     ForEach(Array(words.enumerated()), id: \.offset) { index, word in
                         Button {
-                            tapped(word)
+                            tapped(index)
                         } label: {
-                            Text(index == words.count - 1 ? word : word + " ")
+                            Text(index == words.count - 1 || language.isUnspaced ? word : word + " ")
                                 .font(font)
-                                .foregroundStyle(color)
-                                .underline(hint?.word == word, pattern: .dot)
+                                .foregroundStyle(lit(index) ? Palette.brandDeep : color)
+                                .underline(lit(index), pattern: .dot, color: Palette.brand)
+                                .background {
+                                    if lit(index) {
+                                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                            .fill(Palette.brand.opacity(0.12))
+                                            .padding(.horizontal, -3)
+                                    }
+                                }
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(word)
@@ -67,16 +81,25 @@ struct SpeakableText: View {
                     guard speakWholeOnLongPress else { return }
                     speak(text)
                 }
+                // Persian runs right to left: so do its words
+                .environment(\.layoutDirection, language.isRightToLeft ? .rightToLeft : .leftToRight)
             } else {
                 Text(text)
                     .font(font)
                     .foregroundStyle(color)
                     .fixedSize(horizontal: false, vertical: true)
                     .contentShape(Rectangle())
-                    .onTapGesture { tapped(text) }
+                    .onTapGesture { tapped(0) }
             }
 
-            if looking {
+            if language != .en, let rom = Romanisation.of(text) {
+                Text(rom)
+                    .font(.plain(13.5)).italic()
+                    .foregroundStyle(Palette.inkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if looking != nil {
                 HStack(spacing: 7) {
                     ProgressView().scaleEffect(0.7).tint(Palette.brand)
                     Text(S.lookingUp[state.native])
@@ -90,64 +113,114 @@ struct SpeakableText: View {
         }
     }
 
-    private func tapped(_ word: String) {
-        speak(word)
+    /// The tapped word, or every word of the expression it belongs to.
+    private func lit(_ index: Int) -> Bool {
+        guard let hint else { return looking == index }
+        if let span = hint.span { return span.contains(index) }
+        return hint.index == index
+    }
+
+    private func tapped(_ index: Int) {
+        guard words.indices.contains(index) || words.isEmpty else { return }
+        let word = words.isEmpty ? text : words[index]
+        speak(CompositionPlanner.trimPunctuation(word))
         guard showsMeaning, state.settings.wordHints else { return }
         // tapping the same word again puts the card away
-        if hint?.word == word {
+        if hint?.index == index {
             withAnimation(.easeOut(duration: 0.15)) { hint = nil }
             return
         }
-        let found = meaning(of: word)
-        if !found.isEmpty {
+        Glossary.prime(with: state.curriculum.allPairs + state.curriculum.allDrills,
+                       vocabulary: state.curriculum.allLessons.flatMap(\.vocab))
+        let found = lookUp(index, word)
+        if found.meaning != nil {
             withAnimation(.easeOut(duration: 0.15)) { hint = found }
             return
         }
-        // the course teaches barely a fifth of its words on their own, so most taps
+        // the course teaches barely a fifth of its words on their own, so many taps
         // land on something only the assistant can gloss
-        guard AIClient.isConfigured(provider: state.aiProvider, key: state.aiKey) else { return }
+        guard AIClient.isConfigured(provider: state.aiProvider, key: state.aiKey) else {
+            withAnimation(.easeOut(duration: 0.15)) { hint = found.isEmpty ? nil : found }
+            return
+        }
         hint = nil
-        withAnimation(.easeOut(duration: 0.15)) { looking = true }
+        withAnimation(.easeOut(duration: 0.15)) { looking = index }
+        let line = glossaryText ?? text
         Task {
-            let found = try? await AIClient.wordMeaning(of: word, inside: glossaryText ?? text,
-                                                        language: language, native: state.native,
-                                                        provider: state.aiProvider, key: state.aiKey)
+            let answer = try? await AIClient.wordMeaning(of: CompositionPlanner.trimPunctuation(word),
+                                                         inside: line,
+                                                         language: language, native: state.native,
+                                                         provider: state.aiProvider, key: state.aiKey)
             await MainActor.run {
-                if let found {
-                    state.rememberGloss(found.word, for: word, language: language)
-                    if let expression = found.expression, words.count > 1 {
-                        state.rememberGloss(expression, for: glossaryText ?? text, language: language)
+                var result = found
+                if let answer {
+                    state.rememberGloss(answer.word, for: word, language: language)
+                    result.meaning = answer.word
+                    result.base = nil
+                    if result.phrase == nil, let phrase = answer.phrase, let meaning = answer.phraseMeaning,
+                       let span = span(of: phrase, around: index) {
+                        state.rememberGloss(meaning, for: phrase, language: language)
+                        result.phrase = words[span].joined(separator: " ")
+                        result.phraseMeaning = meaning
+                        result.span = span
                     }
                 }
                 withAnimation(.easeOut(duration: 0.15)) {
-                    looking = false
-                    hint = found.map {
-                        WordHint(word: word, meaning: $0.word,
-                                 phrase: $0.expression == nil ? nil : (glossaryText ?? text),
-                                 phraseMeaning: $0.expression)
-                    }
+                    looking = nil
+                    hint = result.isEmpty ? nil : result
                 }
             }
         }
     }
 
-    /// What the word means, and what the line means when it is more than its words.
-    /// The course first, then anything already looked up before — both instant.
-    private func meaning(of word: String) -> WordHint {
-        var out = WordHint(word: word)
-        out.meaning = Glossary.look(up: word, from: language).map(\.text)
-                   ?? state.cachedGloss(word, language: language)
-        let line = glossaryText ?? text
-        if words.count > 1 {
-            if let whole = Glossary.look(up: line, from: language), !whole.literal {
-                out.phrase = line
-                out.phraseMeaning = whole.text
-            } else if let remembered = state.cachedGloss(line, language: language) {
-                out.phrase = line
-                out.phraseMeaning = remembered
-            }
+    /// What the word means, and the expression it belongs to when it belongs to one —
+    /// from the course first, then from anything already looked up. Both instant.
+    private func lookUp(_ index: Int, _ word: String) -> WordHint {
+        var out = WordHint(index: index, word: CompositionPlanner.trimPunctuation(word))
+        if let known = Glossary.word(word, from: language) ?? state.cachedGloss(word, language: language) {
+            out.meaning = known
+        } else if let base = Glossary.base(of: word, from: language) {
+            out.meaning = base.meaning
+            out.base = base.base
+        }
+        guard words.count > 1 else { return out }
+        if let expression = Glossary.expression(in: words, containing: index, from: language) {
+            out.phrase = words[expression.span].joined(separator: " ")
+            out.phraseMeaning = expression.meaning
+            out.span = expression.span
+        } else if let remembered = rememberedExpression(around: index) {
+            out.phrase = words[remembered.span].joined(separator: " ")
+            out.phraseMeaning = remembered.meaning
+            out.span = remembered.span
         }
         return out
+    }
+
+    /// An expression the assistant explained once before, anywhere in the app.
+    private func rememberedExpression(around index: Int) -> (span: ClosedRange<Int>, meaning: String)? {
+        for length in stride(from: min(4, words.count), through: 2, by: -1) {
+            for start in max(0, index - length + 1)...min(index, words.count - length) {
+                let span = start...(start + length - 1)
+                // the whole sentence is never an "expression" of one of its words
+                if span.count == words.count && words.count > 3 { continue }
+                if let meaning = state.cachedGloss(words[span].joined(separator: " "), language: language) {
+                    return (span, meaning)
+                }
+            }
+        }
+        return nil
+    }
+
+    /// Where an expression the assistant named sits in the line, around the tapped word.
+    private func span(of phrase: String, around index: Int) -> ClosedRange<Int>? {
+        let key = Grader.normalise(phrase)
+        let length = key.split(separator: " ").count
+        guard length >= 2, length <= words.count else { return nil }
+        for start in max(0, index - length + 1)...min(index, words.count - length) {
+            let span = start...(start + length - 1)
+            if Grader.normalise(words[span].joined(separator: " ")) == key { return span }
+        }
+        return nil
     }
 
     private func speak(_ piece: String) {
@@ -164,36 +237,38 @@ private struct HintCard: View {
     let dismiss: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             if let meaning = hint.meaning {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(hint.word).font(.heading(14)).foregroundStyle(Palette.brand)
-                    Text(meaning).font(.body(14)).foregroundStyle(Palette.ink)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(hint.word).font(.heading(15)).foregroundStyle(Palette.brandDeep)
+                        Text(meaning).font(.body(15)).foregroundStyle(Palette.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                    if let base = hint.base {
+                        Text("\(S.baseForm[state.native]): \(base)")
+                            .font(.plain(12)).foregroundStyle(Palette.inkSoft)
+                    }
                 }
             }
             // an expression the course teaches whole, not word by word
             if let phrase = hint.phrase, let phraseMeaning = hint.phraseMeaning {
                 if hint.meaning != nil { Rectangle().fill(Palette.stroke).frame(height: 1) }
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(S.wholeExpression[state.native])
-                        .font(.heading(9.5)).kerning(0.6).foregroundStyle(Palette.inkFaint)
-                    Text("\u{201C}\(phrase)\u{201D}")
-                        .font(.plain(13)).foregroundStyle(Palette.inkSoft)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(phraseMeaning)
-                        .font(.body(14)).foregroundStyle(Palette.ink)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .font(.heading(9.5)).kerning(0.8).foregroundStyle(Palette.inkSoft)
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(phrase).font(.heading(15)).foregroundStyle(Palette.brandDeep)
+                        Text(phraseMeaning).font(.body(15)).foregroundStyle(Palette.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
                 }
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Palette.brand.opacity(0.10))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Palette.brand.opacity(0.35), lineWidth: 1.5))
-        )
+        .padding(.horizontal, 14).padding(.vertical, 11)
+        .glass(radius: 16, tint: Palette.brand, material: false, shadow: false)
         .contentShape(Rectangle())
         .onTapGesture(perform: dismiss)
         .accessibilityAddTraits(.isButton)

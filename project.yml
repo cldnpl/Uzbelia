@@ -57,10 +57,10 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: "YES"
-        INFOPLIST_KEY_CFBundleDisplayName: "Uzbelia"
+        INFOPLIST_KEY_CFBundleDisplayName: "Lingora"
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait"
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Uzbelia usa il microfono per gli esercizi di pronuncia. / Uzbelia talaffuz mashqlari uchun mikrofondan foydalanadi."
-        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Uzbelia usa il riconoscimento vocale per valutare la tua pronuncia. / Uzbelia talaffuzingizni baholash uchun nutqni tanishdan foydalanadi."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Lingora uses the microphone for the speaking exercises and the video calls."
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Lingora uses speech recognition to check your pronunciation."
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         TARGETED_DEVICE_FAMILY: "1"

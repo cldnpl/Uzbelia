@@ -6,7 +6,7 @@ final class PlacementTestTests: XCTestCase {
 
     private func freshState() -> AppState {
         let s = AppState(persistent: false)
-        s.chooseCourse(native: .it)
+        s.chooseCourse(.uz)
         return s
     }
 

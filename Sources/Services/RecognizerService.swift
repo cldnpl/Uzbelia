@@ -31,7 +31,7 @@ final class RecognizerService: NSObject {
     private var recorded = Data()
     private var converter: AVAudioConverter?
     private var listeningRemotely = false
-    private var remoteLanguage: Language = .uz
+    private var remoteLanguage: Language = Language.current
 
     /// True while the words on screen are a running guess rather than the final read.
     private(set) var isPartial = false
@@ -46,7 +46,9 @@ final class RecognizerService: NSObject {
         let supported = SFSpeechRecognizer.supportedLocales().map { $0.identifier.replacingOccurrences(of: "_", with: "-") }
         for code in language.speechFallbacks {
             if let hit = supported.first(where: { $0.lowercased() == code.lowercased() }) { return hit }
-            if let hit = supported.first(where: { $0.lowercased().hasPrefix(String(code.prefix(2)).lowercased()) }) { return hit }
+            // the language subtag, whole: "fil" must not land on Finnish
+            let lang = (code.split(separator: "-").first.map(String.init) ?? code).lowercased() + "-"
+            if let hit = supported.first(where: { $0.lowercased().hasPrefix(lang) }) { return hit }
         }
         return nil
     }
@@ -55,7 +57,7 @@ final class RecognizerService: NSObject {
     func isExact(for language: Language) -> Bool {
         if usesRemote(for: language) { return true }
         guard let r = resolvedLocale(for: language) else { return false }
-        return r.lowercased().hasPrefix(language.rawValue)
+        return language.speechFallbacks.prefix(language == .uz ? 1 : 2).contains { r.lowercased() == $0.lowercased() }
     }
 
     func isAvailable(for language: Language) -> Bool {

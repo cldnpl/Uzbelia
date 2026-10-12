@@ -9,7 +9,7 @@ final class StateMergeTests: XCTestCase {
 
     private func learner(xp: Int = 0) -> PersistedState {
         var s = PersistedState()
-        s.nativeLanguage = .it
+        s.course = .uz
         s.onboarded = true
         s.xp = xp
         return s
@@ -55,12 +55,12 @@ final class StateMergeTests: XCTestCase {
     func testAWordPractisedMoreOnTheOtherPhoneKeepsThatMemory() {
         var local = learner()
         var remote = learner()
-        local.srs["ciao|salom"] = SRSItem(pairID: "ciao|salom", strength: 0.2, reps: 1)
-        remote.srs["ciao|salom"] = SRSItem(pairID: "ciao|salom", strength: 0.9, reps: 6)
+        local.srs["hello|salom"] = SRSItem(pairID: "hello|salom", strength: 0.2, reps: 1)
+        remote.srs["hello|salom"] = SRSItem(pairID: "hello|salom", strength: 0.9, reps: 6)
 
         let merged = local.merged(with: remote)
-        XCTAssertEqual(merged.srs["ciao|salom"]?.reps, 6)
-        XCTAssertEqual(merged.srs["ciao|salom"]?.strength ?? 0, 0.9, accuracy: 0.001)
+        XCTAssertEqual(merged.srs["hello|salom"]?.reps, 6)
+        XCTAssertEqual(merged.srs["hello|salom"]?.strength ?? 0, 0.9, accuracy: 0.001)
     }
 
     func testUnlockedLevelsAreTheUnionOfBoth() {
@@ -106,7 +106,7 @@ final class StateMergeTests: XCTestCase {
         let merged = local.merged(with: PersistedState())
         XCTAssertEqual(merged.xp, 250)
         XCTAssertEqual(merged.records.count, 1)
-        XCTAssertEqual(merged.nativeLanguage, .it)
+        XCTAssertEqual(merged.course, .uz)
     }
 
     // MARK: - What leaves the phone
@@ -128,14 +128,14 @@ final class StateMergeTests: XCTestCase {
         var local = learner(xp: 4321)
         local.streak = 12
         local.records["a1u1l1"] = LessonRecord(completions: 5, bestAccuracy: 0.9, crowns: 3)
-        local.srs["ciao|salom"] = SRSItem(pairID: "ciao|salom", strength: 0.7, reps: 4)
+        local.srs["hello|salom"] = SRSItem(pairID: "hello|salom", strength: 0.7, reps: 4)
 
         let packed = try local.packed()
         let back = try PersistedState.unpacked(packed)
         XCTAssertEqual(back.xp, 4321)
         XCTAssertEqual(back.streak, 12)
         XCTAssertEqual(back.records["a1u1l1"]?.crowns, 3)
-        XCTAssertEqual(back.srs["ciao|salom"]?.reps, 4)
+        XCTAssertEqual(back.srs["hello|salom"]?.reps, 4)
     }
 
     func testPackingIsWorthDoing() throws {
@@ -160,7 +160,15 @@ final class StateMergeTests: XCTestCase {
 
 final class WritingChapterTests: XCTestCase {
 
-    private let curriculum = ContentStore.loadCurriculum()
+    private let curriculum = ContentStore.loadCurriculum(.uz)
+
+    override func setUp() {
+        super.setUp()
+        // Anorcha's offline lines are the course's own; an AppState loads them, and
+        // these tests run without one
+        Phrases.table = ContentStore.loadPhrases(.uz)
+        Language.current = .uz
+    }
 
     func testEveryUnitHasExactlyOne() {
         for pack in curriculum.levels {
@@ -218,17 +226,18 @@ final class WritingChapterTests: XCTestCase {
             return XCTFail("no writing node")
         }
         let session = ExerciseFactory.session(for: node, unit: unit, curriculum: curriculum,
-                                              native: .it, settings: Settings())
+                                              native: .en, settings: Settings())
         XCTAssertTrue(session.isEmpty)
     }
 
     func testTheBriefingCarriesTheChaptersOwnWords() {
         guard let unit = curriculum.allUnits.first else { return XCTFail() }
         let chapter = WritingPlanner.chapter(for: unit, level: .a1)
-        let briefing = chapter.briefing(native: .it)
+        let briefing = chapter.briefing(native: .en)
         XCTAssertTrue(briefing.contains("A1"))
-        XCTAssertTrue(briefing.contains(unit.title.it))
-        if let word = unit.allPairs.first?.uz {
+        XCTAssertTrue(briefing.contains(unit.title.en))
+        XCTAssertTrue(briefing.contains(unit.title.tx), "the title in the language being learnt too")
+        if let word = unit.allPairs.first?.tx {
             XCTAssertTrue(briefing.contains(word) || briefing.count > 200,
                           "the vocabulary should be in the briefing")
         }
@@ -240,7 +249,7 @@ final class WritingChapterTests: XCTestCase {
     func testItRunsRightThroughOffline() async {
         guard let unit = curriculum.allUnits.first else { return XCTFail() }
         let chapter = WritingPlanner.chapter(for: unit, level: .a1)
-        let engine = ChatEngine(chapter: chapter, native: .it)
+        let engine = ChatEngine(chapter: chapter, target: .uz)
 
         await engine.begin(provider: .none, apiKey: "")
         XCTAssertEqual(engine.messages.count, 1)
@@ -261,12 +270,12 @@ final class WritingChapterTests: XCTestCase {
     func testATooShortReplyCannotBeSent() async {
         guard let unit = curriculum.allUnits.first else { return XCTFail() }
         let chapter = WritingPlanner.chapter(for: unit, level: .b2)
-        let engine = ChatEngine(chapter: chapter, native: .it)
+        let engine = ChatEngine(chapter: chapter, target: .uz)
         await engine.begin(provider: .none, apiKey: "")
 
-        engine.draft = "sì"
+        engine.draft = "ha"
         XCTAssertFalse(engine.canSend)
-        engine.draft = Array(repeating: "parola", count: chapter.minimumWords).joined(separator: " ")
+        engine.draft = Array(repeating: "so'z", count: chapter.minimumWords).joined(separator: " ")
         XCTAssertTrue(engine.canSend)
     }
 
@@ -274,7 +283,7 @@ final class WritingChapterTests: XCTestCase {
     func testAnorchaNeverRepeatsHerselfBackToBackOffline() async {
         guard let unit = curriculum.allUnits.first else { return XCTFail() }
         let chapter = WritingPlanner.chapter(for: unit, level: .a1)
-        let engine = ChatEngine(chapter: chapter, native: .it)
+        let engine = ChatEngine(chapter: chapter, target: .uz)
         await engine.begin(provider: .none, apiKey: "")
 
         for _ in 0..<(chapter.turns - 1) {
@@ -289,7 +298,7 @@ final class WritingChapterTests: XCTestCase {
     func testLeavingEarlyStillCountsWhatWasWritten() async {
         guard let unit = curriculum.allUnits.first else { return XCTFail() }
         let chapter = WritingPlanner.chapter(for: unit, level: .a1)
-        let engine = ChatEngine(chapter: chapter, native: .it)
+        let engine = ChatEngine(chapter: chapter, target: .uz)
         await engine.begin(provider: .none, apiKey: "")
         engine.draft = "men bugun charchadim lekin xursandman"
         await engine.send(provider: .none, apiKey: "")
@@ -306,7 +315,7 @@ final class WritingChapterTests: XCTestCase {
     @MainActor
     func testWalkingAwayWithoutWritingAnythingIsNotACompletion() async {
         guard let unit = curriculum.allUnits.first else { return XCTFail() }
-        let engine = ChatEngine(chapter: WritingPlanner.chapter(for: unit, level: .a1), native: .it)
+        let engine = ChatEngine(chapter: WritingPlanner.chapter(for: unit, level: .a1), target: .uz)
         await engine.begin(provider: .none, apiKey: "")
         engine.finishEarly()
         XCTAssertEqual(engine.phase, .done)
@@ -319,47 +328,53 @@ final class WritingChapterTests: XCTestCase {
 
 final class PhraseForgeTests: XCTestCase {
 
+    override func setUp() {
+        super.setUp()
+        // the engines read the course's language from here; AppState sets it on load
+        Language.current = .uz
+    }
+
     func testABlendKeepsBothSides() {
-        let taught = (0..<10).map { Pair(it: "vecchio \($0)", uz: "eski \($0)") }
-        let fresh = (0..<10).map { Pair(it: "nuovo \($0)", uz: "yangi \($0)") }
+        let taught = (0..<10).map { Pair(en: "old \($0)", tx: "eski \($0)") }
+        let fresh = (0..<10).map { Pair(en: "new \($0)", tx: "yangi \($0)") }
         let mixed = ExerciseFactory.blend(taught: taught, fresh: fresh, want: 12)
 
         XCTAssertEqual(mixed.count, 12)
-        XCTAssertTrue(mixed.contains { $0.it.hasPrefix("vecchio") }, "the chapter is still taught")
-        XCTAssertTrue(mixed.contains { $0.it.hasPrefix("nuovo") }, "and something is new")
+        XCTAssertTrue(mixed.contains { $0.en.hasPrefix("old") }, "the chapter is still taught")
+        XCTAssertTrue(mixed.contains { $0.en.hasPrefix("new") }, "and something is new")
     }
 
     func testWithNothingNewTheLessonIsExactlyWhatItAlwaysWas() {
-        let taught = (0..<10).map { Pair(it: "a\($0)", uz: "b\($0)") }
+        let taught = (0..<10).map { Pair(en: "a\($0)", tx: "b\($0)") }
         XCTAssertEqual(ExerciseFactory.blend(taught: taught, fresh: [], want: 12), taught)
     }
 
     func testTheFirstPassOverANodeIsNeverGenerated() {
-        let curriculum = ContentStore.loadCurriculum()
+        let curriculum = ContentStore.loadCurriculum(.uz)
         guard let unit = curriculum.allUnits.first,
               let node = unit.nodes(level: .a1, index: 0).first else { return XCTFail() }
-        let invented = [Pair(it: "frase inventata dal modello", uz: "model o'ylab topgan jumla")]
+        let invented = [Pair(en: "a sentence the model made up", tx: "model o'ylab topgan jumla")]
 
         let session = ExerciseFactory.session(for: node, unit: unit, curriculum: curriculum,
-                                              native: .it, settings: Settings(),
+                                              native: .en, settings: Settings(),
                                               focus: .discover, fresh: invented)
-        XCTAssertFalse(session.contains { $0.pair.it == invented[0].it },
+        XCTAssertFalse(session.contains { $0.pair.en == invented[0].en },
                        "new words are met in the course's own sentences, not invented ones")
     }
 
     func testALaterPassDoesUseThem() {
-        let curriculum = ContentStore.loadCurriculum()
+        let curriculum = ContentStore.loadCurriculum(.uz)
         guard let unit = curriculum.allUnits.first,
               let node = unit.nodes(level: .a1, index: 0).first else { return XCTFail() }
-        let invented = (0..<20).map { Pair(it: "frase nuova numero \($0)",
-                                           uz: "yangi jumla raqam \($0)") }
+        let invented = (0..<20).map { Pair(en: "new sentence number \($0)",
+                                           tx: "yangi jumla raqam \($0)") }
 
         var seen = false
         for _ in 0..<5 where !seen {
             let session = ExerciseFactory.session(for: node, unit: unit, curriculum: curriculum,
-                                                  native: .it, settings: Settings(),
+                                                  native: .en, settings: Settings(),
                                                   focus: .review, fresh: invented)
-            seen = session.contains { $0.pair.it.hasPrefix("frase nuova") }
+            seen = session.contains { $0.pair.en.hasPrefix("new sentence") }
         }
         XCTAssertTrue(seen, "the review pass should be drawing on new material")
     }
@@ -374,9 +389,9 @@ final class PhraseForgeTests: XCTestCase {
 
     func testAChapterWithNoKeyAsksForNothing() async {
         let brief = PhraseForge.Brief(lessonID: "test-lesson", level: .a1,
-                                      unitTitle: "Saluti", lessonTitle: "Ciao",
-                                      grammar: [], vocabulary: [Pair(it: "ciao", uz: "salom")],
-                                      native: .it, provider: .none, key: "")
+                                      unitTitle: "Greetings", lessonTitle: "Hello",
+                                      grammar: [], vocabulary: [Pair(en: "hello", tx: "salom")],
+                                      native: .en, provider: .none, key: "")
         XCTAssertFalse(brief.isPossible)
         let back = await PhraseForge.shared.replenish(brief)
         XCTAssertTrue(back.isEmpty)
@@ -386,7 +401,7 @@ final class PhraseForgeTests: XCTestCase {
         let brief = PhraseForge.Brief(lessonID: "empty", level: .a1,
                                       unitTitle: "", lessonTitle: "",
                                       grammar: [], vocabulary: [],
-                                      native: .it, provider: .gemini, key: "AIzaSyFake")
+                                      native: .en, provider: .gemini, key: "AIzaSyFake")
         XCTAssertFalse(brief.isPossible)
     }
 }
@@ -439,11 +454,11 @@ final class SignInTests: XCTestCase {
 
     /// Annullare non è fallire: chi chiude il foglio non deve vedere un errore
     /// rosso, e il messaggio di "annullato" non deve somigliare a un guasto.
-    func testCancellingSaysSomethingCalmInBothLanguages() {
+    func testCancellingSaysSomethingCalm() {
         let cancelled = SocialSignIn.Failure.cancelled.message
-        XCTAssertFalse(cancelled.it.isEmpty)
-        XCTAssertFalse(cancelled.uz.isEmpty)
-        XCTAssertNotEqual(cancelled.it, cancelled.uz)
+        XCTAssertFalse(cancelled.en.isEmpty)
+        XCTAssertFalse(cancelled.en.lowercased().contains("fail"))
+        XCTAssertFalse(cancelled.en.lowercased().contains("error"))
     }
 
     /// Il codice che Apple restituisce va mostrato: e' l'unica cosa che distingue
@@ -451,18 +466,17 @@ final class SignInTests: XCTestCase {
     /// sceglierne una a caso manda a cercare nel posto sbagliato.
     func testTheAppleErrorCarriesItsCode() {
         let message = SocialSignIn.Failure.apple(1000).message
-        XCTAssertTrue(message.it.contains("1000"))
-        XCTAssertTrue(message.uz.contains("1000"))
-        XCTAssertFalse(message.it.lowercased().contains("nessun id apple"),
+        XCTAssertTrue(message.en.contains("1000"))
+        XCTAssertFalse(message.en.lowercased().contains("no apple id"),
                        "non e' l'unica causa, e affermarla sarebbe una bugia")
     }
 
     /// "Non abilitato" senza dire cosa manda a cercare nel posto sbagliato.
     func testAProviderThatIsOffNamesItself() {
         let off = FirebaseClient.Failure.auth("OPERATION_NOT_ALLOWED").message
-        XCTAssertFalse(off.it.contains("Email e password"),
+        XCTAssertFalse(off.en.lowercased().contains("email"),
                        "il codice arriva uguale per tutti e tre i pulsanti")
-        XCTAssertFalse(off.it.isEmpty)
+        XCTAssertFalse(off.en.isEmpty)
     }
 
     /// Un nonce mancante e una risposta che il server non accetta sono due cose
@@ -471,7 +485,7 @@ final class SignInTests: XCTestCase {
         for code in ["MISSING_OR_INVALID_NONCE", "INVALID_IDP_RESPONSE",
                      "FEDERATED_USER_ID_ALREADY_LINKED"] {
             let message = FirebaseClient.Failure.auth(code).message
-            XCTAssertFalse(message.it.contains(code),
+            XCTAssertFalse(message.en.contains(code),
                            "\(code) non è ancora tradotto in una frase")
         }
     }

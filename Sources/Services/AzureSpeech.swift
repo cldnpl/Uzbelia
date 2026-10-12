@@ -12,16 +12,17 @@ import CryptoKit
 /// Everything here is optional. With no key the app behaves exactly as before.
 enum AzureSpeech {
 
-    enum Voice: String, CaseIterable, Codable {
-        case madina = "uz-UZ-MadinaNeural"      // female
-        case sardor = "uz-UZ-SardorNeural"      // male
+    /// A neural voice by its service name, "uz-UZ-MadinaNeural". Every course has two
+    /// (see `Language.neuralVoices`); these are the Uzbek ones, named for `Secrets`.
+    struct Voice: RawRepresentable, Hashable, Codable {
+        let rawValue: String
+        init(rawValue: String) { self.rawValue = rawValue }
 
-        var label: Bilingual {
-            switch self {
-            case .madina: return Bilingual(it: "Madina (femminile)", uz: "Madina (ayol)")
-            case .sardor: return Bilingual(it: "Sardor (maschile)", uz: "Sardor (erkak)")
-            }
-        }
+        static let madina = Voice(rawValue: "uz-UZ-MadinaNeural")      // female
+        static let sardor = Voice(rawValue: "uz-UZ-SardorNeural")      // male
+
+        /// "uz-UZ" out of "uz-UZ-MadinaNeural": what the SSML says it is reading.
+        var locale: String { rawValue.split(separator: "-").prefix(2).joined(separator: "-") }
     }
 
     enum Failure: LocalizedError {
@@ -31,15 +32,15 @@ enum AzureSpeech {
 
         var errorDescription: String? {
             switch self {
-            case .notConfigured: return "Nessuna chiave Azure configurata."
+            case .notConfigured: return "No Azure key configured."
             case .http(let code, let body):
                 switch code {
-                case 401, 403: return "Chiave Azure rifiutata (\(code)). Controlla chiave e regione."
-                case 429: return "Quota Azure esaurita per questo mese (429)."
-                case 404: return "Regione Azure sbagliata (404)."
-                default: return "Errore Azure (\(code)). \(body.prefix(100))"
+                case 401, 403: return "Azure key refused (\(code)). Check the key and region."
+                case 429: return "Azure quota used up for this month (429)."
+                case 404: return "Wrong Azure region (404)."
+                default: return "Azure error (\(code)). \(body.prefix(100))"
                 }
-            case .empty: return "Azure non ha restituito audio."
+            case .empty: return "Azure returned no audio."
             }
         }
     }
@@ -78,7 +79,7 @@ enum AzureSpeech {
         request.setValue(credentials.key, forHTTPHeaderField: "Ocp-Apim-Subscription-Key")
         request.setValue("application/ssml+xml", forHTTPHeaderField: "Content-Type")
         request.setValue("audio-24khz-48kbitrate-mono-mp3", forHTTPHeaderField: "X-Microsoft-OutputFormat")
-        request.setValue("Uzbelia", forHTTPHeaderField: "User-Agent")
+        request.setValue("Lingora", forHTTPHeaderField: "User-Agent")
         request.httpBody = Data(ssml(clean, voice: voice, percent: percent).utf8)
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -91,7 +92,7 @@ enum AzureSpeech {
     private static func ssml(_ text: String, voice: Voice, percent: Int) -> String {
         let sign = percent >= 0 ? "+" : "-"
         return """
-        <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='uz-UZ'>\
+        <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='\(voice.locale)'>\
         <voice name='\(voice.rawValue)'>\
         <prosody rate='\(sign)\(abs(percent))%'>\(VoiceCache.escapedForSSML(text))</prosody>\
         </voice></speak>
@@ -119,7 +120,7 @@ enum AzureSpeech {
         request.timeoutInterval = 25
         request.setValue(credentials.key, forHTTPHeaderField: "Ocp-Apim-Subscription-Key")
         request.setValue("audio/wav; codecs=audio/pcm; samplerate=16000", forHTTPHeaderField: "Content-Type")
-        request.setValue("Uzbelia", forHTTPHeaderField: "User-Agent")
+        request.setValue("Lingora", forHTTPHeaderField: "User-Agent")
         request.httpBody = wav
 
         let (data, response) = try await URLSession.shared.data(for: request)

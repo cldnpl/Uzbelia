@@ -48,7 +48,7 @@ enum PlacementTest {
         return TestTarget(kind: .unlockLevel(level),
                           level: previous,
                           nodesToClear: [],
-                          title: Bilingual(it: "Livello \(level.label)", uz: "\(level.label) darajasi"),
+                          title: Bilingual("Level \(level.label)"),
                           questionCount: 20)
     }
 
@@ -98,22 +98,19 @@ struct TestIntroSheet: View {
     let start: (SessionRequest) -> Void
 
     var body: some View {
-        VStack(spacing: 18) {
-            HStack(alignment: .top, spacing: 12) {
-                Mascot(mood: .think, size: 66)
-                SpeechBubble {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(S.testTitle[state.native])
-                            .font(.heading(18)).foregroundStyle(Palette.ink)
-                        Text(subtitle)
-                            .font(.plain(13)).foregroundStyle(Palette.inkSoft)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top, spacing: 14) {
+                OrbIcon("checkmark.seal.fill", accent: .purple, size: 56)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(S.testTitle[state.native])
+                        .font(.display(22)).foregroundStyle(Palette.ink)
+                    Text(subtitle)
+                        .font(.plain(14)).foregroundStyle(Palette.inkSoft)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Spacer(minLength: 0)
             }
 
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
                 rule(icon: "list.number",
                      text: "\(target.questionCount) \(S.testQuestions[state.native])")
                 rule(icon: "checkmark.seal.fill",
@@ -122,11 +119,8 @@ struct TestIntroSheet: View {
                      text: "\(S.testMistakes[state.native]) \(target.allowedMistakes)")
                 rule(icon: "heart.slash", text: S.testNoHearts[state.native])
             }
-            .padding(14)
-            .background(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous)
-                .fill(Palette.card))
-            .overlay(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous)
-                .stroke(Palette.stroke, lineWidth: 2))
+            .padding(16)
+            .glass(radius: 24)
 
             Spacer(minLength: 0)
 
@@ -134,36 +128,32 @@ struct TestIntroSheet: View {
                 Feedback.pop()
                 start(PlacementTest.request(for: target, state: state))
             } label: { Text(S.testStart[state.native]) }
-            .buttonStyle(.chunky(Palette.purple, Palette.purpleDeep))
+            .buttonStyle(.primary(.violet))
 
             Button { dismiss() } label: { Text(S.cancel[state.native]) }
-                .buttonStyle(.chunkyGhost)
+                .buttonStyle(.glass)
         }
         .padding(Metrics.hPad)
-        .padding(.top, 10)
-        .background(Palette.bgElevated)
+        .padding(.top, 16)
     }
 
     private var subtitle: String {
         switch target.kind {
         case .skipTo:
-            return state.native == .it
-                ? "Superalo e sblocchi tutte le lezioni fino a «\(target.title.it)»."
-                : "O'tsangiz, «\(target.title.uz)»gacha bo'lgan barcha darslar ochiladi."
+            return "Pass it and every lesson up to “\(target.title.en)” unlocks."
         case .unlockLevel(let lvl):
-            return state.native == .it
-                ? "Domande dal livello \(target.level.label). Superalo e si apre tutto il \(lvl.label)."
-                : "\(target.level.label) darajasidan savollar. O'tsangiz, butun \(lvl.label) ochiladi."
+            return "Questions from level \(target.level.label). Pass it and all of \(lvl.label) opens."
         }
     }
 
     private func rule(icon: String, text: String) -> some View {
-        HStack(spacing: 11) {
+        HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(Palette.purple)
-                .frame(width: 26)
-            Text(text).font(.plain(14)).foregroundStyle(Palette.ink)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Palette.purpleDeep)
+                .frame(width: 30, height: 30)
+                .glassCircle(tint: Palette.purple, material: false, shadow: false)
+            Text(text).font(.plain(14.5)).foregroundStyle(Palette.ink)
             Spacer(minLength: 0)
         }
     }

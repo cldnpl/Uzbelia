@@ -6,7 +6,7 @@ final class CallPlannerTests: XCTestCase {
 
     private func freshState() -> AppState {
         let s = AppState(persistent: false)
-        s.chooseCourse(native: .it)
+        s.chooseCourse(.uz)
         return s
     }
 
@@ -17,9 +17,9 @@ final class CallPlannerTests: XCTestCase {
             let qs = state.questions.questions(forUnit: unit.id)
             XCTAssertGreaterThanOrEqual(qs.count, 6, "\(unit.id) has too few call questions")
             for q in qs {
-                XCTAssertFalse(q.it.isEmpty || q.uz.isEmpty)
-                XCTAssertTrue(q.it.contains("?") || q.it.contains("."),
-                              "\(unit.id): '\(q.it)' does not read like a prompt")
+                XCTAssertFalse(q.en.isEmpty || q.tx.isEmpty)
+                XCTAssertTrue(q.en.contains("?") || q.en.contains("."),
+                              "\(unit.id): '\(q.en)' does not read like a prompt")
             }
         }
         for level in CEFR.allCases {
@@ -59,9 +59,57 @@ final class CallPlannerTests: XCTestCase {
         var signatures = Set<String>()
         for _ in 0..<12 {
             let plan = CallPlanner.plan(level: .a1, state: state)
-            signatures.insert(plan.questions.map { $0.text.uz }.joined(separator: "|"))
+            signatures.insert(plan.questions.map { $0.text.tx }.joined(separator: "|"))
         }
         XCTAssertGreaterThan(signatures.count, 8, "calls repeat themselves too often")
+    }
+
+    /// The bug this guards against: a call about family that jumped to bus tickets
+    /// and then to "Why?", because the plan was a shuffled bag of questions.
+    func testACallStaysOnOneSubjectAtATime() {
+        let state = freshState()
+        let food = state.curriculum.unit(id: "a1u4")!
+        let target = PlacementTest.target(skippingTo: food.nodes(level: .a1, index: 0)[0], state: state)!
+        state.markPassedTest(target, accuracy: 0.9)
+        let bank = state.questions
+        let chapter = bank.questions(forUnit: "a1u4")
+
+        for _ in 0..<20 {
+            let plan = CallPlanner.plan(level: .a1, state: state)
+            let body = plan.questions.dropFirst().dropLast()
+            XCTAssertTrue(body.allSatisfy { $0.unitID == "a1u4" },
+                          "nothing from other chapters in the middle of a call")
+            var expected: [Bilingual] = []          // what may come next in this thread
+            var lastStart = -1
+            for q in body {
+                if let i = chapter.firstIndex(of: q.text) {
+                    XCTAssertTrue(expected.isEmpty || q.lead != nil,
+                                  "a new subject is announced, never just switched to")
+                    XCTAssertGreaterThan(i, lastStart, "threads keep the chapter's own order")
+                    lastStart = i
+                    expected = bank.followUps(forUnit: "a1u4", question: i)
+                } else {
+                    XCTAssertEqual(q.text, expected.first,
+                                   "'\(q.text.en)' does not follow from the question before it")
+                    expected.removeFirst()
+                }
+            }
+        }
+    }
+
+    func testEveryChapterQuestionHasItsFollowUps() {
+        let state = freshState()
+        for unit in state.curriculum.allUnits {
+            let questions = state.questions.questions(forUnit: unit.id)
+            for i in questions.indices {
+                let follows = state.questions.followUps(forUnit: unit.id, question: i)
+                XCTAssertEqual(follows.count, 2, "\(unit.id) #\(i) needs two follow-ups")
+                for f in follows {
+                    XCTAssertFalse(f.en.isEmpty || f.tx.isEmpty)
+                    XCTAssertFalse(questions.contains(f), "\(unit.id): a follow-up repeats a question")
+                }
+            }
+        }
     }
 
     func testEveryLevelCanBeCalled() {
@@ -81,7 +129,7 @@ final class CallContextTests: XCTestCase {
 
     private func learnerAtFoodChapter() -> AppState {
         let state = AppState(persistent: false)
-        state.chooseCourse(native: .it)
+        state.chooseCourse(.uz)
         let food = state.curriculum.unit(id: "a1u4")!
         let target = PlacementTest.target(skippingTo: food.nodes(level: .a1, index: 0)[0], state: state)!
         state.markPassedTest(target, accuracy: 0.9)
@@ -94,7 +142,7 @@ final class CallContextTests: XCTestCase {
         let plan = CallPlanner.plan(level: .a1, state: state)
         let ctx = CallPlanner.context(for: plan, level: .a1, state: state, target: .uz)
 
-        XCTAssertEqual(ctx.unitTitle, plan.focusUnit?.title.uz)
+        XCTAssertEqual(ctx.unitTitle, plan.focusUnit?.title.tx)
         XCTAssertFalse(ctx.vocabulary.isEmpty)
         XCTAssertFalse(ctx.lessonTopics.isEmpty)
         XCTAssertFalse(ctx.earlierUnits.contains(ctx.unitTitle),
@@ -124,7 +172,7 @@ final class CallContextTests: XCTestCase {
 
     func testAskedQuestionsAreRememberedWithoutRepeatsOrUnboundedGrowth() {
         let state = AppState(persistent: false)
-        state.chooseCourse(native: .it)
+        state.chooseCourse(.uz)
         state.rememberCallQuestions(["Qalaysiz?", "Qalaysiz?", "  ", "Ismingiz nima?"])
         XCTAssertEqual(state.recentCallQuestions, ["Qalaysiz?", "Ismingiz nima?"])
 
@@ -148,15 +196,15 @@ final class CallReviewerTests: XCTestCase {
     private var curriculum: Curriculum!
     override func setUp() {
         super.setUp()
-        curriculum = ContentStore.loadCurriculum()
+        curriculum = ContentStore.loadCurriculum(.uz)
     }
 
-    private func review(_ answers: [String], native: Language = .it, level: CEFR = .a1) -> CallReview {
+    private func review(_ answers: [String], level: CEFR = .a1) -> CallReview {
         let turns = answers.map {
-            CallTurnRecord(question: Bilingual(it: "Domanda?", uz: "Savol?"),
+            CallTurnRecord(question: Bilingual(en: "Question?", tx: "Savol?"),
                            answer: $0, seconds: 5, typed: true)
         }
-        return CallReviewer.review(turns: turns, native: native,
+        return CallReviewer.review(turns: turns, target: .uz,
                                    curriculum: curriculum, level: level)
     }
 
@@ -167,7 +215,7 @@ final class CallReviewerTests: XCTestCase {
     }
 
     func testAnsweringInTheWrongLanguageIsCaught() {
-        let r = review(["mi chiamo Claudia e vivo a Roma"])       // Italian, learning Uzbek
+        let r = review(["my name is Claudia and I live in Rome"])       // English, learning Uzbek
         XCTAssertEqual(r.turns[0].status, .wrongLanguage)
         XCTAssertTrue(r.turns[0].corrections.contains { $0.kind == .language })
     }
@@ -191,23 +239,6 @@ final class CallReviewerTests: XCTestCase {
         }, "a detached personal ending should be joined")
     }
 
-    func testItalianGrammarRulesForUzbekSpeakers() {
-        let aux = review(["ieri ho andato a scuola"], native: .uz, level: .a2)
-        XCTAssertTrue(aux.turns[0].corrections.contains {
-            $0.kind == .grammar && $0.suggestion.contains("sono andato")
-        }, "motion verbs take essere")
-
-        let city = review(["io vivo in Roma"], native: .uz, level: .a2)
-        XCTAssertTrue(city.turns[0].corrections.contains {
-            $0.kind == .grammar && $0.suggestion.contains("a roma")
-        }, "cities take a")
-
-        let age = review(["io sono venticinque anni"], native: .uz, level: .a2)
-        XCTAssertTrue(age.turns[0].corrections.contains {
-            $0.kind == .grammar && $0.suggestion.contains("ho venticinque anni")
-        }, "age is said with avere")
-    }
-
     func testAGoodAnswerIsLeftAlone() {
         let r = review(["men bugun juda yaxshiman va ishga boraman"])
         XCTAssertEqual(r.turns[0].status, .good)
@@ -218,13 +249,13 @@ final class CallReviewerTests: XCTestCase {
     func testShortAnswersAreFlaggedButNotPunished() {
         let one = review(["ha"], level: .b1)
         XCTAssertEqual(one.turns[0].status, .tooShort)
-        XCTAssertFalse(one.tips.contains { $0.it.contains("brevi") },
+        XCTAssertFalse(one.tips.contains { $0.en.contains("short") },
                        "a single short answer is not a habit worth nagging about")
 
         // it only becomes advice when it is a pattern
         let many = review(["ha", "yaxshi", "bilmayman"], level: .b1)
         XCTAssertEqual(many.turns.filter { $0.status == .tooShort }.count, 3)
-        XCTAssertTrue(many.tips.contains { $0.it.contains("brevi") })
+        XCTAssertTrue(many.tips.contains { $0.en.contains("short") })
     }
 
     func testStatsAndHeadline() {
@@ -235,7 +266,7 @@ final class CallReviewerTests: XCTestCase {
         XCTAssertEqual(r.stats.answered, 2)
         XCTAssertGreaterThan(r.stats.words, 8)
         XCTAssertGreaterThan(r.stats.distinctWords, 5)
-        XCTAssertFalse(r.headline.it.isEmpty)
+        XCTAssertFalse(r.headline.en.isEmpty)
         XCTAssertFalse(r.tips.isEmpty)
     }
 
@@ -263,9 +294,9 @@ final class CallEngineFlowTests: XCTestCase {
 
     func testAFullCallRecordsEveryAnswer() {
         let state = AppState(persistent: false)
-        state.chooseCourse(native: .it)
+        state.chooseCourse(.uz)
         let plan = CallPlanner.plan(level: .a1, state: state)
-        let engine = CallEngine(level: .a1, native: .it, plan: plan)
+        let engine = CallEngine(level: .a1, target: .uz, plan: plan)
 
         XCTAssertEqual(engine.phase, .dialling)
         engine.answerCall()
@@ -285,10 +316,10 @@ final class CallEngineFlowTests: XCTestCase {
 
     func testWithoutAKeyTheCallStillRunsOnItsScript() async {
         let state = AppState(persistent: false)
-        state.chooseCourse(native: .it)
+        state.chooseCourse(.uz)
         let plan = CallPlanner.plan(level: .a1, state: state)
-        let engine = CallEngine(level: .a1, native: .it, plan: plan)
-        let scripted = plan.questions.map { $0.text.uz }
+        let engine = CallEngine(level: .a1, target: .uz, plan: plan)
+        let scripted = plan.questions.map { $0.text.tx }
 
         engine.answerCall()
         engine.anorchaFinishedSpeaking()
@@ -297,15 +328,15 @@ final class CallEngineFlowTests: XCTestCase {
 
         await engine.composeNextTurn(provider: .none, apiKey: "")
         XCTAssertFalse(engine.thinking)
-        XCTAssertEqual(engine.plan.questions.map { $0.text.uz }, scripted,
+        XCTAssertEqual(engine.plan.questions.map { $0.text.tx }, scripted,
                        "no key means the planned questions are left alone")
     }
 
     func testALiveCallWaitsForTheReactionInsteadOfCanningIt() async {
         let state = AppState(persistent: false)
-        state.chooseCourse(native: .it)
+        state.chooseCourse(.uz)
         let plan = CallPlanner.plan(level: .a1, state: state)
-        let engine = CallEngine(level: .a1, native: .it, plan: plan)
+        let engine = CallEngine(level: .a1, target: .uz, plan: plan)
         engine.live = true
         engine.context = CallPlanner.context(for: plan, level: .a1, state: state, target: .uz)
 
@@ -321,23 +352,51 @@ final class CallEngineFlowTests: XCTestCase {
         XCTAssertEqual(engine.phase, .anorchaSpeaking)
     }
 
+    /// What the assistant reads: both sides, in order, with a skipped answer marked
+    /// as skipped rather than left blank.
+    func testTheTranscriptCarriesBothSidesOfTheCall() {
+        let state = AppState(persistent: false)
+        state.chooseCourse(.uz)
+        let plan = CallPlanner.plan(level: .a1, state: state)
+        let engine = CallEngine(level: .a1, target: .uz, plan: plan)
+
+        engine.answerCall()
+        XCTAssertEqual(engine.transcript.map(\.speaker), [.anorcha])
+        XCTAssertEqual(engine.transcript.last?.text, plan.questions[0].spoken(in: .uz))
+
+        engine.anorchaFinishedSpeaking()
+        engine.submit("men yaxshiman", typed: false)
+        let reaction = engine.reaction?.tx
+        engine.advance()
+        engine.anorchaFinishedSpeaking()
+        engine.skip()
+
+        let lines = engine.transcript
+        XCTAssertEqual(lines.map(\.speaker), [.anorcha, .learner, .anorcha, .anorcha, .learner])
+        XCTAssertEqual(lines[1].text, "men yaxshiman")
+        XCTAssertEqual(lines[2].text, reaction)
+        XCTAssertEqual(lines[3].text, plan.questions[1].spoken(in: .uz),
+                       "the lead-in is part of what she heard")
+        XCTAssertEqual(lines[4].text, CallEngine.skippedMark)
+    }
+
     func testSkippingAQuestionNeedsNoReaction() {
         let state = AppState(persistent: false)
-        state.chooseCourse(native: .it)
+        state.chooseCourse(.uz)
         let plan = CallPlanner.plan(level: .a1, state: state)
-        let engine = CallEngine(level: .a1, native: .it, plan: plan)
+        let engine = CallEngine(level: .a1, target: .uz, plan: plan)
         engine.answerCall()
         engine.anorchaFinishedSpeaking()
         engine.skip()
         XCTAssertNil(engine.reaction)
-        XCTAssertEqual(engine.askedQuestions(), [plan.questions[0].text.uz])
+        XCTAssertEqual(engine.askedQuestions(), [plan.questions[0].text.tx])
     }
 
     func testHangingUpEarlyStillReviewsWhatWasSaid() {
         let state = AppState(persistent: false)
-        state.chooseCourse(native: .it)
+        state.chooseCourse(.uz)
         let plan = CallPlanner.plan(level: .a1, state: state)
-        let engine = CallEngine(level: .a1, native: .it, plan: plan)
+        let engine = CallEngine(level: .a1, target: .uz, plan: plan)
         engine.answerCall()
         engine.anorchaFinishedSpeaking()
         engine.submit("men italiyalikman", typed: true)
@@ -376,7 +435,7 @@ final class AIClientTests: XCTestCase {
     }
 
     func testJSONIsExtractedFromChattyModelReplies() {
-        let fenced = "Ecco le domande:\n```json\n[{\"target\":\"a\",\"native\":\"b\"}]\n```\nBuono studio!"
+        let fenced = "Here are the questions:\n```json\n[{\"target\":\"a\",\"native\":\"b\"}]\n```\nHappy studying!"
         XCTAssertEqual(AIClient.extractJSON(fenced), "[{\"target\":\"a\",\"native\":\"b\"}]")
 
         let object = "Sure! {\"headline\":\"ok\",\"tips\":[]} hope it helps"
@@ -405,7 +464,7 @@ final class AIClientTests: XCTestCase {
         for provider in AIProvider.allCases where provider != .none {
             XCTAssertFalse(provider.console.isEmpty, "\(provider) has no console address")
             XCTAssertFalse(provider.keyPrefixHint.isEmpty)
-            XCTAssertFalse(provider.label.it.isEmpty || provider.label.uz.isEmpty)
+            XCTAssertFalse(provider.label.en.isEmpty)
         }
     }
 
@@ -430,5 +489,33 @@ final class AIClientTests: XCTestCase {
         XCTAssertEqual(back.aiProvider, .gemini)
         XCTAssertEqual(back.aiKey, "AIzaTest")
         XCTAssertEqual(back.dailyGoal, 100)
+    }
+}
+
+/// The free tier allows twenty requests a day: the extras must stop long before the
+/// video call does, and a "no more today" from Google must stop everything at once.
+final class AIBudgetTests: XCTestCase {
+
+    override func setUp() { AIBudget.reset() }
+    override func tearDown() { AIBudget.reset() }
+
+    func testExtrasStopLongBeforeConversations() {
+        for _ in 0..<AIBudget.ceiling(for: .extra) { AIBudget.spend() }
+        XCTAssertFalse(AIBudget.canSpend(.extra), "a tapped word must not eat the call's requests")
+        XCTAssertTrue(AIBudget.canSpend(.feedback))
+        XCTAssertTrue(AIBudget.canSpend(.conversation))
+    }
+
+    func testTheDailyRefusalPausesEverythingUntilTheTimeGoogleGave() {
+        let body = #"{"error":{"code":429,"details":[{"quotaId":"GenerateRequestsPerDayPerProjectPerModel-FreeTier"},{"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay": "120s"}]}}"#
+        XCTAssertTrue(AIBudget.noteRefusal(code: 429, body: body))
+        XCTAssertFalse(AIBudget.canSpend(.conversation))
+        XCTAssertEqual(AIBudget.pausedUntil?.timeIntervalSinceNow ?? 0, 120, accuracy: 5)
+    }
+
+    func testAPerMinuteLimitIsNotTheEndOfTheDay() {
+        let body = #"{"error":{"code":429,"details":[{"quotaId":"GenerateRequestsPerMinutePerProjectPerModel"}]}}"#
+        XCTAssertFalse(AIBudget.noteRefusal(code: 429, body: body))
+        XCTAssertTrue(AIBudget.canSpend(.conversation))
     }
 }

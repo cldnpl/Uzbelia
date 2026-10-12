@@ -58,29 +58,35 @@ enum VoiceCache {
 }
 
 /// Where the Uzbek voice comes from, in order of preference.
-enum UzbekVoice {
+/// The neural voice of a course: Azure when a key is configured — the supported,
+/// contractual route — otherwise Edge's read-aloud service, which costs nothing and
+/// needs no account. Every course has one.
+enum NeuralVoice {
 
-    /// Azure when a key is configured — it is the supported, contractual route.
-    /// Otherwise Edge's read-aloud service, which costs nothing and needs no account.
-    static func audio(for text: String, rate: Double, slow: Bool) async throws -> Data {
-        if AzureSpeech.isConfigured {
-            do {
-                return try await AzureSpeech.audio(for: text, voice: Secrets.uzbekVoice,
-                                                   rate: rate, slow: slow)
-            } catch {
-                // a spent quota or a wrong region should not cost her the voice
-                return try await EdgeVoice.audio(for: text, voice: Secrets.uzbekVoice,
-                                                 rate: rate, slow: slow)
-            }
-        }
-        return try await EdgeVoice.audio(for: text, voice: Secrets.uzbekVoice, rate: rate, slow: slow)
+    /// Nil for the few languages no service reads yet.
+    static func voice(for language: Language) -> AzureSpeech.Voice? {
+        if language == .uz { return Secrets.uzbekVoice }
+        return language.neuralVoices.map { AzureSpeech.Voice(rawValue: $0.female) }
     }
 
-    /// There is always a real Uzbek voice to try: the free one needs nothing at all.
+    static func audio(for text: String, language: Language, rate: Double, slow: Bool) async throws -> Data {
+        guard let voice = voice(for: language) else { throw URLError(.unsupportedURL) }
+        if AzureSpeech.isConfigured {
+            do {
+                return try await AzureSpeech.audio(for: text, voice: voice, rate: rate, slow: slow)
+            } catch {
+                // a spent quota or a wrong region should not cost her the voice
+                return try await EdgeVoice.audio(for: text, voice: voice, rate: rate, slow: slow)
+            }
+        }
+        return try await EdgeVoice.audio(for: text, voice: voice, rate: rate, slow: slow)
+    }
+
+    /// There is always a real voice to try: the free one needs nothing at all.
     static var isAvailable: Bool { true }
 
-    static var description: String {
-        AzureSpeech.isConfigured ? "\(Secrets.uzbekVoice.rawValue) · Azure"
-                                 : "\(Secrets.uzbekVoice.rawValue) · Edge"
+    static func description(for language: Language) -> String {
+        guard let voice = voice(for: language) else { return "—" }
+        return "\(voice.rawValue) · \(AzureSpeech.isConfigured ? "Azure" : "Edge")"
     }
 }

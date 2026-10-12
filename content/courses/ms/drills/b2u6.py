@@ -1,0 +1,31 @@
+# -*- coding: utf-8 -*-
+# b2u6 — Nuances and idioms: practice sentences, 12 per lesson.
+DRILLS = {
+ "b2u6l1": [
+  ("So, how did that thing with your boss end?", "Jadi, apa kesudahan hal awak dengan bos awak itu?"),
+  ("I mean, are you saying you're not coming to our party tonight?", "Maksudnya, awak tidak akan datang ke parti kami malam ini?"),
+  ("I'm not tired at all; we can keep going!", "Saya langsung tidak penat; kita boleh teruskan!"),
+  ("If only I had more free time!", "Alangkah baiknya kalau saya ada lebih banyak masa lapang!"),
+  ("I don't know, ask Siti; she definitely knows.", "Saya tidak tahu, tanyalah Siti; dia pasti tahu."),
+  ("Come on, hurry up, the movie starts in five minutes!", "Ayuh, cepat sikit, filem itu bermula lima minit lagi!"),
+  ("Don't mention it; for a friend I'd do even more than this.", "Perkara kecil saja; untuk kawan, saya sanggup buat lebih daripada ini."),
+  ("This is so boring, we have to redo everything from the beginning!", "Bosannya, kita terpaksa buat semuanya semula dari awal!"),
+  ("Please put all that stuff in the closet.", "Tolong letakkan semua barang itu dalam almari."),
+  ("During the school holidays I read a lot of books.", "Semasa cuti sekolah, saya membaca banyak buku."),
+  ("I mean, you spent a lot of money for nothing?", "Maksudnya, awak membazir banyak duit begitu sahaja?"),
+  ("If only the weather were nice tomorrow and we could go to the highlands!", "Alangkah baiknya kalau cuaca elok esok dan kita boleh pergi ke tanah tinggi!"),
+ ],
+ "b2u6l2": [
+  ("I wish you luck on your exam tomorrow!", "Semoga berjaya dalam peperiksaan awak esok!"),
+  ("That bag is very expensive; I'm not buying it.", "Beg itu sangat mahal; saya tidak akan membelinya."),
+  ("I have no money until the end of the month; can you lend me a little?", "Saya tiada duit sampai hujung bulan; boleh awak pinjamkan saya sedikit?"),
+  ("Don't make fun of me; this time I'm serious!", "Jangan ejek saya; kali ini saya serius!"),
+  ("Sorry, my mind was somewhere else; I didn't hear you.", "Maaf, fikiran saya melayang ke tempat lain; saya tidak dengar awak."),
+  ("The children are impatiently waiting for the school holidays to start.", "Budak-budak tidak sabar menunggu cuti sekolah bermula."),
+  ("My mother goes to great lengths for everyone, but nobody thanks her.", "Ibu saya bersusah payah untuk semua orang, tetapi tiada siapa yang berterima kasih kepadanya."),
+  ("At a rough guess, the trip will take at least three hours.", "Secara kasarnya, perjalanan itu akan mengambil masa sekurang-kurangnya tiga jam."),
+  ("He finished his homework in the blink of an eye.", "Dia menyiapkan kerja rumahnya dalam sekelip mata."),
+  ("Ahmad said that car had cost him a lot of money.", "Ahmad berkata kereta itu telah menghabiskan banyak duitnya."),
+  ("Why do you all always make fun of me in front of everyone?", "Kenapa kamu semua selalu mengejek saya di depan semua orang?"),
+  ("You all went to great lengths to organize the celebration, thank you!", "Kamu semua bersusah payah menganjurkan sambutan itu, terima kasih!"),
+ ],

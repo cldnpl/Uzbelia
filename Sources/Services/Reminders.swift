@@ -19,7 +19,7 @@ enum Reminders {
         cancel()
 
         let content = UNMutableNotificationContent()
-        content.title = "Uzbelia"
+        content.title = "Lingora"
         content.body = body(language: language, streak: streak)
         content.sound = .default
 
@@ -36,16 +36,10 @@ enum Reminders {
             .removePendingNotificationRequests(withIdentifiers: [identifier])
     }
 
+    /// `language` is the course: the reminder names what she is learning.
     private static func body(language: Language, streak: Int) -> String {
-        switch (language, streak) {
-        case (.it, 0):
-            return "Cinque minuti di uzbeko? Anorcha ti aspetta 🍅"
-        case (.it, _):
-            return "Hai una serie di \(streak) giorni: non perderla! 🔥"
-        case (.uz, 0):
-            return "Besh daqiqa italyancha? Anorcha kutyapti 🍅"
-        case (.uz, _):
-            return "\(streak) kunlik seriyangiz bor — uzilib qolmasin! 🔥"
-        }
+        streak == 0
+            ? "Five minutes of \(language.name)? Anorcha is waiting 🍅"
+            : "You're on a \(streak)-day streak: don't lose it! 🔥"
     }
 }

@@ -1,15 +1,15 @@
 import XCTest
 @testable import Uzbelia
 
-/// Tapping a word to see what it means, in either language.
+/// Tapping a word to see what it means, on either side of a pair.
 final class WordHintTests: XCTestCase {
 
     private let course = [
-        Pair(it: "A domani!", uz: "Ertaga ko'rishguncha!"),   // an expression, taught whole
-        Pair(it: "domani", uz: "ertaga"),
-        Pair(it: "sera", uz: "kech"),
-        Pair(it: "Il film è finito tardi.", uz: "Kino kech tugadi."),
-        Pair(it: "film", uz: "kino")
+        Pair(en: "Until tomorrow!", tx: "Ertaga ko'rishguncha!"),   // an expression, taught whole
+        Pair(en: "tomorrow", tx: "ertaga"),
+        Pair(en: "late", tx: "kech"),
+        Pair(en: "The movie ended late.", tx: "Kino kech tugadi."),
+        Pair(en: "movie", tx: "kino")
     ]
 
     override func setUp() {
@@ -18,21 +18,21 @@ final class WordHintTests: XCTestCase {
     }
 
     func testAWordInsideASentenceHasItsOwnMeaning() {
-        XCTAssertEqual(Glossary.look(up: "kech", from: .uz)?.text, "sera")
-        XCTAssertEqual(Glossary.look(up: "kino", from: .uz)?.text, "film")
+        XCTAssertEqual(Glossary.look(up: "kech", from: .uz)?.text, "late")
+        XCTAssertEqual(Glossary.look(up: "kino", from: .uz)?.text, "movie")
     }
 
-    func testItWorksInBothLanguages() {
-        // she taps an Uzbek word, he taps an Italian one
-        XCTAssertEqual(Glossary.look(up: "ertaga", from: .uz)?.text, "domani")
-        XCTAssertEqual(Glossary.look(up: "domani", from: .it)?.text, "ertaga")
-        XCTAssertEqual(Glossary.look(up: "film", from: .it)?.text, "kino")
+    func testItWorksFromEitherSide() {
+        // an Uzbek word in a sentence she reads, an English one in a sentence she translates
+        XCTAssertEqual(Glossary.look(up: "ertaga", from: .uz)?.text, "tomorrow")
+        XCTAssertEqual(Glossary.look(up: "tomorrow", from: .en)?.text, "ertaga")
+        XCTAssertEqual(Glossary.look(up: "movie", from: .en)?.text, "kino")
     }
 
     func testAnExpressionTheCourseTeachesWholeIsRecognisedAsSuch() {
-        // word by word "ertaga ko'rishguncha" is nothing like "a domani"
+        // "ertaga ko'rishguncha" is taught whole, not as "tomorrow" plus a word
         let whole = Glossary.look(up: "Ertaga ko'rishguncha!", from: .uz)
-        XCTAssertEqual(whole?.text, "A domani!")
+        XCTAssertEqual(whole?.text, "Until tomorrow!")
         XCTAssertEqual(whole?.literal, false, "it is an entry of its own, not a sum of words")
     }
 
@@ -44,18 +44,18 @@ final class WordHintTests: XCTestCase {
 
         let taught = Glossary.look(up: "Kino kech tugadi.", from: .uz)
         XCTAssertEqual(taught?.literal, false, "this one the course really does teach")
-        XCTAssertEqual(taught?.text, "Il film è finito tardi.")
+        XCTAssertEqual(taught?.text, "The movie ended late.")
     }
 
     func testTappingSomethingTheCourseNeverTaughtOpensNothing() {
         XCTAssertNil(Glossary.look(up: "qwertyuiop", from: .uz))
-        let empty = WordHint(word: "qwertyuiop", meaning: nil, phrase: nil, phraseMeaning: nil)
+        let empty = WordHint(index: 0, word: "qwertyuiop", meaning: nil, phrase: nil, phraseMeaning: nil)
         XCTAssertTrue(empty.isEmpty)
     }
 
     func testAHintWithEitherHalfIsWorthShowing() {
-        XCTAssertFalse(WordHint(word: "kech", meaning: "sera").isEmpty)
-        XCTAssertFalse(WordHint(word: "x", meaning: nil, phrase: "y", phraseMeaning: "z").isEmpty)
+        XCTAssertFalse(WordHint(index: 0, word: "kech", meaning: "late").isEmpty)
+        XCTAssertFalse(WordHint(index: 0, word: "x", meaning: nil, phrase: "y", phraseMeaning: "z").isEmpty)
     }
 
     func testHintsCanBeTurnedOffAndTheSettingSurvivesARoundTrip() throws {
@@ -76,11 +76,11 @@ final class WordHintTests: XCTestCase {
 /// A word met for the first time, and a word met again after getting it wrong.
 final class NewAndMistakeMarkerTests: XCTestCase {
 
-    private let pair = Pair(it: "grazie", uz: "rahmat")
+    private let pair = Pair(en: "thank you", tx: "rahmat")
 
     private func learner() -> AppState {
         let s = AppState(persistent: false)
-        s.chooseCourse(native: .it)
+        s.chooseCourse(.uz)
         return s
     }
 
@@ -106,7 +106,7 @@ final class NewAndMistakeMarkerTests: XCTestCase {
     }
 
     func testAMissedQuestionComesBackMarkedAsARetry() {
-        let ex = Exercise(kind: .type, pair: pair, prompt: "grazie", promptLanguage: .it,
+        let ex = Exercise(kind: .type, pair: pair, prompt: "thank you", promptLanguage: .en,
                           answer: "rahmat", answerLanguage: .uz)
         let engine = LessonEngine(exercises: [ex])
         XCTAssertFalse(ex.isRetry)
@@ -121,7 +121,7 @@ final class NewAndMistakeMarkerTests: XCTestCase {
     }
 
     func testAnAnsweredQuestionDoesNotComeBack() {
-        let ex = Exercise(kind: .type, pair: pair, prompt: "grazie", promptLanguage: .it,
+        let ex = Exercise(kind: .type, pair: pair, prompt: "thank you", promptLanguage: .en,
                           answer: "rahmat", answerLanguage: .uz)
         let engine = LessonEngine(exercises: [ex])
         engine.typed = "rahmat"
@@ -132,7 +132,7 @@ final class NewAndMistakeMarkerTests: XCTestCase {
     }
 
     func testAWordingSheTalkedTheAppIntoAcceptingIsNotAMistakeEither() {
-        let ex = Exercise(kind: .type, pair: pair, prompt: "grazie", promptLanguage: .it,
+        let ex = Exercise(kind: .type, pair: pair, prompt: "thank you", promptLanguage: .en,
                           answer: "rahmat", answerLanguage: .uz)
         let engine = LessonEngine(exercises: [ex])
         engine.typed = "tashakkur"

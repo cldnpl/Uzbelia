@@ -80,9 +80,8 @@ struct AccountForm: View {
                     Text(mode == .signIn ? S.signIn[lang] : S.signUp[lang])
                 }
             }
-            .buttonStyle(.chunky(Palette.green, Palette.greenDeep))
+            .buttonStyle(.primary(.violet))
             .disabled(!canSubmit)
-            .opacity(canSubmit ? 1 : 0.5)
 
             Button {
                 Feedback.tap()
@@ -117,8 +116,8 @@ struct AccountForm: View {
     // MARK: - Pieces
 
     private var header: some View {
-        VStack(spacing: 10) {
-            Mascot(mood: .happy, size: 78)
+        VStack(spacing: 12) {
+            MascotBubble(mood: .happy, size: 86)
             Text(S.accountSub[lang])
                 .font(.plain(14)).foregroundStyle(Palette.inkSoft)
                 .multilineTextAlignment(.center)
@@ -140,9 +139,13 @@ struct AccountForm: View {
                     Image(systemName: "apple.logo").font(.system(size: 17, weight: .medium))
                     Text(S.continueApple[lang])
                 }
+                .font(.heading(16))
+                .foregroundStyle(Palette.appleInk)
+                .frame(maxWidth: .infinity).frame(height: 52)
+                .background(Capsule().fill(Palette.appleFill))
+                .shadow(color: .black.opacity(0.18), radius: 10, y: 5)
             }
-            .buttonStyle(.chunky(Palette.appleFill, Palette.appleEdge,
-                                 text: Palette.appleInk, height: 50))
+            .buttonStyle(.pressable)
             .disabled(account.busy)
 
             // Senza client id il pulsante non può fare altro che aprirsi e scusarsi:
@@ -157,7 +160,7 @@ struct AccountForm: View {
                         Text(S.continueGoogle[lang])
                     }
                 }
-                .buttonStyle(.chunky(Palette.card, Palette.strokeDeep, text: Palette.ink, height: 50))
+                .buttonStyle(.glass(nil, height: 52))
                 .disabled(account.busy)
             }
         }
@@ -175,47 +178,38 @@ struct AccountForm: View {
     private func field<Content: View>(_ label: String, icon: String,
                                       footnote: String? = nil,
                                       @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 9) {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label.uppercased())
+                .font(.heading(10.5)).kerning(0.8)
+                .foregroundStyle(Palette.inkSoft)
+                .padding(.leading, 16)
+            HStack(spacing: 10) {
                 Image(systemName: icon)
-                    .font(.system(size: 14, weight: .black)).foregroundStyle(Palette.inkFaint)
+                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(Palette.brand)
                     .frame(width: 20)
                 content()
-                    .font(.plain(15))
+                    .font(.plain(15.5))
                     .foregroundStyle(Palette.ink)
             }
-            .padding(.horizontal, 13).padding(.vertical, 13)
-            .background(RoundedRectangle(cornerRadius: Metrics.radiusSmall, style: .continuous)
-                .fill(Palette.card))
-            .overlay(RoundedRectangle(cornerRadius: Metrics.radiusSmall, style: .continuous)
-                .stroke(Palette.stroke, lineWidth: 2))
-            .overlay(alignment: .topLeading) {
-                Text(label)
-                    .font(.heading(10)).kerning(0.6)
-                    .foregroundStyle(Palette.inkFaint)
-                    .padding(.horizontal, 5)
-                    .background(Palette.bg)
-                    .offset(x: 12, y: -6)
-            }
+            .padding(.horizontal, 16).frame(height: 52)
+            .glassCapsule()
             if let footnote {
-                Text(footnote).font(.plain(11.5)).foregroundStyle(Palette.inkFaint)
-                    .padding(.leading, 4)
+                Text(footnote).font(.plain(11.5)).foregroundStyle(Palette.inkSoft)
+                    .padding(.leading, 16)
             }
         }
-        .padding(.top, 6)
     }
 
     private func note(_ text: Bilingual, tint: Color, icon: String) -> some View {
-        HStack(alignment: .top, spacing: 9) {
-            Image(systemName: icon).font(.system(size: 13, weight: .black)).foregroundStyle(tint)
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon).font(.system(size: 13, weight: .semibold)).foregroundStyle(tint)
             Text(text[lang]).font(.plain(12.5)).foregroundStyle(Palette.ink)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
-        .padding(11)
+        .padding(13)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Metrics.radiusSmall, style: .continuous)
-            .fill(tint.opacity(0.13)))
+        .glass(radius: 18, tint: tint, material: false, shadow: false)
     }
 
     private func submit() {
@@ -238,23 +232,20 @@ struct AccountSheet: View {
     var mode: AccountForm.Mode = .signIn
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 12) {
+            SheetHeader(title: S.account[state.native]) { dismiss() }
+                .padding(.horizontal, Metrics.hPad)
+                .padding(.top, 18)
             ScrollView {
                 AccountForm(mode: mode)
                     .padding(.horizontal, Metrics.hPad)
                     .padding(.bottom, 24)
             }
-            .background(Palette.bg)
-            .navigationTitle(S.account[state.native])
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(S.close[state.native]) { dismiss() }
-                }
-            }
-            .onChange(of: state.account.isSignedIn) { _, signedIn in
-                if signedIn { Feedback.pop(); dismiss() }
-            }
+            .scrollIndicators(.hidden)
+        }
+        .background(AuroraBackground(mood: .sheet))
+        .onChange(of: state.account.isSignedIn) { _, signedIn in
+            if signedIn { Feedback.pop(); dismiss() }
         }
     }
 }
@@ -299,8 +290,8 @@ private struct GoogleGlyph: View {
 /// server last heard from this phone, and the two buttons that change either.
 struct AccountSection: View {
     @Environment(AppState.self) private var state
+    @Environment(DialogPresenter.self) private var dialogs
     @State private var showSheet = false
-    @State private var showDelete = false
     @State private var deleteError: Bilingual?
 
     private var account: CloudAccount { state.account }
@@ -313,20 +304,13 @@ struct AccountSection: View {
                 if account.isSignedIn { signedIn } else { signedOut }
             }
             .sheet(isPresented: $showSheet) { AccountSheet(mode: .signIn) }
-            .alert(S.deleteAccount[lang], isPresented: $showDelete) {
-                Button(S.cancel[lang], role: .cancel) {}
-                Button(S.confirm[lang], role: .destructive) {
-                    Task { deleteError = await account.deleteAccount() }
-                }
-            } message: { Text(S.deleteAccountMsg[lang]) }
         }
     }
 
     private var signedOut: some View {
-        VStack(alignment: .leading, spacing: 11) {
-            HStack(spacing: 10) {
-                Image(systemName: "icloud.slash")
-                    .font(.system(size: 16, weight: .black)).foregroundStyle(Palette.inkFaint)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                OrbIcon("icloud.slash", look: .muted, size: 40, symbolScale: 0.4)
                 Text(S.notSignedIn[lang])
                     .font(.plain(12.5)).foregroundStyle(Palette.inkSoft)
                     .fixedSize(horizontal: false, vertical: true)
@@ -337,19 +321,16 @@ struct AccountSection: View {
             } label: {
                 Text(S.signIn[lang])
             }
-            .buttonStyle(.chunky(Palette.brand, Palette.brandDeep, height: 46))
+            .buttonStyle(.primary(.violet, height: 48))
         }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous).fill(Palette.card))
-        .overlay(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous)
-            .stroke(Palette.stroke, lineWidth: 2))
+        .padding(16)
+        .glass(radius: 26)
     }
 
     private var signedIn: some View {
-        VStack(alignment: .leading, spacing: 11) {
-            HStack(spacing: 11) {
-                Image(systemName: "checkmark.icloud.fill")
-                    .font(.system(size: 17, weight: .black)).foregroundStyle(Palette.green)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                OrbIcon("checkmark.icloud.fill", accent: .green, size: 40, symbolScale: 0.4)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(account.email).font(.heading(14)).foregroundStyle(Palette.ink)
                         .lineLimit(1).minimumScaleFactor(0.7)
@@ -383,20 +364,21 @@ struct AccountSection: View {
                     Text(S.signOut[lang]).font(.heading(12.5)).foregroundStyle(Palette.inkSoft)
                 }
                 .buttonStyle(.plain)
-                Button {
-                    Feedback.tap(); showDelete = true
-                } label: {
-                    Image(systemName: "trash.fill")
-                        .font(.system(size: 13, weight: .black)).foregroundStyle(Palette.red)
+                GlassCircleButton(icon: "trash.fill", size: 36, tint: Palette.red,
+                                  accessibility: S.deleteAccount[lang]) {
+                    Feedback.tap()
+                    dialogs.present(GlassDialog(title: S.deleteAccount[lang],
+                                                message: S.deleteAccountMsg[lang],
+                                                confirm: S.confirm[lang], cancel: S.cancel[lang],
+                                                destructive: true, icon: "trash.fill") {
+                        Task { deleteError = await account.deleteAccount() }
+                    })
                 }
-                .buttonStyle(.plain)
             }
             .padding(.top, 2)
         }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous).fill(Palette.card))
-        .overlay(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous)
-            .stroke(Palette.stroke, lineWidth: 2))
+        .padding(16)
+        .glass(radius: 26)
     }
 
     private var syncLine: String {

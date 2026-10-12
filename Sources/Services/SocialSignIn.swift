@@ -36,29 +36,25 @@ enum SocialSignIn {
         case apple(Int)
         case provider(String)
 
-        var errorDescription: String? { message.it }
+        var errorDescription: String? { message.en }
 
         var message: Bilingual {
             switch self {
             case .cancelled:
-                return Bilingual(it: "Accesso annullato.", uz: "Kirish bekor qilindi.")
+                return Bilingual("Sign-in cancelled.")
             case .notConfigured:
-                return Bilingual(it: "Accesso con Google non configurato in questa build.",
-                                 uz: "Bu versiyada Google orqali kirish sozlanmagan.")
+                return Bilingual("Google sign-in isn't set up in this build.")
             case .apple(let code):
                 // Il 1000 ha almeno tre cause che dall'app si vedono identiche —
                 // nessun ID Apple sul dispositivo, l'app firmata senza la capability,
                 // il Portachiavi iCloud spento — e indovinarne una manda a cercare
                 // nel posto sbagliato. Meglio dire cosa è successo e lasciare il
                 // codice a chi deve guardarci dentro.
-                return Bilingual(it: "Apple non ha completato l'accesso (\(code)). Riprova, oppure entra con l'email.",
-                                 uz: "Apple kirishni yakunlamadi (\(code)). Qayta urinib ko'ring yoki email bilan kiring.")
+                return Bilingual("Apple didn't complete the sign-in (\(code)). Try again, or use your email.")
             case .noToken:
-                return Bilingual(it: "Il provider non ha restituito un'identità valida.",
-                                 uz: "Provayder yaroqli identifikator qaytarmadi.")
+                return Bilingual("The provider didn't return a valid identity.")
             case .provider(let detail):
-                return Bilingual(it: "Accesso non riuscito. \(detail)",
-                                 uz: "Kirish amalga oshmadi. \(detail)")
+                return Bilingual("Sign-in failed. \(detail)")
             }
         }
     }

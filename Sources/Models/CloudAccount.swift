@@ -252,16 +252,14 @@ final class CloudAccount {
         if case FirebaseClient.Failure.auth(let code) = error,
            code.hasPrefix("OPERATION_NOT_ALLOWED"), let provider {
             let name = provider == .apple ? "Apple" : "Google"
-            return Bilingual(it: "Accesso con \(name) non è abilitato nel progetto Firebase.",
-                             uz: "\(name) orqali kirish Firebase loyihasida yoqilmagan.")
+            return Bilingual("Signing in with \(name) isn't enabled in the Firebase project.")
         }
         if let failure = error as? FirebaseClient.Failure { return failure.message }
         if let failure = error as? SocialSignIn.Failure { return failure.message }
         let urlError = error as? URLError
         if urlError?.code == .notConnectedToInternet || urlError?.code == .timedOut {
-            return Bilingual(it: "Nessuna connessione. I progressi restano salvati sul telefono.",
-                             uz: "Internet yo'q. Yutuqlar telefonda saqlanib qoladi.")
+            return Bilingual("No connection. Your progress stays saved on the phone.")
         }
-        return Bilingual(it: error.localizedDescription, uz: error.localizedDescription)
+        return Bilingual(error.localizedDescription)
     }
 }

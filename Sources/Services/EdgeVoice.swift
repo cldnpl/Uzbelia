@@ -24,8 +24,8 @@ enum EdgeVoice {
 
         var errorDescription: String? {
             switch self {
-            case .noAudio: return "Il servizio non ha restituito audio."
-            case .refused(let why): return "Voce non disponibile: \(why)"
+            case .noAudio: return "The service returned no audio."
+            case .refused(let why): return "Voice not available: \(why)"
             }
         }
     }
@@ -131,7 +131,7 @@ enum EdgeVoice {
 
     private static func ssmlMessage(_ text: String, voice: AzureSpeech.Voice, percent: Int) -> String {
         let sign = percent >= 0 ? "+" : "-"
-        let ssml = "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='uz-UZ'>"
+        let ssml = "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='\(voice.locale)'>"
                  + "<voice name='\(voice.rawValue)'>"
                  + "<prosody pitch='+0Hz' rate='\(sign)\(abs(percent))%' volume='+0%'>"
                  + VoiceCache.escapedForSSML(text)

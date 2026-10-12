@@ -7,46 +7,47 @@ struct HeartsSheet: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 ForEach(0..<AppState.heartCap, id: \.self) { i in
-                    Image(systemName: i < state.hearts ? "heart.fill" : "heart")
-                        .font(.system(size: 26, weight: .black))
-                        .foregroundStyle(i < state.hearts ? Palette.red : Palette.locked)
+                    if i < state.hearts {
+                        OrbIcon("heart.fill", accent: .purple, size: 44, symbolScale: 0.42)
+                    } else {
+                        OrbIcon("heart", look: .muted, size: 44, symbolScale: 0.42)
+                    }
                 }
             }
-            .padding(.top, 10)
+            .padding(.top, 18)
 
             Text(state.hearts == 0 ? S.noHearts[state.native] : "\(state.hearts)/\(AppState.heartCap)")
-                .font(.heading(20)).foregroundStyle(Palette.ink)
+                .font(.display(24)).foregroundStyle(Palette.ink)
 
             if state.hearts < AppState.heartCap {
-                Text("\(S.nextHeartIn[state.native]) \(state.minutesToNextHeart) \(S.minutesShort[state.native])")
-                    .font(.plain(14)).foregroundStyle(Palette.inkSoft)
+                GlassChip(text: "\(S.nextHeartIn[state.native]) \(state.minutesToNextHeart) \(S.minutesShort[state.native])",
+                          icon: "clock", tint: Palette.inkSoft)
             }
 
             if state.hearts == 0 {
                 Text(S.noHeartsMsg[state.native])
-                    .font(.plain(14)).foregroundStyle(Palette.inkSoft)
+                    .font(.plain(14.5)).foregroundStyle(Palette.inkSoft)
                     .multilineTextAlignment(.center)
             }
+
+            Spacer(minLength: 0)
 
             VStack(spacing: 10) {
                 Button {
                     Feedback.pop()
                     if state.refillHearts(costingGems: true) { dismiss() }
                 } label: { Text(S.refill[state.native]) }
-                .buttonStyle(.chunky(Palette.red, Palette.redDeep))
+                .buttonStyle(.primary(.violet))
                 .disabled(state.gems < 100 || state.hearts == AppState.heartCap)
-                .opacity(state.gems < 100 || state.hearts == AppState.heartCap ? 0.5 : 1)
 
                 if let onQuit {
                     Button { Feedback.tap(); onQuit() } label: { Text(S.quit[state.native]) }
-                        .buttonStyle(.chunkyGhost)
+                        .buttonStyle(.glass)
                 }
             }
-            Spacer(minLength: 0)
         }
         .padding(Metrics.hPad)
-        .background(Palette.bgElevated)
     }
 }

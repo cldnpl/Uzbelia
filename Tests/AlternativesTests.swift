@@ -5,11 +5,11 @@ import XCTest
 final class AlternativeAnswerTests: XCTestCase {
 
     private let course = [
-        Pair(it: "A domani!", uz: "Ertaga ko'rishguncha!"),
-        Pair(it: "A domani!", uz: "Ertagacha!"),          // the same goodbye, said shorter
-        Pair(it: "Come stai?", uz: "Qalaysan?"),
-        Pair(it: "Sto bene", uz: "Yaxshiman"),
-        Pair(it: "buonanotte", uz: "xayrli tun")
+        Pair(en: "Until tomorrow!", tx: "Ertaga ko'rishguncha!"),
+        Pair(en: "Until tomorrow!", tx: "Ertagacha!"),          // the same goodbye, said shorter
+        Pair(en: "How are you?", tx: "Qalaysan?"),
+        Pair(en: "I'm fine", tx: "Yaxshiman"),
+        Pair(en: "good night", tx: "xayrli tun")
     ]
 
     override func setUp() {
@@ -41,18 +41,18 @@ final class AlternativeAnswerTests: XCTestCase {
 
     func testAWordingTheCourseTeachesElsewhereIsAccepted() {
         let ex = Exercise(kind: .type, pair: course[0],
-                          prompt: "A domani!", promptLanguage: .it,
+                          prompt: "Until tomorrow!", promptLanguage: .en,
                           answer: "Ertaga ko'rishguncha!", answerLanguage: .uz)
         XCTAssertTrue(AnswerJudge.courseAgrees("Ertagacha!", with: ex),
                       "the course gives both wordings for the same goodbye")
         XCTAssertTrue(AnswerJudge.courseAgrees("ertagacha", with: ex),
                       "case and punctuation are not the point")
         XCTAssertFalse(AnswerJudge.courseAgrees("xayrli tun", with: ex),
-                       "good night is not see you tomorrow")
+                       "good night is not until tomorrow")
     }
 
     func testAnUnrelatedAnswerIsNotTalkedIntoBeingRight() {
-        let ex = translation(of: course[3], into: .uz)          // "Sto bene" → "Yaxshiman"
+        let ex = translation(of: course[3], into: .uz)          // "I'm fine" → "Yaxshiman"
         XCTAssertFalse(AnswerJudge.courseAgrees("Qalaysan?", with: ex))
         XCTAssertFalse(AnswerJudge.courseAgrees("qwerty", with: ex))
         XCTAssertFalse(AnswerJudge.courseAgrees("   ", with: ex))
@@ -68,7 +68,7 @@ final class AlternativeAnswerTests: XCTestCase {
 
     func testAnAcceptedWordingIsRememberedAndNeverArguedForTwice() {
         let state = AppState(persistent: false)
-        state.chooseCourse(native: .it)
+        state.chooseCourse(.uz)
         state.rememberAlternative("Ertagacha!", for: "Ertaga ko'rishguncha!")
 
         let remembered = state.alternatives(for: "Ertaga ko'rishguncha!")
@@ -83,17 +83,17 @@ final class AlternativeAnswerTests: XCTestCase {
 
     func testTheSameWordingIsStoredOnlyOnceAndTheListStaysSmall() {
         let state = AppState(persistent: false)
-        state.chooseCourse(native: .it)
-        state.rememberAlternative("va tutto ok", for: "Sto bene")
-        state.rememberAlternative("VA TUTTO OK!", for: "Sto bene")
-        XCTAssertEqual(state.alternatives(for: "Sto bene").count, 1)
+        state.chooseCourse(.uz)
+        state.rememberAlternative("hammasi joyida", for: "Yaxshiman")
+        state.rememberAlternative("HAMMASI JOYIDA!", for: "Yaxshiman")
+        XCTAssertEqual(state.alternatives(for: "Yaxshiman").count, 1)
 
-        state.rememberAlternative("Sto bene", for: "Sto bene")
-        XCTAssertEqual(state.alternatives(for: "Sto bene").count, 1,
+        state.rememberAlternative("Yaxshiman", for: "Yaxshiman")
+        XCTAssertEqual(state.alternatives(for: "Yaxshiman").count, 1,
                        "the expected answer is not an alternative to itself")
 
-        for i in 0..<20 { state.rememberAlternative("forma \(i)", for: "Sto bene") }
-        XCTAssertLessThanOrEqual(state.alternatives(for: "Sto bene").count, 8)
+        for i in 0..<20 { state.rememberAlternative("shakl \(i)", for: "Yaxshiman") }
+        XCTAssertLessThanOrEqual(state.alternatives(for: "Yaxshiman").count, 8)
     }
 
     func testAnOlderSaveWithoutAlternativesStillLoads() throws {
@@ -107,7 +107,7 @@ final class AlternativeAnswerTests: XCTestCase {
 
     func testTheOfflineRulingCoversBothSourcesAndNothingElse() {
         let ex = Exercise(kind: .type, pair: course[0],
-                          prompt: "A domani!", promptLanguage: .it,
+                          prompt: "Until tomorrow!", promptLanguage: .en,
                           answer: "Ertaga ko'rishguncha!", answerLanguage: .uz)
 
         if case .alternative(let canonical, let note)? = AnswerJudge.offline("Ertagacha!", for: ex,
@@ -131,7 +131,7 @@ final class AlternativeAnswerTests: XCTestCase {
     func testWithoutAKeyNothingIsSentAnywhere() async {
         let ex = translation(of: course[3], into: .uz)
         let ruling = await AnswerJudge.secondOpinion("hammasi joyida", for: ex, level: .a1,
-                                                     native: .it, provider: .none, apiKey: "")
+                                                     native: .en, provider: .none, apiKey: "")
         XCTAssertNil(ruling, "no key means the grader's own verdict stands")
     }
 
@@ -148,10 +148,10 @@ final class AlternativeAnswerTests: XCTestCase {
         XCTAssertEqual(engine.mistakePairs.count, 0)
 
         // ...and the second opinion overrides it
-        engine.commit(.alternative(canonical: ex.answer, note: "Modo colloquiale."))
+        engine.commit(.alternative(canonical: ex.answer, note: "Colloquial."))
         XCTAssertEqual(engine.accuracy, 1)
         XCTAssertTrue(engine.mistakePairs.isEmpty, "an accepted wording is not a mistake")
-        XCTAssertEqual(engine.verdict, .alternative(canonical: ex.answer, note: "Modo colloquiale."))
+        XCTAssertEqual(engine.verdict, .alternative(canonical: ex.answer, note: "Colloquial."))
     }
 
     func testARejectedAnswerStillCostsHerTheQuestion() {
@@ -185,7 +185,7 @@ final class BuiltInKeyTests: XCTestCase {
 
     func testWithNoKeyAnywhereTheAppRunsOffline() {
         let state = AppState(persistent: false)
-        state.chooseCourse(native: .it)
+        state.chooseCourse(.uz)
         guard Secrets.builtIn == nil else {
             // a key has been pasted into Secrets.swift: then it is the one in use
             XCTAssertEqual(state.aiProvider, Secrets.builtIn?.provider)
@@ -201,7 +201,7 @@ final class BuiltInKeyTests: XCTestCase {
 
     func testAKeyTypedInTheAppWinsOverTheOneCompiledIn() {
         let state = AppState(persistent: false)
-        state.chooseCourse(native: .it)
+        state.chooseCourse(.uz)
         state.settings.aiProvider = .gemini
         state.settings.aiKey = "AIzaTypedByHand"
 
@@ -212,7 +212,7 @@ final class BuiltInKeyTests: XCTestCase {
 
     func testAHalfFilledSettingNeverCountsAsAKey() {
         let state = AppState(persistent: false)
-        state.chooseCourse(native: .it)
+        state.chooseCourse(.uz)
         state.settings.aiProvider = .gemini
         state.settings.aiKey = "   "                 // picked a provider, pasted nothing
         XCTAssertEqual(state.aiProvider, Secrets.builtIn?.provider ?? .none)
@@ -243,21 +243,21 @@ final class BuiltInKeyTests: XCTestCase {
     }
 }
 
-/// The exact case from the screenshot: "A domani!" answered with `ertagacha`, which the
-/// course does not list and which is perfectly good Uzbek.
+/// The exact case from the screenshot: "Until tomorrow!" answered with `ertagacha`, which
+/// the course does not list and which is perfectly good Uzbek.
 final class MineIsRightTooTests: XCTestCase {
 
-    private let aDomani = Pair(it: "A domani!", uz: "Ertaga ko'rishguncha!")
+    private let untilTomorrow = Pair(en: "Until tomorrow!", tx: "Ertaga ko'rishguncha!")
 
     private func question() -> Exercise {
-        Exercise(kind: .type, pair: aDomani,
-                 prompt: aDomani.it, promptLanguage: .it,
-                 answer: aDomani.uz, answerLanguage: .uz)
+        Exercise(kind: .type, pair: untilTomorrow,
+                 prompt: untilTomorrow.en, promptLanguage: .en,
+                 answer: untilTomorrow.tx, answerLanguage: .uz)
     }
 
     override func setUp() {
         super.setUp()
-        Glossary.prime(with: [aDomani])       // a course that has never met "ertagacha"
+        Glossary.prime(with: [untilTomorrow])       // a course that has never met "ertagacha"
     }
 
     func testTheCourseAloneCannotAcceptAWordingItHasNeverSeen() {
@@ -269,7 +269,7 @@ final class MineIsRightTooTests: XCTestCase {
 
     func testSayingItIsRightAcceptsIt_GivesTheHeartBackAndRemembersItForGood() {
         let state = AppState(persistent: false)
-        state.chooseCourse(native: .it)
+        state.chooseCourse(.uz)
         state.settings.unlimitedResources = false          // so hearts actually move
         let before = state.hearts
 
@@ -280,17 +280,17 @@ final class MineIsRightTooTests: XCTestCase {
         // marked wrong, as it is today
         engine.commit(engine.grade())
         state.loseHeart()
-        XCTAssertEqual(engine.verdict, .wrong(aDomani.uz))
+        XCTAssertEqual(engine.verdict, .wrong(untilTomorrow.tx))
         XCTAssertEqual(engine.mistakePairs.count, 1)
         XCTAssertEqual(state.hearts, before - 1)
 
-        // she taps "anche la mia è giusta"
+        // she taps "mine is right too"
         state.rememberAlternative(engine.givenAnswer, for: ex.answer)
         state.gradePair(ex.pair, correct: true)
         state.regainHeart()
         engine.acceptAnswerAnyway()
 
-        XCTAssertEqual(engine.verdict, .alternative(canonical: aDomani.uz, note: nil))
+        XCTAssertEqual(engine.verdict, .alternative(canonical: untilTomorrow.tx, note: nil))
         XCTAssertTrue(engine.mistakePairs.isEmpty, "it is no longer a mistake")
         XCTAssertEqual(engine.accuracy, 1)
         XCTAssertEqual(state.hearts, before, "the heart comes back")
@@ -325,7 +325,7 @@ final class MineIsRightTooTests: XCTestCase {
     func testSayingItIsRightDoesNothingWhenTheAnswerWasNotMarkedWrong() {
         let ex = question()
         let engine = LessonEngine(exercises: [ex])
-        engine.typed = aDomani.uz
+        engine.typed = untilTomorrow.tx
         engine.commit(engine.grade())
         XCTAssertEqual(engine.verdict, .correct)
         engine.acceptAnswerAnyway()

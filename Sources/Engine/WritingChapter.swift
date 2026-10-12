@@ -25,7 +25,7 @@ struct WritingChapter: Hashable {
     var minimumWords: Int { WritingChapter.wordFloor(for: level) }
 
     var title: Bilingual {
-        Bilingual(it: "Scrivi ad Anorcha", uz: "Anorchaga yozing")
+        Bilingual("Write to Anorcha")
     }
 
     static func turnCount(for level: CEFR) -> Int {
@@ -55,58 +55,42 @@ struct WritingChapter: Hashable {
         /// Said to the assistant, in English, as the situation to play.
         var situation: String
         var icon: String
-
-        /// How the exchange opens when there is no assistant to write it.
-        var opener: Bilingual
+        // How the exchange opens offline is the course's: `chat.opener.<id>` in its phrases.
     }
 
     static let themes: [Theme] = [
         Theme(id: "day",
-              title: Bilingual(it: "Com'è andata oggi", uz: "Bugun qanday o'tdi"),
+              title: Bilingual("How today went"),
               situation: "You are texting her in the evening to ask how her day went, and telling her about yours.",
-              icon: "sun.horizon.fill",
-              opener: Bilingual(it: "Ehi! Com'è andata la giornata?", uz: "Salom! Bugun kuning qanday o'tdi?")),
+              icon: "sun.horizon.fill"),
         Theme(id: "plan",
-              title: Bilingual(it: "Mettersi d'accordo", uz: "Kelishib olish"),
+              title: Bilingual("Making plans"),
               situation: "You are trying to agree with her on when and where to meet this week.",
-              icon: "calendar",
-              opener: Bilingual(it: "Ci vediamo questa settimana? Quando puoi?",
-                                uz: "Shu hafta ko'rishamizmi? Qachon bo'sh bo'lasan?")),
+              icon: "calendar"),
         Theme(id: "favour",
-              title: Bilingual(it: "Chiedere un favore", uz: "Iltimos qilish"),
+              title: Bilingual("Asking a favor"),
               situation: "You need a small favour from her and you are asking for it by message, a little awkwardly.",
-              icon: "hands.sparkles.fill",
-              opener: Bilingual(it: "Posso chiederti un favore?", uz: "Sendan bir narsa so'rasam maylimi?")),
+              icon: "hands.sparkles.fill"),
         Theme(id: "place",
-              title: Bilingual(it: "Dove sei?", uz: "Qayerdasan?"),
+              title: Bilingual("Where are you?"),
               situation: "She is somewhere you have never been and you want her to describe it to you.",
-              icon: "mappin.and.ellipse",
-              opener: Bilingual(it: "Dove sei? Raccontami com'è lì.",
-                                uz: "Qayerdasan? U yer qanaqa, aytib ber.")),
+              icon: "mappin.and.ellipse"),
         Theme(id: "food",
-              title: Bilingual(it: "Cosa mangiamo", uz: "Nima yeymiz"),
+              title: Bilingual("What shall we eat"),
               situation: "You are deciding together what to eat, and you disagree pleasantly about it.",
-              icon: "fork.knife",
-              opener: Bilingual(it: "Ho fame. Cosa mangiamo stasera?",
-                                uz: "Qornim ochdi. Kechqurun nima yeymiz?")),
+              icon: "fork.knife"),
         Theme(id: "news",
-              title: Bilingual(it: "Una novità", uz: "Bir yangilik"),
+              title: Bilingual("Some news"),
               situation: "You have a small piece of news to tell her and you want her reaction to it.",
-              icon: "sparkles",
-              opener: Bilingual(it: "Indovina cosa mi è successo oggi!",
-                                uz: "Bugun menga nima bo'ldi, top-chi!")),
+              icon: "sparkles"),
         Theme(id: "problem",
-              title: Bilingual(it: "Un piccolo problema", uz: "Kichik muammo"),
+              title: Bilingual("A small problem"),
               situation: "Something small has gone wrong for you and you are asking her what she would do.",
-              icon: "exclamationmark.bubble.fill",
-              opener: Bilingual(it: "Ho un problema… tu cosa faresti?",
-                                uz: "Bir muammom bor… sen bo'lsang nima qilarding?")),
+              icon: "exclamationmark.bubble.fill"),
         Theme(id: "memory",
-              title: Bilingual(it: "Ti ricordi?", uz: "Esingdami?"),
+              title: Bilingual("Remember?"),
               situation: "You are reminiscing with her about something you both did, and asking her to fill in the parts you forgot.",
-              icon: "photo.on.rectangle.angled",
-              opener: Bilingual(it: "Ti ricordi quella volta? Non mi ricordo come era finita.",
-                                uz: "O'sha safar esingdami? Qanday tugaganini eslay olmayapman.")),
+              icon: "photo.on.rectangle.angled"),
     ]
 
     // MARK: - The briefing the assistant is given
@@ -115,9 +99,10 @@ struct WritingChapter: Hashable {
     /// the chapter's words, and the ceiling its level puts on her own sentences.
     func briefing(native: Language) -> String {
         let target = native.other
+        // the chapter's title in the language being learnt, which the model can use
         var lines = [
             "CEFR level: \(level.label)",
-            "Chapter: \(unitTitle[native])",
+            "Chapter: \(unitTitle[native]) (\(unitTitle[target]))",
             "Situation: \(theme.situation)",
         ]
         if !lessonTopics.isEmpty {
@@ -146,7 +131,7 @@ enum WritingPlanner {
                               theme: themes[index],
                               vocabulary: unit.allPairs,
                               unitTitle: unit.title,
-                              lessonTopics: unit.lessons.map { $0.title.it })
+                              lessonTopics: unit.lessons.map { $0.title.en })
     }
 
     /// `String.hashValue` is salted per process, so the same unit would draw a

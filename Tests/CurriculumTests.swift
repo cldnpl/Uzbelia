@@ -1,14 +1,14 @@
 import XCTest
 @testable import Uzbelia
 
-/// Checks the bundled course content itself.
+/// Checks the bundled course content itself: the Uzbek course, taught from English.
 final class CurriculumTests: XCTestCase {
 
     private var curriculum: Curriculum!
 
     override func setUp() {
         super.setUp()
-        curriculum = ContentStore.loadCurriculum()
+        curriculum = ContentStore.loadCurriculum(.uz)
     }
 
     func testAllFourLevelsLoad() {
@@ -33,7 +33,7 @@ final class CurriculumTests: XCTestCase {
         for pack in curriculum.levels {
             for unit in pack.units {
                 for lesson in unit.lessons {
-                    for word in lesson.vocab { known.insert(Grader.normalise(word.uz)) }
+                    for word in lesson.vocab { known.insert(Grader.normalise(word.tx)) }
                 }
             }
             let band = bands[pack.level]!
@@ -67,8 +67,8 @@ final class CurriculumTests: XCTestCase {
             XCTAssertFalse(unit.lessons.isEmpty, "\(unit.id) has no lessons")
             XCTAssertFalse(unit.grammar.isEmpty, "\(unit.id) has no grammar notes")
             XCTAssertNotNil(unit.dialogue, "\(unit.id) has no story dialogue")
-            XCTAssertFalse(unit.title.it.isEmpty)
-            XCTAssertFalse(unit.title.uz.isEmpty)
+            XCTAssertFalse(unit.title.en.isEmpty)
+            XCTAssertFalse(unit.title.tx.isEmpty)
             for lesson in unit.lessons {
                 XCTAssertGreaterThanOrEqual(lesson.vocab.count, 6, "\(lesson.id) too few words")
                 XCTAssertGreaterThanOrEqual(lesson.phrases.count, 2, "\(lesson.id) too few phrases")
@@ -79,12 +79,12 @@ final class CurriculumTests: XCTestCase {
     func testNoEmptyOrCyrillicText() {
         let cyrillic = CharacterSet(charactersIn: Unicode.Scalar(0x0400)!...Unicode.Scalar(0x04FF)!)
         for pair in curriculum.allPairs {
-            XCTAssertFalse(pair.it.trimmingCharacters(in: .whitespaces).isEmpty)
-            XCTAssertFalse(pair.uz.trimmingCharacters(in: .whitespaces).isEmpty)
-            XCTAssertNil(pair.uz.rangeOfCharacter(from: cyrillic),
-                         "cyrillic leaked into '\(pair.uz)'")
-            XCTAssertFalse(pair.uz.contains("\u{2018}") || pair.uz.contains("\u{2019}"),
-                           "curly apostrophe in '\(pair.uz)' — use a straight one")
+            XCTAssertFalse(pair.en.trimmingCharacters(in: .whitespaces).isEmpty)
+            XCTAssertFalse(pair.tx.trimmingCharacters(in: .whitespaces).isEmpty)
+            XCTAssertNil(pair.tx.rangeOfCharacter(from: cyrillic),
+                         "cyrillic leaked into '\(pair.tx)'")
+            XCTAssertFalse(pair.tx.contains("\u{2018}") || pair.tx.contains("\u{2019}"),
+                           "curly apostrophe in '\(pair.tx)' — use a straight one")
         }
     }
 
@@ -94,8 +94,8 @@ final class CurriculumTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(d.lines.count, 5, "\(unit.id) dialogue too short")
             for line in d.lines {
                 XCTAssertFalse(line.who.isEmpty)
-                XCTAssertFalse(line.it.isEmpty)
-                XCTAssertFalse(line.uz.isEmpty)
+                XCTAssertFalse(line.en.isEmpty)
+                XCTAssertFalse(line.tx.isEmpty)
             }
         }
     }

@@ -13,23 +13,26 @@ struct StoryReadingView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 14) {
-                Button { Feedback.tap(); onQuit() } label: {
-                    Image(systemName: "xmark").font(.system(size: 19, weight: .black))
-                        .foregroundStyle(Palette.inkFaint)
+            HStack(spacing: 12) {
+                GlassCircleButton(icon: "xmark", size: 42, tint: Palette.inkSoft,
+                                  accessibility: S.quit[state.native]) {
+                    Feedback.tap(); onQuit()
                 }
                 ProgressBar(value: Double(revealed) / Double(max(1, dialogue.lines.count)), tint: Palette.purple)
-                Image(systemName: "text.bubble.fill")
-                    .font(.system(size: 17, weight: .black)).foregroundStyle(Palette.purple)
+                OrbIcon("text.bubble.fill", accent: .purple, size: 38, symbolScale: 0.42)
             }
-            .padding(.horizontal, Metrics.hPad).padding(.vertical, 12)
+            .padding(.horizontal, Metrics.hPad).padding(.vertical, 10)
 
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
-                        Text(dialogue.title[state.native])
-                            .font(.display(24)).foregroundStyle(Palette.ink)
-                            .padding(.bottom, 4)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(S.story[state.native])
+                                .font(.heading(14)).foregroundStyle(Palette.inkSoft)
+                            Text(dialogue.title[state.native])
+                                .font(.display(28)).foregroundStyle(Gradients.title)
+                        }
+                        .padding(.bottom, 6)
 
                         ForEach(Array(dialogue.lines.prefix(revealed).enumerated()), id: \.offset) { i, line in
                             lineRow(i, line)
@@ -40,6 +43,7 @@ struct StoryReadingView: View {
                     .padding(.horizontal, Metrics.hPad)
                     .padding(.bottom, 24)
                 }
+                .scrollIndicators(.hidden)
                 .onChange(of: revealed) { _, v in
                     withAnimation { proxy.scrollTo(v - 1, anchor: .bottom) }
                 }
@@ -56,53 +60,65 @@ struct StoryReadingView: View {
             } label: {
                 Text(revealed < dialogue.lines.count ? S.continueBtn[state.native] : S.done[state.native])
             }
-            .buttonStyle(.chunky(Palette.purple, Palette.purpleDeep))
+            .buttonStyle(.primary(.lilac))
             .padding(.horizontal, Metrics.hPad)
-            .padding(.bottom, 18)
+            .padding(.bottom, 14)
         }
-        .background(Palette.bg)
         .onAppear { if let first = dialogue.lines.first { speak(first) } }
     }
 
     private func lineRow(_ i: Int, _ line: DialogueLine) -> some View {
         let mine = i % 2 == 0
-        return HStack(alignment: .top, spacing: 10) {
-            if !mine { Spacer(minLength: 30) }
-            VStack(alignment: .leading, spacing: 6) {
+        return HStack(alignment: .bottom, spacing: 8) {
+            if !mine { Spacer(minLength: 34) }
+            if mine {
+                Text(String(line.who.prefix(1)).uppercased())
+                    .font(.heading(13)).foregroundStyle(.white)
+                    .frame(width: 30, height: 30)
+                    .background(Circle().fill(Gradients.of(.sky)))
+            }
+            VStack(alignment: .leading, spacing: 7) {
                 Text(line.who.uppercased())
-                    .font(.heading(10)).kerning(0.8)
-                    .foregroundStyle(mine ? Palette.brand : Palette.pink)
+                    .font(.heading(10.5)).kerning(0.8)
+                    .foregroundStyle(mine ? UnitAccent.sky.deep : UnitAccent.pink.deep)
                 SpeakableText(text: line[state.target], language: state.target,
-                              font: .body(17))
+                              font: .body(17.5))
                 if translated.contains(i) {
                     Text(line[state.native])
                         .font(.plain(14)).foregroundStyle(Palette.inkSoft)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                HStack(spacing: 10) {
+                HStack(spacing: 14) {
                     Button {
                         Feedback.tap(); speak(line)
                     } label: {
-                        Image(systemName: "speaker.wave.2.fill").font(.system(size: 13, weight: .bold))
+                        Image(systemName: "speaker.wave.2.fill").font(.system(size: 13, weight: .semibold))
                     }
                     Button {
                         Feedback.tap()
                         if translated.contains(i) { translated.remove(i) } else { translated.insert(i) }
                     } label: {
-                        Image(systemName: "character.book.closed.fill").font(.system(size: 13, weight: .bold))
+                        Image(systemName: "character.book.closed.fill").font(.system(size: 13, weight: .semibold))
                     }
                 }
-                .foregroundStyle(Palette.inkFaint)
+                .foregroundStyle(Palette.inkSoft)
                 .buttonStyle(.plain)
             }
-            .padding(13)
+            .padding(14)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(mine ? Palette.card : Palette.purple.opacity(0.1))
-                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(mine ? Palette.stroke : Palette.purple.opacity(0.3), lineWidth: 2))
+                GlassPane(shape: UnevenRoundedRectangle(
+                    topLeadingRadius: 22, bottomLeadingRadius: mine ? 6 : 22,
+                    bottomTrailingRadius: mine ? 22 : 6, topTrailingRadius: 22,
+                    style: .continuous),
+                          tint: mine ? nil : Palette.pink, material: false)
             )
-            if mine { Spacer(minLength: 30) }
+            if !mine {
+                Text(String(line.who.prefix(1)).uppercased())
+                    .font(.heading(13)).foregroundStyle(.white)
+                    .frame(width: 30, height: 30)
+                    .background(Circle().fill(Gradients.of(.pink)))
+            }
+            if mine { Spacer(minLength: 34) }
         }
     }
 

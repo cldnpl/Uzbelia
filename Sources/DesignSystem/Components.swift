@@ -1,124 +1,75 @@
 import SwiftUI
 
-// MARK: - Chunky 3D button (the signature control of the app)
-
-struct ChunkyButtonStyle: ButtonStyle {
-    var fill: Color = Palette.green
-    var edge: Color = Palette.greenDeep
-    var text: Color = .white
-    var height: CGFloat = 54
-    var radius: CGFloat = Metrics.radius
-    var depth: CGFloat = Metrics.chunkDepth
-    var stretch: Bool = true
-
-    func makeBody(configuration: Configuration) -> some View {
-        let pressed = configuration.isPressed
-        return configuration.label
-            .font(.heading(17))
-            .kerning(0.4)
-            .foregroundStyle(text)
-            .frame(maxWidth: stretch ? .infinity : nil)
-            .frame(height: height)
-            .padding(.horizontal, stretch ? 0 : 22)
-            .background(
-                RoundedRectangle(cornerRadius: radius, style: .continuous).fill(fill)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .offset(y: pressed ? depth : 0)
-            .background(
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(edge)
-                    .offset(y: depth)
-            )
-            .animation(.easeOut(duration: 0.07), value: pressed)
-    }
-}
-
-extension ButtonStyle where Self == ChunkyButtonStyle {
-    static var chunky: ChunkyButtonStyle { ChunkyButtonStyle() }
-    static func chunky(_ fill: Color, _ edge: Color, text: Color = .white, height: CGFloat = 54, stretch: Bool = true) -> ChunkyButtonStyle {
-        ChunkyButtonStyle(fill: fill, edge: edge, text: text, height: height, stretch: stretch)
-    }
-    static var chunkyGhost: ChunkyButtonStyle {
-        ChunkyButtonStyle(fill: Palette.card, edge: Palette.strokeDeep, text: Palette.ink)
-    }
-}
-
-/// A tappable card with the same 3D lip, used for answer choices.
-struct ChunkyCard<Content: View>: View {
-    var fill: Color = Palette.card
-    var edge: Color = Palette.stroke
-    var border: Color? = Palette.stroke
-    var radius: CGFloat = Metrics.radius
-    var depth: CGFloat = Metrics.chunkDepth
-    var pressed: Bool = false
-    @ViewBuilder var content: () -> Content
-
-    var body: some View {
-        content()
-            .background(
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(fill)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: radius, style: .continuous)
-                            .strokeBorder(border ?? .clear, lineWidth: border == nil ? 0 : 2)
-                    )
-            )
-            .offset(y: pressed ? depth : 0)
-            .background(
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(edge)
-                    .offset(y: depth)
-            )
-            .animation(.easeOut(duration: 0.07), value: pressed)
-    }
-}
-
 // MARK: - Progress bar
 
+/// A slim track with a gradient fill and a glowing knob at the tip — the "Progress
+/// 60/100" bar of the reference.
 struct ProgressBar: View {
     var value: Double              // 0...1
-    var tint: Color = Palette.green
+    var tint: Color = Palette.brand
     var track: Color = Palette.locked
-    var height: CGFloat = 16
+    var height: CGFloat = 8
+    /// The knob at the tip of the fill.
     var showsShine: Bool = true
 
     var body: some View {
+        let knob = height + 8
         GeometryReader { geo in
+            let filled = min(max(value, 0), 1)
+            let width = geo.size.width
             ZStack(alignment: .leading) {
-                Capsule().fill(track)
-                let filled = min(max(value, 0), 1)
+                Capsule().fill(track).frame(height: height)
                 Capsule()
-                    .fill(tint)
-                    .frame(width: filled <= 0 ? 0 : max(height, geo.size.width * filled))
-                    .overlay(alignment: .top) {
-                        if showsShine {
-                            Capsule()
-                                .fill(.white.opacity(0.32))
-                                .frame(width: max(0, geo.size.width * filled - 14), height: height * 0.28)
-                                .padding(.top, height * 0.16)
-                                .padding(.leading, 7)
-                        }
-                    }
-                    .animation(.spring(response: 0.42, dampingFraction: 0.8), value: value)
+                    .fill(LinearGradient(colors: [tint.opacity(0.55), tint],
+                                         startPoint: .leading, endPoint: .trailing))
+                    .frame(width: filled <= 0 ? 0 : max(height, width * filled), height: height)
+                    .shadow(color: tint.opacity(0.4), radius: 6, y: 2)
+                if showsShine && filled > 0 {
+                    Circle()
+                        .fill(tint)
+                        .overlay(Circle().strokeBorder(.white, lineWidth: 2.5))
+                        .frame(width: knob, height: knob)
+                        .shadow(color: tint.opacity(0.55), radius: 6, y: 2)
+                        .offset(x: max(0, min(width - knob, width * filled - knob / 2)))
+                }
             }
+            .frame(height: geo.size.height)
+            .animation(.spring(response: 0.45, dampingFraction: 0.82), value: value)
         }
-        .frame(height: height)
+        .frame(height: showsShine ? knob : height)
     }
 }
 
 // MARK: - Small stat pills
 
+/// A count with its icon, on a little capsule of glass.
 struct StatPill: View {
     var icon: String
     var text: String
     var tint: Color
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: icon).font(.system(size: 15, weight: .black))
-            Text(text).font(.heading(16)).monospacedDigit()
+            Image(systemName: icon).font(.system(size: 13, weight: .bold))
+                .foregroundStyle(tint)
+            Text(text).font(.heading(14)).monospacedDigit()
+                .foregroundStyle(Palette.ink)
         }
-        .foregroundStyle(tint)
+        .padding(.horizontal, 11).frame(height: 34)
+        .glassCapsule(material: false, shadow: false)
+    }
+}
+
+/// "∞" next to an icon, for the unlimited hearts/gems this build ships with.
+struct InfinityPill: View {
+    var icon: String
+    var tint: Color
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon).font(.system(size: 13, weight: .bold)).foregroundStyle(tint)
+            Image(systemName: "infinity").font(.system(size: 12, weight: .bold)).foregroundStyle(Palette.ink)
+        }
+        .padding(.horizontal, 11).frame(height: 34)
+        .glassCapsule(material: false, shadow: false)
     }
 }
 
@@ -127,15 +78,17 @@ struct Tag: View {
     var tint: Color
     var body: some View {
         Text(text.uppercased())
-            .font(.heading(11)).kerning(0.8)
+            .font(.heading(10.5)).kerning(0.7)
             .foregroundStyle(tint)
             .padding(.horizontal, 9).padding(.vertical, 4)
             .background(Capsule().fill(tint.opacity(0.14)))
+            .overlay(Capsule().strokeBorder(tint.opacity(0.22), lineWidth: 1))
     }
 }
 
 // MARK: - Mascot: "Anorcha", a little pomegranate
 
+/// A glossy violet pomegranate with a pale lavender crown.
 struct Mascot: View {
     enum Mood { case happy, cheer, sad, think, sleep }
     var mood: Mood = .happy
@@ -145,23 +98,37 @@ struct Mascot: View {
         ZStack {
             // crown / calyx
             Crown()
-                .fill(Color(hex: 0x2FA84F))
+                .fill(LinearGradient(colors: [Color(hex: 0xEDE7FF), Color(hex: 0xB49EFF)],
+                                     startPoint: .top, endPoint: .bottom))
                 .frame(width: size * 0.44, height: size * 0.3)
                 .offset(y: -size * 0.45)
             // body
             Circle()
-                .fill(
-                    LinearGradient(colors: [Color(hex: 0xF2544B), Color(hex: 0xD2263B)],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing)
-                )
+                .fill(RadialGradient(colors: [Color(hex: 0xD9CDFF), Color(hex: 0x9478F6), Color(hex: 0x6045D6)],
+                                     center: UnitPoint(x: 0.34, y: 0.28),
+                                     startRadius: size * 0.02, endRadius: size * 0.7))
                 .overlay(
                     Ellipse()
-                        .fill(.white.opacity(0.22))
-                        .frame(width: size * 0.3, height: size * 0.18)
-                        .rotationEffect(.degrees(-24))
-                        .offset(x: -size * 0.19, y: -size * 0.22)
+                        .fill(LinearGradient(colors: [.white.opacity(0.75), .white.opacity(0)],
+                                             startPoint: .top, endPoint: .bottom))
+                        .frame(width: size * 0.42, height: size * 0.24)
+                        .rotationEffect(.degrees(-18))
+                        .offset(x: -size * 0.15, y: -size * 0.24)
                 )
-            // face
+                .overlay(
+                    Circle().strokeBorder(LinearGradient(colors: [.white.opacity(0.6), .clear,
+                                                                  Color(hex: 0xE6DEFF).opacity(0.7)],
+                                                         startPoint: .top, endPoint: .bottom),
+                                          lineWidth: max(1, size * 0.02))
+                )
+                .shadow(color: Color(hex: 0x7B5CF2).opacity(0.32), radius: size * 0.16, y: size * 0.08)
+            // cheeks
+            HStack(spacing: size * 0.36) {
+                Ellipse().fill(Color.white.opacity(0.28))
+                Ellipse().fill(Color.white.opacity(0.28))
+            }
+            .frame(width: size * 0.7, height: size * 0.1)
+            .offset(y: size * 0.14)
             face
         }
         .frame(width: size, height: size)
@@ -188,7 +155,10 @@ struct Mascot: View {
         default:
             ZStack(alignment: .topTrailing) {
                 Circle().fill(.white).frame(width: size * 0.14, height: size * 0.17)
-                Circle().fill(Color(hex: 0x2A1418)).frame(width: size * 0.075)
+                Circle().fill(Color(hex: 0x2A1F5C)).frame(width: size * 0.08)
+                    .overlay(alignment: .topLeading) {
+                        Circle().fill(.white).frame(width: size * 0.025).offset(x: size * 0.012, y: size * 0.01)
+                    }
                     .offset(x: -size * 0.02, y: size * 0.045)
             }
             .frame(width: size * 0.14, height: size * 0.17)
@@ -215,7 +185,7 @@ struct Mascot: View {
     }
 }
 
-/// The little green calyx on top of the pomegranate.
+/// The little crown on top of the pomegranate.
 private struct Crown: Shape {
     func path(in r: CGRect) -> Path {
         let w = r.width, h = r.height
@@ -247,6 +217,20 @@ private struct ArcShape: Shape {
     }
 }
 
+/// Anorcha inside a glass bubble, for the places where she is a presence rather
+/// than a character: a header, a sheet, a chat.
+struct MascotBubble: View {
+    var mood: Mascot.Mood = .happy
+    var size: CGFloat = 56
+
+    var body: some View {
+        Mascot(mood: mood, size: size * 0.72)
+            .offset(y: size * 0.05)
+            .frame(width: size, height: size)
+            .glassCircle()
+    }
+}
+
 // MARK: - Speech bubble used next to the mascot
 
 struct SpeechBubble<Content: View>: View {
@@ -255,67 +239,98 @@ struct SpeechBubble<Content: View>: View {
 
     var body: some View {
         content()
-            .padding(.horizontal, 16).padding(.vertical, 12)
+            .padding(.horizontal, 16).padding(.vertical, 13)
             .background(
-                BubbleShape(tailOnLeft: tailOnLeft)
-                    .fill(Palette.card)
-                    .overlay(BubbleShape(tailOnLeft: tailOnLeft).stroke(Palette.stroke, lineWidth: 2))
+                GlassPane(shape: UnevenRoundedRectangle(
+                    topLeadingRadius: tailOnLeft ? 6 : 22, bottomLeadingRadius: 22,
+                    bottomTrailingRadius: 22, topTrailingRadius: tailOnLeft ? 22 : 6,
+                    style: .continuous), tint: nil)
             )
     }
 }
 
-private struct BubbleShape: Shape {
-    var tailOnLeft: Bool
-    func path(in r: CGRect) -> Path {
-        var p = Path(roundedRect: CGRect(x: tailOnLeft ? 10 : 0, y: 0,
-                                         width: r.width - 10, height: r.height),
-                     cornerRadius: 14)
-        let midY = min(r.height * 0.5, 28)
-        if tailOnLeft {
-            p.move(to: CGPoint(x: 0, y: midY))
-            p.addLine(to: CGPoint(x: 11, y: midY - 9))
-            p.addLine(to: CGPoint(x: 11, y: midY + 9))
-        } else {
-            p.move(to: CGPoint(x: r.width, y: midY))
-            p.addLine(to: CGPoint(x: r.width - 11, y: midY - 9))
-            p.addLine(to: CGPoint(x: r.width - 11, y: midY + 9))
-        }
-        p.closeSubpath()
-        return p
-    }
-}
+// MARK: - Flags
 
-// MARK: - Flag chips
-
+/// The language, as a small pearl tag with its code — "UZ", "IT" — in violet. Flags
+/// would add red, green and blue to a screen that is meant to be violet and white.
 struct FlagBadge: View {
     var language: Language
     var size: CGFloat = 34
     var body: some View {
-        Group {
-            switch language {
-            case .it:
-                HStack(spacing: 0) {
-                    Color(hex: 0x009246); Color(hex: 0xF1F2F1); Color(hex: 0xCE2B37)
-                }
-            case .uz:
-                VStack(spacing: 0) {
-                    Color(hex: 0x0099B5); Color(hex: 0xF2F2F2); Color(hex: 0x1EB53A)
-                }
-                .overlay(alignment: .topLeading) {
-                    Image(systemName: "moon.fill")
-                        .font(.system(size: size * 0.16, weight: .black))
-                        .foregroundStyle(.white)
-                        .padding(.leading, size * 0.14)
-                        .padding(.top, size * 0.05)
-                }
-            }
+        Text(language.badge)
+            .font(.system(size: size * 0.36, weight: .bold, design: .rounded))
+            .kerning(0.4)
+            .foregroundStyle(Palette.purpleDeep)
+            .frame(width: size, height: size * 0.72)
+            .background(
+                RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                    .fill(LinearGradient(colors: [Violet.v50, Violet.v200],
+                                         startPoint: .top, endPoint: .bottom))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                    .strokeBorder(.white.opacity(0.9), lineWidth: max(1, size * 0.04))
+            )
+            .shadow(color: Palette.glassShadow, radius: 4, y: 2)
+            .accessibilityLabel(language.endonym)
+    }
+}
+
+/// The language tag on a round glass button, in the corner of every tab.
+struct FlagOrb: View {
+    var language: Language
+    var size: CGFloat = 48
+    var body: some View {
+        FlagMark(language: language, size: size * 0.5)
+            .frame(width: size, height: size)
+            .glassCircle()
+    }
+}
+
+/// A course's flag at text size: the emoji, or — for Kurdish, which has none — the
+/// red, white and green tricolour with its golden sun, painted.
+struct FlagMark: View {
+    var language: Language
+    var size: CGFloat = 24
+
+    var body: some View {
+        if language.flag.isEmpty {
+            KurdishFlag()
+                .frame(width: size * 1.1, height: size * 0.74)
+                .clipShape(RoundedRectangle(cornerRadius: size * 0.1, style: .continuous))
+                .shadow(color: .black.opacity(0.12), radius: 1, y: 0.5)
+        } else {
+            Text(language.flag).font(.system(size: size))
         }
-        .frame(width: size, height: size * 0.72)
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: size * 0.16, style: .continuous)
-                .strokeBorder(Palette.stroke, lineWidth: 1.5)
-        )
+    }
+}
+
+private struct KurdishFlag: View {
+    var body: some View {
+        Canvas { ctx, size in
+            let band = size.height / 3
+            ctx.fill(Path(CGRect(x: 0, y: 0, width: size.width, height: band)),
+                     with: .color(Color(hex: 0xED2024)))
+            ctx.fill(Path(CGRect(x: 0, y: band, width: size.width, height: band)),
+                     with: .color(.white))
+            ctx.fill(Path(CGRect(x: 0, y: band * 2, width: size.width, height: band)),
+                     with: .color(Color(hex: 0x278E43)))
+            // the sun: 21 rays round a disc
+            let c = CGPoint(x: size.width / 2, y: size.height / 2)
+            let outer = size.height * 0.4, inner = size.height * 0.24
+            var rays = Path()
+            for i in 0..<42 {
+                let r = i.isMultiple(of: 2) ? outer : inner
+                let a = Double(i) / 42 * 2 * .pi - .pi / 2
+                let p = CGPoint(x: c.x + r * cos(a), y: c.y + r * sin(a))
+                if i == 0 { rays.move(to: p) } else { rays.addLine(to: p) }
+            }
+            rays.closeSubpath()
+            ctx.fill(rays, with: .color(Color(hex: 0xFEBD11)))
+            let disc = size.height * 0.2
+            ctx.fill(Path(ellipseIn: CGRect(x: c.x - disc, y: c.y - disc, width: disc * 2, height: disc * 2)),
+                     with: .color(Color(hex: 0xFEBD11)))
+        }
     }
 }
 
@@ -346,8 +361,35 @@ struct SectionHeader: View {
     var subtitle: String? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.heading(13)).kerning(1.1).foregroundStyle(Palette.inkSoft)
+            Text(title).font(.heading(12.5)).kerning(1.2).foregroundStyle(Palette.inkSoft)
             if let subtitle { Text(subtitle).font(.plain(13)).foregroundStyle(Palette.inkFaint) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// The big header at the top of every tab: a small line above, a large title that
+/// turns violet at its end, and the live stats in the corner.
+struct TabHeader: View {
+    var eyebrow: String
+    var title: String
+    var subtitle: String? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(eyebrow)
+                .font(.heading(16)).foregroundStyle(Palette.inkSoft)
+            Text(title)
+                .font(.display(34))
+                .foregroundStyle(Gradients.title)
+                .fixedSize(horizontal: false, vertical: true)
+                .lineSpacing(-2)
+            if let subtitle {
+                Text(subtitle)
+                    .font(.plain(14.5)).foregroundStyle(Palette.inkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 2)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

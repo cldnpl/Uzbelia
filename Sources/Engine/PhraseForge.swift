@@ -24,7 +24,10 @@ actor PhraseForge {
     /// How many to ask for in one go.
     static let batch = 12
 
+    /// "<course>/<lesson id>" → sentences. Lesson ids repeat from course to course.
     private var cache: [String: [Pair]] = [:]
+
+    private func key(_ lessonID: String) -> String { "\(Language.current.rawValue)/\(lessonID)" }
     private var loaded = false
     /// Chapters with a request already in the air, so five taps make one call.
     private var inFlight: Set<String> = []
@@ -34,18 +37,18 @@ actor PhraseForge {
     /// The sentences held for a chapter, newest first.
     func stored(for id: String) -> [Pair] {
         load()
-        return cache[id] ?? []
+        return cache[key(id)] ?? []
     }
 
     func count(for id: String) -> Int {
         load()
-        return cache[id]?.count ?? 0
+        return cache[key(id)]?.count ?? 0
     }
 
     /// Everything held for a whole unit — what the end-of-unit review draws on.
     func stored(forAnyOf ids: [String]) -> [Pair] {
         load()
-        return ids.flatMap { cache[$0] ?? [] }
+        return ids.flatMap { cache[key($0)] ?? [] }
     }
 
     // MARK: - Writing
@@ -63,7 +66,10 @@ actor PhraseForge {
         var provider: AIProvider
         var key: String
 
-        var isPossible: Bool { AIClient.isConfigured(provider: provider, key: key) && !vocabulary.isEmpty }
+        /// Configured, with requests left today for the extras, and something to write about.
+        var isPossible: Bool {
+            AIClient.isAvailable(provider: provider, key: key, for: .extra) && !vocabulary.isEmpty
+        }
     }
 
     /// Asks for one batch and files what comes back. Returns the chapter's whole
@@ -71,16 +77,16 @@ actor PhraseForge {
     @discardableResult
     func replenish(_ brief: Brief) async -> [Pair] {
         load()
-        guard brief.isPossible else { return cache[brief.lessonID] ?? [] }
-        guard (cache[brief.lessonID]?.count ?? 0) < Self.capPerLesson else {
-            return cache[brief.lessonID] ?? []
+        guard brief.isPossible else { return cache[key(brief.lessonID)] ?? [] }
+        guard (cache[key(brief.lessonID)]?.count ?? 0) < Self.capPerLesson else {
+            return cache[key(brief.lessonID)] ?? []
         }
-        guard !inFlight.contains(brief.lessonID) else { return cache[brief.lessonID] ?? [] }
-        inFlight.insert(brief.lessonID)
-        defer { inFlight.remove(brief.lessonID) }
+        guard !inFlight.contains(key(brief.lessonID)) else { return cache[key(brief.lessonID)] ?? [] }
+        inFlight.insert(key(brief.lessonID))
+        defer { inFlight.remove(key(brief.lessonID)) }
 
         let target = brief.native.other
-        let existing = (cache[brief.lessonID] ?? []).map { $0[target] }
+        let existing = (cache[key(brief.lessonID)] ?? []).map { $0[target] }
         do {
             let written = try await AIClient.freshPhrases(
                 provider: brief.provider, key: brief.key,
@@ -95,7 +101,7 @@ actor PhraseForge {
         } catch {
             // A refused key, a quota, a plane: the course corpus is still there.
         }
-        return cache[brief.lessonID] ?? []
+        return cache[key(brief.lessonID)] ?? []
     }
 
     /// Fire-and-forget: used to fill a chapter's pool up while the learner is busy
@@ -114,7 +120,7 @@ actor PhraseForge {
     /// left running, so the wait is paid once and never twice for the same chapter.
     func ready(_ brief: Brief, waitingUpTo seconds: Double) async -> [Pair] {
         load()
-        let held = cache[brief.lessonID] ?? []
+        let held = cache[key(brief.lessonID)] ?? []
         guard held.count < Self.comfortable, brief.isPossible else { return held }
 
         let work = Task { await self.replenish(brief) }
@@ -130,7 +136,7 @@ actor PhraseForge {
             group.cancelAll()
             return first
         }
-        return winner.isEmpty ? (cache[brief.lessonID] ?? []) : winner
+        return winner.isEmpty ? (cache[key(brief.lessonID)] ?? []) : winner
     }
 
     // MARK: - Filing what came back
@@ -142,10 +148,10 @@ actor PhraseForge {
                       native: Language, alongside vocabulary: [Pair]) {
         let target = native.other
         let band = AIClient.lengthBand(for: level)
-        var seen = Set((cache[id] ?? []).map { Grader.normalise($0[target]) })
+        var seen = Set((cache[key(id)] ?? []).map { Grader.normalise($0[target]) })
         seen.formUnion(vocabulary.map { Grader.normalise($0[target]) })
 
-        var kept = cache[id] ?? []
+        var kept = cache[key(id)] ?? []
         for pair in written {
             let t = pair[target].trimmingCharacters(in: .whitespacesAndNewlines)
             let n = pair[native].trimmingCharacters(in: .whitespacesAndNewlines)
@@ -155,13 +161,13 @@ actor PhraseForge {
             // A "translation" identical to its source is a model that gave up.
             guard Grader.normalise(n) != normalised else { continue }
             // One word over the band is a rounding difference; four is a level change.
-            let words = t.split(whereSeparator: { $0 == " " }).count
+            let words = WordSplitter.words(in: t, language: target).count
             guard words >= max(2, band.min - 1), words <= band.max + 2 else { continue }
             seen.insert(normalised)
-            kept.append(Pair(it: pair.it, uz: pair.uz, hint: pair.hint))
+            kept.append(pair)
         }
         if kept.count > Self.capPerLesson { kept = Array(kept.suffix(Self.capPerLesson)) }
-        cache[id] = kept
+        cache[key(id)] = kept
         persist()
     }
 
@@ -170,7 +176,8 @@ actor PhraseForge {
     private static var fileURL: URL {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("uzbelia-phrases.json")
+        // v2: per course, and English on the other side — the first file was Italian
+        return dir.appendingPathComponent("uzbelia-phrases-v2.json")
     }
 
     private func load() {

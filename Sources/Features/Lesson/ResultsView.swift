@@ -8,74 +8,93 @@ struct ResultsView: View {
 
     var body: some View {
         VStack(spacing: 22) {
-            Spacer()
+            Spacer(minLength: 10)
 
-            Mascot(mood: failedTest ? .sad : .cheer, size: 130)
-                .scaleEffect(appear ? 1 : 0.5)
-                .rotationEffect(.degrees(appear ? 0 : -18))
-                .animation(.spring(response: 0.55, dampingFraction: 0.55), value: appear)
+            ZStack {
+                if !failedTest {
+                    Circle()
+                        .fill(Gradients.holo)
+                        .frame(width: 190, height: 190)
+                        .blur(radius: 24)
+                        .opacity(0.75)
+                        .rotationEffect(.degrees(appear ? 180 : 0))
+                        .animation(.linear(duration: 14).repeatForever(autoreverses: false), value: appear)
+                }
+                MascotBubble(mood: failedTest ? .sad : .cheer, size: 150)
+                    .scaleEffect(appear ? 1 : 0.5)
+                    .rotationEffect(.degrees(appear ? 0 : -18))
+                    .animation(.spring(response: 0.55, dampingFraction: 0.55), value: appear)
+            }
 
-            VStack(spacing: 6) {
+            VStack(spacing: 8) {
                 Text(headline)
-                    .font(.display(28))
+                    .font(.display(32))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(headlineTint)
                 Text(subhead)
                     .font(.heading(16)).foregroundStyle(Palette.inkSoft)
                     .multilineTextAlignment(.center)
             }
+            .padding(.horizontal, Metrics.hPad)
 
             HStack(spacing: 10) {
                 statCard(title: S.totalXP[state.native], value: "+\(results.xp)",
-                         icon: "bolt.fill", tint: Palette.amber)
+                         icon: "bolt.fill", accent: .amber)
                 statCard(title: S.accuracy[state.native], value: "\(Int(results.accuracy * 100))%",
-                         icon: "target", tint: Palette.green)
+                         icon: "target", accent: .green)
                 statCard(title: S.time[state.native], value: "\(results.minutes)'",
-                         icon: "clock.fill", tint: Palette.brand)
+                         icon: "clock.fill", accent: .sky)
             }
             .padding(.horizontal, Metrics.hPad)
 
             if failedTest {
                 EmptyView()
             } else if state.goalProgress >= 1 {
-                Label(S.goalReached[state.native], systemImage: "checkmark.seal.fill")
-                    .font(.heading(14)).foregroundStyle(Palette.green)
+                GlassChip(text: S.goalReached[state.native], icon: "checkmark.seal.fill", tint: Palette.greenDeep)
             } else {
-                VStack(spacing: 6) {
+                VStack(spacing: 8) {
                     HStack {
-                        Text(S.todayProgress[state.native]).font(.heading(12)).foregroundStyle(Palette.inkSoft)
+                        Text(S.todayProgress[state.native]).font(.heading(12.5)).foregroundStyle(Palette.inkSoft)
                         Spacer()
                         Text("\(state.xpToday) / \(state.settings.dailyGoal) XP")
-                            .font(.heading(12)).foregroundStyle(Palette.inkSoft)
+                            .font(.heading(12.5)).foregroundStyle(Palette.inkSoft)
                     }
-                    ProgressBar(value: state.goalProgress, tint: Palette.amber, height: 12)
+                    ProgressBar(value: state.goalProgress, tint: Palette.amber, height: 9)
                 }
-                .padding(.horizontal, Metrics.hPad + 6)
+                .padding(14)
+                .glass(radius: 22, material: false)
+                .padding(.horizontal, Metrics.hPad)
             }
 
             if !results.mistakes.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     SectionHeader(title: S.reviewMistakes[state.native].uppercased())
-                    ForEach(results.mistakes.prefix(4)) { pair in
-                        HStack {
-                            SpeakableText(text: pair[state.target], language: state.target,
-                                          font: .body(15))
-                            Spacer()
-                            Text(pair[state.native]).font(.plain(14)).foregroundStyle(Palette.inkSoft)
+                    VStack(spacing: 0) {
+                        ForEach(results.mistakes.prefix(4)) { pair in
+                            HStack {
+                                SpeakableText(text: pair[state.target], language: state.target,
+                                              font: .body(15))
+                                Spacer()
+                                Text(pair[state.native]).font(.plain(14)).foregroundStyle(Palette.inkSoft)
+                                    .multilineTextAlignment(.trailing)
+                            }
+                            .padding(.horizontal, 14).padding(.vertical, 10)
+                            if pair.id != results.mistakes.prefix(4).last?.id {
+                                Divider().overlay(Palette.stroke).padding(.horizontal, 14)
+                            }
                         }
-                        .padding(.horizontal, 12).padding(.vertical, 9)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(Palette.redSoft))
                     }
+                    .glass(radius: 20, material: false)
                 }
                 .padding(.horizontal, Metrics.hPad)
             }
 
-            Spacer()
+            Spacer(minLength: 10)
 
             Button { Feedback.pop(); onDone() } label: { Text(S.continueBtn[state.native]) }
-                .buttonStyle(.chunky(Palette.green, Palette.greenDeep))
+                .buttonStyle(.primary(failedTest ? .violet : .mint))
                 .padding(.horizontal, Metrics.hPad)
-                .padding(.bottom, 20)
+                .padding(.bottom, 16)
         }
         .onAppear { appear = true }
     }
@@ -98,31 +117,21 @@ struct ResultsView: View {
         }
     }
 
-    private var headlineTint: LinearGradient {
-        if failedTest {
-            return LinearGradient(colors: [Palette.inkSoft, Palette.inkSoft],
-                                  startPoint: .leading, endPoint: .trailing)
-        }
-        if results.testPassed == true {
-            return LinearGradient(colors: [Palette.purple, Palette.brand],
-                                  startPoint: .leading, endPoint: .trailing)
-        }
-        return LinearGradient(colors: [Palette.amber, Palette.pink],
-                              startPoint: .leading, endPoint: .trailing)
+    private var headlineTint: AnyShapeStyle {
+        if failedTest { return AnyShapeStyle(Palette.inkSoft) }
+        return AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xB49CFF), Color(hex: 0x7B5CF2), Color(hex: 0x5B43C7)],
+                                            startPoint: .leading, endPoint: .trailing))
     }
 
-    private func statCard(title: String, value: String, icon: String, tint: Color) -> some View {
-        VStack(spacing: 5) {
-            Text(title).font(.heading(10)).kerning(0.7).foregroundStyle(.white.opacity(0.9))
-            HStack(spacing: 4) {
-                Image(systemName: icon).font(.system(size: 14, weight: .black))
-                Text(value).font(.display(20))
-            }
-            .foregroundStyle(.white)
+    private func statCard(title: String, value: String, icon: String, accent: UnitAccent) -> some View {
+        VStack(spacing: 8) {
+            OrbIcon(icon, accent: accent, size: 40, symbolScale: 0.42)
+            Text(value).font(.display(22)).foregroundStyle(Palette.ink)
+                .minimumScaleFactor(0.7).lineLimit(1)
+            Text(title).font(.heading(10)).kerning(0.6).foregroundStyle(Palette.inkSoft)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(tint))
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(tint.opacity(0.7)).offset(y: 4))
+        .padding(.vertical, 14)
+        .glass(radius: 22, tint: accent.main, material: false)
     }
 }

@@ -11,6 +11,10 @@ struct Exercise: Identifiable, Hashable {
         case speak         // say the sentence out loud
         case match         // tap the matching pairs
         case fillBlank     // choose the missing word in a sentence
+        case listenMeaning // hear audio, pick what it means in her own language
+        case listenBuild   // hear audio, rebuild the sentence from word chips
+        case speakRepeat   // hear it first, then say it back — the text stays hidden
+        case compose       // write a short text of her own, corrected round by round
     }
 
     let id = UUID()
@@ -19,9 +23,9 @@ struct Exercise: Identifiable, Hashable {
     var pair: Pair
 
     var prompt: String = ""
-    var promptLanguage: Language = .it
+    var promptLanguage: Language = .en
     var answer: String = ""
-    var answerLanguage: Language = .uz
+    var answerLanguage: Language = Language.current
     var options: [String] = []
     var tokens: [String] = []
     var matchPairs: [Pair] = []
@@ -29,6 +33,9 @@ struct Exercise: Identifiable, Hashable {
     var audioLanguage: Language?
     var blankIndex: Int?          // word index removed in .fillBlank
     var hint: String?
+    /// The brief of a `.compose` exercise: what to write about, how it starts, and
+    /// the model text the checker measures it against.
+    var composition: CompositionTask?
     /// True when this question is coming round again because it was missed earlier
     /// in the same session.
     var isRetry: Bool = false
@@ -36,38 +43,51 @@ struct Exercise: Identifiable, Hashable {
     var instruction: Bilingual {
         switch kind {
         case .choice:
-            return Bilingual(it: "Che cosa significa?", uz: "Bu nima degani?")
+            return Bilingual("What does it mean?")
         case .listenChoice:
-            return Bilingual(it: "Ascolta e scegli", uz: "Tinglang va tanlang")
+            return Bilingual("Listen and choose")
         case .wordBank:
-            return Bilingual(it: "Traduci la frase", uz: "Jumlani tarjima qiling")
+            return Bilingual("Translate the sentence")
         case .type:
-            return Bilingual(it: "Scrivi la traduzione", uz: "Tarjimasini yozing")
+            return Bilingual("Write the translation")
         case .listenType:
-            return Bilingual(it: "Scrivi quello che senti", uz: "Eshitganingizni yozing")
+            return Bilingual("Write what you hear")
         case .speak:
-            return Bilingual(it: "Pronuncia questa frase", uz: "Ushbu jumlani ayting")
+            return Bilingual("Say this sentence")
         case .match:
-            return Bilingual(it: "Abbina le coppie", uz: "Juftlarni moslang")
+            return Bilingual("Match the pairs")
         case .fillBlank:
-            return Bilingual(it: "Completa la frase", uz: "Jumlani to'ldiring")
+            return Bilingual("Complete the sentence")
+        case .listenMeaning:
+            return Bilingual("Listen: what does it mean?")
+        case .listenBuild:
+            return Bilingual("Build what you hear")
+        case .speakRepeat:
+            return Bilingual("Listen and repeat")
+        case .compose:
+            return Bilingual("Write a short text")
         }
     }
 
-    var trainsSkill: Skill {
-        switch kind {
-        case .choice, .fillBlank: return .reading
-        case .wordBank: return .reading
-        case .type: return .writing
-        case .listenType: return .listening
-        case .listenChoice: return .listening
-        case .speak: return .speaking
-        case .match: return .reading
-        }
-    }
+    var trainsSkill: Skill { kind.skill }
 
     static func == (l: Exercise, r: Exercise) -> Bool { l.id == r.id }
+
     func hash(into h: inout Hasher) { h.combine(id) }
+}
+
+extension Exercise.Kind {
+    /// The one skill a format trains. A session that says "Ascolto" on the label is
+    /// made only of formats whose skill is `.listening`, and so on — which is why this
+    /// has to be a property of the format and not a guess made per question.
+    var skill: Skill {
+        switch self {
+        case .choice, .fillBlank, .wordBank, .match: return .reading
+        case .type, .compose: return .writing
+        case .listenType, .listenChoice, .listenMeaning, .listenBuild: return .listening
+        case .speak, .speakRepeat: return .speaking
+        }
+    }
 }
 
 enum Skill: String, CaseIterable, Codable {
@@ -75,26 +95,26 @@ enum Skill: String, CaseIterable, Codable {
 
     var label: Bilingual {
         switch self {
-        case .reading: return Bilingual(it: "Lettura", uz: "O'qish")
-        case .writing: return Bilingual(it: "Scrittura", uz: "Yozish")
-        case .listening: return Bilingual(it: "Ascolto", uz: "Tinglash")
-        case .speaking: return Bilingual(it: "Parlato", uz: "Gapirish")
+        case .reading: return Bilingual("Reading")
+        case .writing: return Bilingual("Writing")
+        case .listening: return Bilingual("Listening")
+        case .speaking: return Bilingual("Speaking")
         }
     }
     var icon: String {
         switch self {
         case .reading: return "text.book.closed.fill"
         case .writing: return "pencil.line"
-        case .listening: return "ear.fill"
+        case .listening: return "headphones"
         case .speaking: return "mic.fill"
         }
     }
     var tint: UnitAccent {
         switch self {
-        case .reading: return .sky
-        case .writing: return .purple
-        case .listening: return .amber
-        case .speaking: return .pink
+        case .reading: return .reading
+        case .writing: return .writing
+        case .listening: return .listening
+        case .speaking: return .speaking
         }
     }
 }

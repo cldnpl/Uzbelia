@@ -2,12 +2,12 @@ import Foundation
 import AVFoundation
 import Observation
 
-/// Text-to-speech for both course languages.
+/// Text-to-speech for every course.
 ///
-/// iOS ships Italian voices out of the box. It does **not** ship an Uzbek voice,
-/// so we fall back to the closest available Turkic voice (Turkish, then Azeri)
-/// which reads Latin-script Uzbek with a recognisable, usable pronunciation.
-/// `usesApproximateVoice(for:)` lets the UI say so honestly.
+/// Each course is read by its own neural voice (`NeuralVoice`), fetched over the
+/// network and cached. Without a network the phone's own voices take over — and
+/// for a language iOS has no voice for, like Uzbek, the closest one it has (Turkish,
+/// then Azeri) reads it approximately; `usesApproximateVoice(for:)` says so.
 @Observable
 final class SpeechService: NSObject {
     static let shared = SpeechService()
@@ -16,7 +16,7 @@ final class SpeechService: NSObject {
     private(set) var isSpeaking = false
     private(set) var speakingID: String?
 
-    /// Plays the Uzbek voice fetched from Azure, when there is one.
+    /// Plays the neural voice fetched from the network, when there is one.
     private var player: AVAudioPlayer?
     /// Bumped on every `speak` and `stop`, so a download that finishes late is dropped
     /// instead of talking over whatever is on screen by then.
@@ -28,9 +28,9 @@ final class SpeechService: NSObject {
     }
 
     /// True when a real voice for this language is available over the network.
-    /// Uzbek always has one now: the free service needs no key at all.
+    /// Almost every course has one: the free service needs no key at all.
     func hasRealVoice(for language: Language) -> Bool {
-        language == .uz && UzbekVoice.isAvailable
+        language != .en && NeuralVoice.voice(for: language) != nil
     }
 
     // MARK: - Voice resolution
@@ -41,7 +41,8 @@ final class SpeechService: NSObject {
         if let cached = voiceCache[language.rawValue] { return cached }
         let all = AVSpeechSynthesisVoice.speechVoices()
         for code in language.speechFallbacks {
-            let prefix = String(code.prefix(2))
+            // the language subtag, whole: "km" must not find a voice for "kmr"
+            let prefix = (code.split(separator: "-").first.map(String.init) ?? code).lowercased() + "-"
             let matching = all.filter { $0.language.lowercased().hasPrefix(prefix) }
             if let best = matching.sorted(by: { rank($0) > rank($1) }).first {
                 voiceCache[language.rawValue] = best
@@ -63,11 +64,11 @@ final class SpeechService: NSObject {
     func usesApproximateVoice(for language: Language) -> Bool {
         if hasRealVoice(for: language) { return false }
         guard let v = voice(for: language) else { return true }
-        return !v.language.lowercased().hasPrefix(String(language.rawValue.prefix(2)))
+        return !v.language.lowercased().hasPrefix(language.speechLocale.lowercased().prefix(while: { $0 != "-" }))
     }
 
     func voiceDescription(for language: Language) -> String {
-        if hasRealVoice(for: language) { return UzbekVoice.description }
+        if hasRealVoice(for: language) { return NeuralVoice.description(for: language) }
         guard let v = voice(for: language) else { return "—" }
         return "\(v.name) (\(v.language))"
     }
@@ -76,6 +77,8 @@ final class SpeechService: NSObject {
 
     func speak(_ text: String, language: Language, rate: Double = 0.44, slow: Bool = false, id: String? = nil) {
         guard !text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        // a course nothing can read aloud stays silent rather than heard in English
+        guard language == .en || language.canBeSpoken else { return }
         stop()
         generation += 1
         let mine = generation
@@ -88,7 +91,8 @@ final class SpeechService: NSObject {
             let clean = cleanForSpeech(text)
             Task { @MainActor in
                 do {
-                    let audio = try await UzbekVoice.audio(for: clean, rate: rate, slow: slow)
+                    let audio = try await NeuralVoice.audio(for: clean, language: language,
+                                                            rate: rate, slow: slow)
                     guard mine == self.generation else { return }
                     try self.play(audio)
                 } catch {

@@ -6,7 +6,7 @@ final class AppStateTests: XCTestCase {
 
     private func freshState(unlimited: Bool = true) -> AppState {
         let s = AppState(persistent: false)
-        s.chooseCourse(native: .it)
+        s.chooseCourse(.uz)
         s.settings.unlimitedResources = unlimited
         return s
     }
@@ -112,7 +112,7 @@ final class AppStateTests: XCTestCase {
         let state = freshState()
         let node = state.nodes(for: .a1)[0]
         state.finishSession(nodeID: node.id, xpEarned: 20, accuracy: 0.9,
-                            minutes: 3, mistakes: [Pair(it: "ciao", uz: "salom")])
+                            minutes: 3, mistakes: [Pair(en: "hello", tx: "salom")])
         XCTAssertEqual(state.xp, 20)
         XCTAssertEqual(state.xpToday, 20)
         XCTAssertEqual(state.streak, 1)

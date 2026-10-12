@@ -21,19 +21,26 @@ enum Glossary {
         var phrases: [Language: [String: [String]]] = [:]
         /// the same for single words, so one word lifted out of a sentence resolves
         var words: [Language: [String: [String]]] = [:]
+        /// set expressions of two to four words taught as vocabulary — `xayrli tong`,
+        /// `ertaga ko'rishguncha` — which mean something their words do not add up to
+        var expressions: [Language: [String: [String]]] = [:]
     }
 
     private nonisolated(unsafe) static var index = Index()
     private nonisolated(unsafe) static var loadedKey: String?
 
     /// Digests a curriculum the first time it is seen; a no-op on every later call.
-    static func prime(with pairs: [Pair]) {
-        let key = "\(pairs.count)|\(pairs.first?.id ?? "")|\(pairs.last?.id ?? "")"
+    ///
+    /// `vocabulary` is the lessons' word lists: the multi-word entries in it are the
+    /// set expressions a tap on one of their words should explain as a whole.
+    static func prime(with pairs: [Pair], vocabulary: [Pair] = []) {
+        let key = "\(pairs.count)|\(vocabulary.count)|\(pairs.first?.id ?? "")|\(pairs.last?.id ?? "")"
         guard key != loadedKey else { return }
         var built = Index()
         for lang in Language.allCases {
             var phrases: [String: [String]] = [:]
             var words: [String: [String]] = [:]
+            var expressions: [String: [String]] = [:]
             let other = lang.other
             for pair in pairs {
                 let value = pair[other]
@@ -42,8 +49,16 @@ enum Glossary {
                 insert(value, at: key, into: &phrases)
                 if !key.contains(" ") { insert(value, at: key, into: &words) }
             }
+            for pair in vocabulary {
+                let value = pair[other]
+                let key = Grader.normalise(pair[lang])
+                let count = key.split(separator: " ").count
+                guard !value.isEmpty, (2...4).contains(count) else { continue }
+                insert(value, at: key, into: &expressions)
+            }
             built.phrases[lang] = phrases
             built.words[lang] = words
+            built.expressions[lang] = expressions
         }
         index = built
         loadedKey = key
@@ -84,6 +99,96 @@ enum Glossary {
         return wordByWord(key, from: lang)
     }
 
+    // MARK: - One word, tapped
+
+    /// What a single word means on its own, when the course teaches it.
+    static func word(_ text: String, from lang: Language) -> String? {
+        let key = Grader.normalise(text)
+        guard !key.isEmpty, !key.contains(" ") else { return nil }
+        return best(key, in: index.words[lang]) ?? best(key, in: index.phrases[lang])
+    }
+
+    /// The set expression a tapped word belongs to, when it belongs to one: the longest
+    /// run of two to four words around it that the course teaches as a unit. Never the
+    /// sentence it sits in — only the expression.
+    static func expression(in words: [String], containing position: Int,
+                           from lang: Language) -> (span: ClosedRange<Int>, meaning: String)? {
+        guard words.indices.contains(position), let table = index.expressions[lang] else { return nil }
+        for length in stride(from: min(4, words.count), through: 2, by: -1) {
+            let firstStart = max(0, position - length + 1)
+            let lastStart = min(position, words.count - length)
+            guard firstStart <= lastStart else { continue }
+            for start in firstStart...lastStart {
+                let span = start...(start + length - 1)
+                let key = Grader.normalise(words[span].joined(separator: " "))
+                if let hit = best(key, in: table) { return (span, hit) }
+            }
+        }
+        return nil
+    }
+
+    /// The dictionary form of an inflected word the course does not list on its own,
+    /// with what that form means: `bordim` → `bormoq`, «andare»; `kitoblarim` → `kitob`;
+    /// `parliamo` → `parlare`. Only a reading the endings fully account for is offered,
+    /// so a guess never passes for a fact — and the screen says it is the base form.
+    static func base(of text: String, from lang: Language) -> (base: String, meaning: String)? {
+        let key = Grader.normalise(text)
+        guard key.count >= 4, !key.contains(" "), let words = index.words[lang] else { return nil }
+        switch lang {
+        case .uz:
+            // the longest root whose remainder is nothing but known endings
+            for cut in stride(from: key.count - 1, through: 2, by: -1) {
+                let root = String(key.prefix(cut))
+                let rest = String(key.dropFirst(cut))
+                // a two-letter root (`uy`, `ot`) only with a real ending after it:
+                // `uyda` is "a casa", but `ota` is not "cavallo" plus an `a`
+                guard uzbekEndings(rest), root.count >= 3 || rest.count >= 2 else { continue }
+                // a verb ending reads the root as a verb first: `bordim` is "andai"
+                // from `bormoq`, not "c'è" from `bor`
+                let verbal = uzbekVerbEndings.contains { rest.hasPrefix($0) }
+                let forms = verbal ? [root + "moq", root + "mak", root] : [root, root + "moq", root + "mak"]
+                for form in forms {
+                    if let hit = words[form]?.first { return (form, hit) }
+                }
+            }
+            return nil
+        case .en:
+            // plurals, past tenses, -ing, the possessive 's
+            for ending in ["'s", "ies", "es", "s", "ied", "ed", "ing", "d"] where key.hasSuffix(ending)
+                && key.count - ending.count >= 3 {
+                let root = String(key.dropLast(ending.count))
+                for form in [root, root + "e", root + "y"] {
+                    if let hit = words[form]?.first, form != key { return (form, hit) }
+                }
+            }
+            return nil
+        default:
+            // the other courses' endings are still to be taught to the glossary
+            return nil
+        }
+    }
+
+    /// The endings an Uzbek word can carry after its root: plural, possessive, case,
+    /// person, tense. Enough to read most inflected forms back to the word the course
+    /// teaches, and strict enough that a random tail is not mistaken for one.
+    private static let uzbekSuffixes: [String] = [
+        "lar", "imiz", "ingiz", "miz", "ngiz", "im", "ing", "ning", "si", "i", "m", "ng",
+        "dagi", "gacha", "dan", "da", "ga", "ka", "qa", "ni", "cha", "dek", "day", "li", "lik", "siz",
+        "moq", "dim", "ding", "dik", "dingiz", "dilar", "di", "yapman", "yapsan", "yapti", "yapmiz",
+        "yapsiz", "yap", "aman", "asan", "adi", "amiz", "asiz", "yman", "ysan", "ydi", "ymiz", "ysiz",
+        "man", "san", "gan", "ib", "ish", "ma", "may", "mas", "sa", "gin", "ay", "a", "y", "u", "chi"
+    ]
+
+    private static let uzbekVerbEndings: [String] = [
+        "moq", "dim", "ding", "dik", "dingiz", "dilar", "di", "yap", "aman", "asan", "adi", "amiz",
+        "asiz", "yman", "ysan", "ydi", "ymiz", "ysiz", "gan", "ib", "ish", "may", "mas", "sa", "gin"
+    ]
+
+    private static func uzbekEndings(_ rest: String) -> Bool {
+        if rest.isEmpty { return true }
+        return uzbekSuffixes.contains { rest.hasPrefix($0) && uzbekEndings(String(rest.dropFirst($0.count))) }
+    }
+
     /// At most two readings: a third turns the banner into a dictionary entry.
     private static func best(_ key: String, in table: [String: [String]]?) -> String? {
         guard let list = table?[key], !list.isEmpty else { return nil }
@@ -122,10 +227,19 @@ extension Exercise {
     func withoutAudio(native: Language) -> Exercise {
         var out = self
         switch kind {
-        case .speak:
+        case .speak, .speakRepeat:
             out.kind = .type
             out.promptLanguage = answerLanguage.other
             out.prompt = pair[answerLanguage.other]
+        case .listenMeaning:
+            // the same question with the sentence written instead of spoken
+            out.kind = .choice
+            out.promptLanguage = native.other
+            out.prompt = pair[native.other]
+        case .listenBuild:
+            out.kind = .wordBank
+            out.promptLanguage = native
+            out.prompt = pair[native]
         case .listenType:
             out.kind = .type
             out.promptLanguage = native

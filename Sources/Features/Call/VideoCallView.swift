@@ -13,15 +13,14 @@ struct VideoCallView: View {
     @State private var showKeyboard = false
     @State private var preparing = true
     @State private var avatarPulse = false
+    @State private var streak: StreakMoment?
     @FocusState private var typing: Bool
 
     private var target: Language { state.target }
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [Color(hex: 0x141A24), Color(hex: 0x27142C)],
-                           startPoint: .top, endPoint: .bottom)
-                .ignoresSafeArea()
+            AuroraBackground(mood: .night)
 
             if preparing || engine == nil {
                 preparingView
@@ -34,6 +33,11 @@ struct VideoCallView: View {
                 }
             }
         }
+        // a call is a night-time screen whatever the phone is set to: every glass
+        // pane and every colour on it takes its dark variant
+        .environment(\.colorScheme, .dark)
+        // the celebration is a daytime screen, like the rest of the app
+        .streakCelebration($streak) { dismiss() }
         .task { await prepare() }
         .onDisappear {
             SpeechService.shared.stop()
@@ -43,36 +47,31 @@ struct VideoCallView: View {
 
     // MARK: - Preparing the call
 
+    /// The call opens on the planned greeting; with the assistant on, every line after
+    /// it is written from her answers as they come. Nothing is generated up front, so
+    /// the phone rings at once instead of after a round trip.
     private func prepare() async {
         guard engine == nil else { return }
         var plan = CallPlanner.plan(level: level, state: state)
         let context = CallPlanner.context(for: plan, level: level, state: state, target: target)
+        let configured = AIClient.isAvailable(provider: state.aiProvider, key: state.aiKey,
+                                              for: .conversation)
+        plan.generatedByAI = configured
 
-        let key = state.aiKey
-        let provider = state.aiProvider
-        let configured = AIClient.isConfigured(provider: provider, key: key)
-        if configured {
-            if let generated = try? await AIClient.questions(
-                provider: provider, key: key, context: context,
-                target: target, native: state.native, count: 8),
-               generated.count >= 4 {
-                plan.questions = generated.map { CallQuestion(text: $0, origin: .generated) }
-                plan.generatedByAI = true
-            }
-        }
-
-        let built = CallEngine(level: level, native: state.native, plan: plan)
+        let built = CallEngine(level: level, target: state.target, plan: plan)
         built.context = context
         built.live = configured
         await MainActor.run {
             engine = built
             preparing = false
+            // a language the phone cannot hear is answered by typing from the start
+            if !state.target.canBeHeard { showKeyboard = true }
         }
     }
 
     private var preparingView: some View {
         VStack(spacing: 18) {
-            Mascot(mood: .think, size: 110)
+            MascotBubble(mood: .think, size: 120)
             ProgressView().tint(Palette.pink)
             Text(S.callCalling[state.native])
                 .font(.heading(15)).foregroundStyle(.white.opacity(0.7))
@@ -85,10 +84,16 @@ struct VideoCallView: View {
         VStack(spacing: 24) {
             Spacer()
             ZStack {
-                Circle().fill(Palette.pink.opacity(0.18))
-                    .frame(width: avatarPulse ? 230 : 190, height: avatarPulse ? 230 : 190)
-                    .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: avatarPulse)
-                Mascot(mood: .happy, size: 150)
+                Circle().strokeBorder(Palette.pink.opacity(0.25), lineWidth: 1)
+                    .frame(width: avatarPulse ? 250 : 210, height: avatarPulse ? 250 : 210)
+                    .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: avatarPulse)
+                Circle()
+                    .fill(RadialGradient(colors: [Palette.pink.opacity(0.35), .clear],
+                                         center: .center, startRadius: 40, endRadius: 120))
+                    .frame(width: 240, height: 240)
+                    .scaleEffect(avatarPulse ? 1.05 : 0.9)
+                    .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: avatarPulse)
+                MascotBubble(mood: .happy, size: 170)
             }
             .onAppear { avatarPulse = true }
 
@@ -99,8 +104,9 @@ struct VideoCallView: View {
                 HStack(spacing: 8) {
                     Text(level.label)
                         .font(.heading(13)).foregroundStyle(.white)
-                        .padding(.horizontal, 9).padding(.vertical, 3)
-                        .background(Capsule().fill(Palette.pink))
+                        .padding(.horizontal, 10).padding(.vertical, 4)
+                        .background(Capsule().fill(LinearGradient(colors: Tone.pink.colors,
+                                                                  startPoint: .leading, endPoint: .trailing)))
                     if let unit = engine.plan.focusUnit {
                         Text(unit.title[state.native])
                             .font(.plain(13)).foregroundStyle(Palette.pink)
@@ -116,9 +122,9 @@ struct VideoCallView: View {
 
             Spacer()
 
-            HStack(spacing: 44) {
-                roundButton(icon: "phone.down.fill", tint: Palette.red) { dismiss() }
-                roundButton(icon: "video.fill", tint: Palette.green) {
+            HStack(spacing: 54) {
+                roundButton(icon: "phone.down.fill", accent: .red) { dismiss() }
+                roundButton(icon: "video.fill", accent: .green) {
                     Feedback.pop()
                     withAnimation(.easeInOut) { engine.answerCall() }
                 }
@@ -127,15 +133,11 @@ struct VideoCallView: View {
         }
     }
 
-    private func roundButton(icon: String, tint: Color, action: @escaping () -> Void) -> some View {
+    private func roundButton(icon: String, accent: UnitAccent, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 26, weight: .black))
-                .foregroundStyle(.white)
-                .frame(width: 74, height: 74)
-                .background(Circle().fill(tint))
+            OrbIcon(icon, accent: accent, size: 78, symbolScale: 0.34)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle(scale: 0.92))
     }
 
     // MARK: - In call
@@ -152,7 +154,7 @@ struct VideoCallView: View {
             switch engine.phase {
             case .anorchaSpeaking:
                 guard let q = engine.question else { return }
-                SpeechService.shared.speak(q.text[target], language: target,
+                SpeechService.shared.speak(q.spoken(in: target), language: target,
                                            rate: state.settings.speechRate)
                 try? await Task.sleep(for: .milliseconds(450))
                 while SpeechService.shared.isSpeaking { try? await Task.sleep(for: .milliseconds(150)) }
@@ -182,7 +184,7 @@ struct VideoCallView: View {
                 Feedback.tap(); SpeechService.shared.stop(); engine.hangUp()
             } label: {
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 17, weight: .black)).foregroundStyle(.white.opacity(0.7))
+                    .font(.system(size: 17, weight: .bold)).foregroundStyle(.white.opacity(0.7))
             }
             VStack(alignment: .leading, spacing: 1) {
                 Text("Anorcha").font(.heading(16)).foregroundStyle(.white)
@@ -209,9 +211,12 @@ struct VideoCallView: View {
 
     private func videoStage(_ engine: CallEngine) -> some View {
         ZStack(alignment: .bottomTrailing) {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(LinearGradient(colors: [Color(hex: 0x2A3550), Color(hex: 0x3E2140)],
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(LinearGradient(colors: [Color(hex: 0x3B2F86).opacity(0.75), Color(hex: 0x5A3FB0).opacity(0.6)],
                                      startPoint: .topLeading, endPoint: .bottomTrailing))
+                .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .strokeBorder(LinearGradient(colors: [.white.opacity(0.35), .white.opacity(0.05)],
+                                                 startPoint: .top, endPoint: .bottom), lineWidth: 1.2))
                 .overlay {
                     Mascot(mood: engine.phase == .reacting ? .cheer : .happy, size: 132)
                         .scaleEffect(SpeechService.shared.isSpeaking ? 1.05 : 1)
@@ -222,15 +227,15 @@ struct VideoCallView: View {
                     if SpeechService.shared.isSpeaking {
                         Label("Anorcha", systemImage: "waveform")
                             .font(.heading(11)).foregroundStyle(.white)
-                            .padding(.horizontal, 9).padding(.vertical, 5)
-                            .background(Capsule().fill(.black.opacity(0.35)))
-                            .padding(10)
+                            .padding(.horizontal, 10).padding(.vertical, 6)
+                            .glassCapsule(material: false, shadow: false)
+                            .padding(12)
                     }
                 }
                 .frame(height: 210)
 
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(hex: 0x1B2130))
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(hex: 0x15132B).opacity(0.85))
                 .overlay {
                     VStack(spacing: 5) {
                         Image(systemName: recording ? "waveform" : "person.fill")
@@ -243,7 +248,7 @@ struct VideoCallView: View {
                     }
                 }
                 .frame(width: 70, height: 92)
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(.white.opacity(0.15), lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(.white.opacity(0.18), lineWidth: 1))
                 .padding(12)
         }
         .padding(.horizontal, Metrics.hPad)
@@ -266,17 +271,22 @@ struct VideoCallView: View {
                 .padding(.top, 12)
             } else if let q = engine.question, engine.showSubtitles {
                 VStack(spacing: 6) {
+                    if let lead = q.lead {
+                        Text(lead[target])
+                            .font(.plain(14)).foregroundStyle(.white.opacity(0.6))
+                            .multilineTextAlignment(.center)
+                    }
                     SpeakableText(text: q.text[target], language: target,
                                   font: .body(18), color: .white, alignment: .center)
                     if engine.showTranslation {
-                        Text(q.text[state.native])
+                        Text(q.spoken(in: state.native))
                             .font(.plain(13)).foregroundStyle(.white.opacity(0.55))
                             .multilineTextAlignment(.center)
                     }
                 }
-                .padding(.horizontal, 14).padding(.vertical, 11)
+                .padding(.horizontal, 16).padding(.vertical, 13)
                 .frame(maxWidth: .infinity)
-                .background(RoundedRectangle(cornerRadius: 14).fill(.black.opacity(0.28)))
+                .glass(radius: 22, material: false, shadow: false)
             }
 
             if engine.phase != .reacting {
@@ -285,7 +295,7 @@ struct VideoCallView: View {
                          on: engine.showTranslation) { engine.showTranslation.toggle() }
                     pill(icon: "arrow.clockwise", label: S.listenAgain[state.native], on: false) {
                         if let q = engine.question {
-                            SpeechService.shared.speak(q.text[target], language: target,
+                            SpeechService.shared.speak(q.spoken(in: target), language: target,
                                                        rate: state.settings.speechRate)
                         }
                     }
@@ -301,14 +311,14 @@ struct VideoCallView: View {
             Feedback.tap(); action()
         } label: {
             HStack(spacing: 5) {
-                Image(systemName: icon).font(.system(size: 11, weight: .black))
+                Image(systemName: icon).font(.system(size: 11, weight: .bold))
                 Text(label).font(.heading(11))
             }
-            .foregroundStyle(on ? .white : .white.opacity(0.6))
-            .padding(.horizontal, 11).padding(.vertical, 7)
-            .background(Capsule().fill(on ? Palette.pink.opacity(0.8) : .white.opacity(0.12)))
+            .foregroundStyle(on ? .white : .white.opacity(0.7))
+            .padding(.horizontal, 13).padding(.vertical, 8)
+            .glassCapsule(tint: on ? Palette.pink : nil, material: false, shadow: false)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     // MARK: - Answering, in your own words
@@ -359,17 +369,18 @@ struct VideoCallView: View {
                         .autocorrectionDisabled()
                         .lineLimit(1...3)
                         .focused($typing)
-                        .padding(11)
-                        .background(RoundedRectangle(cornerRadius: 11).fill(.white.opacity(0.12)))
+                        .padding(13)
+                        .glass(radius: 20, material: false, shadow: false)
                     Button {
                         Feedback.pop()
                         engine.submit(engine.typed, typed: true)
                         typing = false
                     } label: {
                         Image(systemName: "paperplane.fill")
-                            .font(.system(size: 16, weight: .black)).foregroundStyle(.white)
-                            .frame(width: 42, height: 42)
-                            .background(Circle().fill(Palette.pink))
+                            .font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
+                            .frame(width: 46, height: 46)
+                            .background(Circle().fill(LinearGradient(colors: Tone.pink.colors,
+                                                                     startPoint: .top, endPoint: .bottom)))
                     }
                     .buttonStyle(.plain)
                     .disabled(engine.typed.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -378,12 +389,12 @@ struct VideoCallView: View {
 
             HStack(spacing: 22) {
                 smallControl(icon: showKeyboard ? "keyboard.chevron.compact.down" : "keyboard",
-                             tint: .white.opacity(0.15)) {
+                             accent: nil) {
                     showKeyboard.toggle()
                     typing = showKeyboard
                 }
                 micButton(engine)
-                smallControl(icon: "phone.down.fill", tint: Palette.red) {
+                smallControl(icon: "phone.down.fill", accent: .red) {
                     SpeechService.shared.stop(); recognizer.reset(); engine.hangUp()
                 }
             }
@@ -410,31 +421,37 @@ struct VideoCallView: View {
             if recording { stopRecording(engine) } else { startRecording() }
         } label: {
             ZStack {
-                Circle().fill(Palette.pink.opacity(0.25))
-                    .frame(width: 92 + CGFloat(recognizer.level * 36),
-                           height: 92 + CGFloat(recognizer.level * 36))
+                Circle()
+                    .fill(RadialGradient(colors: [Palette.pink.opacity(0.4), .clear],
+                                         center: .center, startRadius: 30, endRadius: 70))
+                    .frame(width: 130 + CGFloat(recognizer.level * 40),
+                           height: 130 + CGFloat(recognizer.level * 40))
                     .opacity(recording ? 1 : 0)
-                Circle().fill(recording ? Palette.red : Palette.pink)
-                    .frame(width: 78, height: 78)
-                Image(systemName: recording ? "stop.fill" : "mic.fill")
-                    .font(.system(size: 30, weight: .black)).foregroundStyle(.white)
+                OrbIcon(recording ? "stop.fill" : "mic.fill", accent: recording ? .red : .pink,
+                        size: 84, symbolScale: 0.36)
             }
+            .frame(width: 110, height: 100)
         }
-        .buttonStyle(.plain)
-        .disabled(engine.phase != .yourTurn)
-        .opacity(engine.phase == .yourTurn ? 1 : 0.4)
+        .buttonStyle(PressableStyle(scale: 0.93))
+        // no recogniser knows this language yet: the keyboard is the way to answer
+        .disabled(engine.phase != .yourTurn || !target.canBeHeard)
+        .opacity(engine.phase == .yourTurn && target.canBeHeard ? 1 : 0.4)
     }
 
-    private func smallControl(icon: String, tint: Color, action: @escaping () -> Void) -> some View {
+    private func smallControl(icon: String, accent: UnitAccent?, action: @escaping () -> Void) -> some View {
         Button {
             Feedback.tap(); action()
         } label: {
-            Image(systemName: icon)
-                .font(.system(size: 18, weight: .bold)).foregroundStyle(.white)
-                .frame(width: 54, height: 54)
-                .background(Circle().fill(tint))
+            if let accent {
+                OrbIcon(icon, accent: accent, size: 56, symbolScale: 0.34)
+            } else {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .semibold)).foregroundStyle(.white)
+                    .frame(width: 56, height: 56)
+                    .glassCircle(material: false)
+            }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle(scale: 0.92))
     }
 
     private func startRecording() {
@@ -458,7 +475,7 @@ struct VideoCallView: View {
 
     private func buildingReview(_ engine: CallEngine) -> some View {
         VStack(spacing: 18) {
-            Mascot(mood: .think, size: 110)
+            MascotBubble(mood: .think, size: 120)
             ProgressView().tint(Palette.pink)
             Text(S.callBuilding[state.native])
                 .font(.heading(15)).foregroundStyle(.white.opacity(0.75))
@@ -481,7 +498,7 @@ struct VideoCallView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(spacing: 10) {
-                    Mascot(mood: .cheer, size: 96)
+                    MascotBubble(mood: .cheer, size: 104)
                     Text(engine.review?.headline[state.native] ?? S.recapTitle[state.native])
                         .font(.display(24)).foregroundStyle(.white)
                         .multilineTextAlignment(.center)
@@ -509,7 +526,7 @@ struct VideoCallView: View {
                         ForEach(Array(tips.enumerated()), id: \.offset) { _, tip in
                             HStack(alignment: .top, spacing: 8) {
                                 Image(systemName: "lightbulb.fill")
-                                    .font(.system(size: 12, weight: .black)).foregroundStyle(Palette.amber)
+                                    .font(.system(size: 12, weight: .bold)).foregroundStyle(Palette.amber)
                                     .padding(.top, 2)
                                 Text(tip[state.native])
                                     .font(.plain(13.5)).foregroundStyle(.white.opacity(0.85))
@@ -517,8 +534,8 @@ struct VideoCallView: View {
                             }
                         }
                     }
-                    .padding(13)
-                    .background(RoundedRectangle(cornerRadius: 14).fill(.white.opacity(0.08)))
+                    .padding(14)
+                    .glass(radius: 22, tint: Palette.amber, material: false, shadow: false)
                 }
 
                 sectionTitle(S.recapDetail[state.native])
@@ -531,12 +548,13 @@ struct VideoCallView: View {
                         Feedback.pop()
                         engine.restart(with: CallPlanner.plan(level: level, state: state))
                     } label: { Text(S.callAgain[state.native]) }
-                    .buttonStyle(.chunky(Palette.pink, Color(light: 0xC93C70, dark: 0xD44E82)))
+                    .buttonStyle(.primary(.pink))
 
                     Button {
-                        Feedback.tap(); dismiss()
-                    } label: { Text(S.close[state.native]).foregroundStyle(.white) }
-                    .buttonStyle(.chunky(.white.opacity(0.14), .white.opacity(0.08), text: .white))
+                        Feedback.tap()
+                        if let moment = state.takeStreakMoment() { streak = moment } else { dismiss() }
+                    } label: { Text(S.close[state.native]) }
+                    .buttonStyle(.glass(nil, text: .white))
                 }
                 .padding(.top, 6)
             }
@@ -560,9 +578,8 @@ struct VideoCallView: View {
                 .multilineTextAlignment(.center).lineLimit(2)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 11)
-        .background(RoundedRectangle(cornerRadius: 13).fill(tint.opacity(0.28)))
-        .overlay(RoundedRectangle(cornerRadius: 13).stroke(tint.opacity(0.5), lineWidth: 1.5))
+        .padding(.vertical, 12)
+        .glass(radius: 18, tint: tint, material: false, shadow: false)
     }
 
     private func turnCard(_ turn: TurnReview) -> some View {
@@ -599,10 +616,9 @@ struct VideoCallView: View {
                 correctionRow(fix)
             }
         }
-        .padding(13)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 16).fill(.white.opacity(0.07)))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(.white.opacity(0.1), lineWidth: 1))
+        .glass(radius: 24, material: false)
     }
 
     private func statusBadge(_ status: TurnReview.Status) -> some View {
@@ -625,7 +641,7 @@ struct VideoCallView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Image(systemName: fix.kind.icon)
-                    .font(.system(size: 10, weight: .black))
+                    .font(.system(size: 10, weight: .bold))
                 Text(fix.kind.label[state.native].uppercased())
                     .font(.heading(9)).kerning(0.5)
             }
@@ -642,8 +658,8 @@ struct VideoCallView: View {
                 .font(.plain(12.5)).foregroundStyle(.white.opacity(0.65))
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(10)
+        .padding(11)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 11).fill(Palette.pink.opacity(0.12)))
+        .glass(radius: 16, tint: Palette.pink, material: false, shadow: false)
     }
 }

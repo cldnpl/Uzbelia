@@ -1,15 +1,29 @@
-# Uzbelia 🇮🇹 ⇄ 🇺🇿
+# Lingora 🌍
 
-App iOS nativa (SwiftUI) per imparare **uzbeko e italiano dall'A1 al B2**, nello stile di
-Duolingo/Ling: un percorso a tappe diviso in livelli → unità → lezioni, con esercizi di
-lettura, scrittura, ascolto e parlato.
+App iOS nativa (SwiftUI) per imparare **le lingue che la gente chiede e che nessuna
+grande app insegna**, dall'A1 al B2, nello stile di Duolingo: un percorso a tappe
+diviso in livelli → unità → lezioni, con esercizi di lettura, scrittura, ascolto e
+parlato, flashcard, videochiamate con Anorcha e capitoli di sola scrittura.
 
-Il corso è **bidirezionale** e usa lo stesso corpus di frasi in entrambe le direzioni:
+**L'app è in inglese** e ogni corso è insegnato a partire dall'inglese.
 
-| Corso | Lingua dell'interfaccia | Lingua che impari |
-|---|---|---|
-| *Imparo l'uzbeko* | italiano | uzbeko |
-| *Italyan tilini o'rganaman* | uzbeko | italiano |
+| Corso | Stato | Alfabeto | Voce | Riconoscimento vocale |
+|---|---|---|---|---|
+| 🇹🇭 Thai | contenuti in scrittura | thai + traslitterazione | sì | sì (Apple) |
+| 🇮🇷 Persiano | contenuti in scrittura | persiano (da destra) + traslitterazione | sì | no: pronuncia spenta |
+| 🇵🇭 Tagalog | da scrivere | latino | sì | no: pronuncia spenta |
+| 🇲🇾 Malese | da scrivere | latino | sì | sì (Apple) |
+| 🇺🇿 Uzbeko | **completo** A1–B2 | latino | sì | sì (modello sul telefono) |
+
+Le altre lingue della lista (cantonese, punjabi, tamil, telugu, malayalam, kannada,
+curdo kurmanji e sorani, mongolo, khmer, lao, kazako, kirghiso, azero, georgiano,
+armeno, urdu, bengalese) compaiono nell'app come *Coming soon*. Punjabi, curdo,
+kirghiso e armeno non hanno una voce neurale gratuita: arriveranno senza ascolto e
+pronuncia.
+
+Il nome del progetto Xcode, del target e il bundle identifier (`com.uzbelia.app`)
+restano quelli di prima, così firma, account Apple/Google e Firebase continuano a
+funzionare; il nome mostrato sul telefono è **Lingora**.
 
 ---
 
@@ -75,37 +89,20 @@ nuove e per il giudizio sulle traduzioni alternative — e se manca, ognuna di q
 ricade sull'offline. L'account (facoltativo, vedi [più sotto](#account-non-perdere-i-progressi))
 serve solo a non perdere i progressi cambiando telefono.
 
-### Usarla in due
-
-L'app è pensata per una coppia che impara la lingua dell'altro: stesso corpus, due versi.
-
-- **Ognuno sul proprio iPhone.** Ripeti la procedura qui sopra collegando il suo telefono
-  al tuo Mac. Al primo avvio lui sceglie *Italyan tilini o'rganaman* e da lì l'intera
-  interfaccia è in uzbeko, mentre esercizi, audio e correzioni sono in italiano.
-- **Progressi separati.** XP, serie, cuori, parole imparate e forme alternative accettate
-  vivono sul telefono, non in un account: nessuno vede o sposta i dati dell'altro.
-- **Una sola chiave.** Quella in `Secrets.swift` viene compilata dentro l'app, quindi
-  funziona su entrambi i telefoni senza configurare niente. La quota Google però è
-  **condivisa**: due persone sul piano gratuito di Gemini stanno larghe, ma se un giorno
-  finisce, le videochiamate tornano al generatore offline e le traduzioni alternative
-  ricadono sul corso e sulle forme già imparate.
-- **Il bundle identifier.** Se installi su due telefoni con lo stesso Apple ID va bene
-  così; se usate due Apple ID diversi, ognuno mette il proprio Team in *Signing &
-  Capabilities*.
-- **Chi ha la chiave ha il conto.** Una chiave dentro un'app si può estrarre dal bundle:
-  fra voi due non è un problema, ma è il motivo per cui l'app non va data ad altri.
-
 ---
 
 ## Il corso in numeri
 
-- **4 livelli** (A1, A2, B1, B2)
-- **32 unità** (8 per livello)
-- **339 lezioni** + 32 dialoghi + 32 ripassi d'unità = **403 tappe** di percorso
+Ogni corso ha lo stesso scheletro (stessi id di unità e lezioni, stessi argomenti),
+quindi gli stessi numeri. Per l'uzbeko, completo:
+
+- **4 livelli** (A1, A2, B1, B2), **32 unità** (8 per livello)
+- **339 lezioni** + 32 dialoghi + 32 capitoli di scrittura + 32 ripassi d'unità
 - ogni lezione richiede **5 sessioni** → circa **1.760 sessioni** per arrivare al B2
 - **6.581 coppie di traduzione** (vocaboli + frasi complete)
-- **4.068 frasi di esercizio**, una dozzina per lezione, per le sessioni dalla seconda in poi
-- **77 note di grammatica** bilingui + **256 domande di conversazione** legate ai capitoli
+- **4.068 frasi di esercizio**, una dozzina per lezione
+- **77 note di grammatica** scritte per quella lingua, **256 domande** per le
+  videochiamate e **512 domande di approfondimento**
 
 ### Il lessico rispetta le bande CEFR
 
@@ -132,7 +129,7 @@ Unità ─┬─ Lezione 1  ┐
        │             ┘  (16-21 vocaboli ciascuna)
        ├─ Dialogo       storia da leggere/ascoltare + esercizi
        ├─ Scrittura     chat con Anorcha: scrivi tu, nessun esercizio
-       └─ Ripasso       test finale su tutta l'unità (20 esercizi)
+       └─ Ripasso       test finale su tutta l'unità (14 esercizi)
 ```
 
 ### Ogni lezione si fa 5 volte, e ogni volta è diversa
@@ -141,17 +138,26 @@ Come una skill di Duolingo, una lezione non è finita al primo giro: servono **5
 sessioni**, e il percorso non avanza finché non sono tutte fatte (l'anello intorno
 al nodo mostra 1/5, 2/5…). Ogni passaggio allena qualcosa di diverso:
 
-| # | Sessione | Che cosa fa |
-|---|---|---|
-| 1 | **Scoperta** | incontri le parole: abbinamenti, scelta multipla, audio d'appoggio |
-| 2 | **Ascolto** | solo orecchio: dettati e riconoscimento audio |
-| 3 | **Scrittura** | produci tu le frasi con la tastiera |
-| 4 | **Parlato** | pronuncia al microfono |
-| 5 | **Ripasso** | tutto insieme, senza aiuti e con più produzione |
+| # | Sessione | Domande | Che cosa contiene |
+|---|---|---|---|
+| 1 | **Lettura** | 11 | solo lettura: abbinamenti, scelta multipla, completa, costruisci la frase |
+| 2 | **Ascolto** | 10 | solo ascolto: ascolta e scegli, *che cosa significa?*, ricomponi quello che senti, dettato |
+| 3 | **Scrittura** | 9 | solo scrittura: otto frasi da scrivere con la tastiera e **un breve testo** |
+| 4 | **Parlato** | 9 | solo voce: leggi ad alta voce, *ascolta e ripeti* |
+| 5 | **Ripasso** | 11 | tutto insieme, senza aiuti e con più produzione |
 
-L'abilità in evidenza occupa circa metà della sessione: **anche dentro un singolo
-giro gli esercizi restano mescolati**, non diventa mai una fila di quindici dettati.
-Dialoghi e ripassi d'unità restano invece a sessione singola.
+**L'etichetta è una promessa**: una sessione che si chiama *Ascolto* contiene
+soltanto esercizi di ascolto, *Scrittura* soltanto esercizi di scrittura, e così via.
+Solo il *Ripasso* mescola. Per non diventare monotone, le sessioni a tema alternano
+più formati della stessa abilità (e la stessa domanda non arriva due volte di fila
+nella stessa direzione). Le domande sbagliate tornano alla fine, come prima.
+
+Se un'abilità è spenta in *Profilo* (o messa in pausa con «Non posso parlare ora»),
+la sessione dedicata a quell'abilità diventa un *Ripasso* e **lo dice**, sul nodo e
+nella lezione: niente sessioni chiamate *Ascolto* riempite d'altro.
+
+Dialoghi e ripassi d'unità restano a sessione singola; il dialogo, dopo la lettura,
+ha solo esercizi di ascolto.
 
 Ogni unità ha anche un **manuale** (l'icona 📖 sul banner) con le note di grammatica e
 l'elenco completo delle parole, ognuna con audio e indicatore di memoria.
@@ -169,7 +175,7 @@ B2 8-16). Non aggiungono vocaboli: servono a usare in modi diversi quelli già i
 
 - Il **primo** giro resta sulle parole e sulle frasi della lezione: lì le parole nuove
   si incontrano per la prima volta.
-- Dal **secondo** in poi la sessione è fatta di sei parole della lezione e dodici
+- Dal **secondo** in poi la sessione è fatta di quattro parole della lezione e otto
   frasi, scelte fra quelle **che hai visto meno**: le frasi mai viste per prime, a parità
   a caso. Così ogni giro porta frasi che il giro prima non aveva.
 - Il ripasso dell'unità e *Ripassa un capitolo* pescano dalle frasi di tutta l'unità,
@@ -188,8 +194,9 @@ ma frasi che nessuno ha mai visto.
   difficile».
 - Tutto quello che arriva viene **tenuto su disco** e si accumula: dopo i primi giri
   c'è varietà anche offline, e ogni capitolo arriva a un massimo di 90 frasi.
-- Si disattiva da *Profilo → Frasi sempre nuove*. Senza chiave non parte mai, e restano
-  le frasi di esercizio del corso.
+- È sempre attiva, senza interruttore, ma è la prima cosa a cui l'app rinuncia quando le
+  richieste del giorno scarseggiano (vedi [L'assistente IA](#lassistente-ia)): allora
+  restano le frasi di esercizio del corso e quelle già scritte.
 
 ### Un capitolo di sola scrittura, in ogni unità
 
@@ -218,16 +225,18 @@ stesso motore di correzione della videochiamata, quindi **funziona anche offline
 Anche senza chiave Anorcha ha un copione di domande per ogni argomento, quindi il
 capitolo si fa comunque.
 
-### Le note di grammatica sono bilingui *e asimmetriche*
+### Le note di grammatica sono scritte per ogni lingua
 
-Una stessa nota contiene due testi diversi, non una traduzione:
+Le note sono in inglese e spiegano **la grammatica di quella lingua** a chi parla
+inglese: per l'uzbeko che *essere* al presente è una desinenza (`-man/-san/-miz`), per
+il thai che non si coniuga niente e il tempo lo dicono le parole intorno, per il
+persiano l'*ezafe*. Non si traducono da un corso all'altro: ogni corso ha le sue.
 
-- il testo **italiano** spiega **la grammatica uzbeka** a chi parla italiano;
-- il testo **uzbeko** spiega **la grammatica italiana** a chi parla uzbeko.
-
-Esempio (A1, unità 1): allo studente italiano si spiega che l'uzbeko non ha il verbo
-*essere* al presente ma usa le desinenze `-man/-san/-miz`; allo studente uzbeko si spiega
-che l'italiano usa sempre *essere* e che è irregolare.
+Nella scheda **Grammatica** ogni capitolo è una riga con, sotto il titolo, i titoli delle
+sue regole; un tocco apre **un foglio** con tutte le regole del capitolo, da leggere
+dall'alto in basso. Prima le regole si aprivano dentro la lista: scivolavano giù dalla
+riga sopra con una molla, spingevano via il resto della lista e in chiusura risalivano
+sfumando sopra l'intestazione. Con un foglio la lista resta esattamente dov'era.
 
 ---
 
@@ -239,17 +248,47 @@ alternandoli in modo che lo stesso tipo non capiti due volte di fila.
 
 | Esercizio | Abilità | Descrizione |
 |---|---|---|
-| **Abbina le coppie** | lettura | 5 parole da accoppiare con la traduzione |
-| **Scelta multipla** | lettura | 4 opzioni, con audio se il testo è in lingua target |
-| **Completa la frase** | lettura/grammatica | una parola tolta dalla frase, 4 candidate |
-| **Costruisci la frase** | produzione | word bank con tessere + distrattori |
+| **Abbina le coppie** | lettura | 5 parole da accoppiare con la traduzione (due giri nelle lezioni di soli vocaboli) |
+| **Scelta multipla** | lettura | 4 opzioni, in tutte e due le direzioni |
+| **Completa la frase** | lettura | una parola tolta dalla frase, 4 candidate |
+| **Costruisci la frase** | lettura | tessere con distrattori, dalla frase scritta |
+| **Ascolta e scegli** | ascolto | solo audio, scegli la frase che hai sentito |
+| **Ascolta: che cosa significa?** | ascolto | solo audio, scegli il significato nella tua lingua |
+| **Ricomponi quello che senti** | ascolto | solo audio, ricostruisci la frase con le tessere |
+| **Scrivi quello che senti** | ascolto | dettato con audio (normale e lento) |
 | **Scrivi la traduzione** | scrittura | tastiera libera, con tolleranza ai refusi |
-| **Scrivi quello che senti** | ascolto + scrittura | dettato con audio (normale e lento) |
-| **Ascolta e scegli** | ascolto | solo audio, 4 opzioni testuali |
-| **Pronuncia la frase** | parlato | microfono + riconoscimento vocale e punteggio |
+| **Scrivi un breve testo** | scrittura | due o tre cose da dire, corrette a giri (vedi sotto) |
+| **Pronuncia la frase** | parlato | leggi ad alta voce: microfono, riconoscimento e punteggio |
+| **Ascolta e ripeti** | parlato | il testo resta nascosto: lo senti e lo ripeti a voce |
 
-Per l'uzbeko c'è una **riga di tasti rapidi** (`o'`, `g'`, `sh`, `ch`, `ng`, `'`) sopra la
-tastiera negli esercizi di scrittura.
+Per l'uzbeko c'è una **riga di tasti rapidi** (`o'`, `g'`, `sh`, `ch`, `ng`, `'`) subito
+sopra il pulsante di verifica — quindi sempre sopra la tastiera — negli esercizi in cui
+si scrive.
+
+### Scrivi un breve testo
+
+Ogni sessione di *Scrittura* (e l'allenamento *Scrittura*) finisce con un testo da
+scrivere: Anorcha ti chiede un messaggio che dica **due o tre cose** (tre da B1), scritte
+nella tua lingua; la prima frase è **già cominciata** nel riquadro, e sotto ci sono le
+**parole che conosci** da toccare. Le cose da dire sono frasi del corso stesso, quindi il
+testo si scrive sempre con parole **già studiate**.
+
+Poi lo correggi **un poco alla volta**, con l'aiuto dell'app:
+
+1. **Primo controllo** — il testo torna con gli errori evidenziati e numerati (una parola
+   sbagliata, una che manca, una di troppo, l'ordine, una parte non detta) e per ognuno un
+   indizio che dice **dove guardare**, non la soluzione.
+2. **Secondo controllo** — gli indizi danno le **prime lettere**; compare *Mostra la
+   correzione*.
+3. **Dal terzo** — l'indizio è la correzione stessa.
+
+Pulito al primo colpo è *giusto*; pulito dopo qualche indizio è *giusto con aiuto*; se
+chiedi la correzione vedi il testo corretto, conta come errore ma **non costa cuori** e non
+ti viene richiesto. Il tuo modo di dirlo non è un errore: ogni frase passa prima dalle
+stesse regole di `Equivalence` delle traduzioni (via *mening*, via *men*, nomi scritti a
+modo tuo…), e una frase in più scritta da te viene solo controllata per ortografia e
+grammatica. Con una chiave IA la correzione la scrive l'assistente, che accetta qualsiasi
+formulazione naturale; senza, la fa il correttore offline (`CompositionChecker`).
 
 ### Come vengono corrette le risposte
 
@@ -268,6 +307,47 @@ con il silenzioso; si spengono da *Profilo → Effetti sonori*. Quando l'app ril
 ad alta voce, aspetta che il suono sia finito.
 
 ---
+
+## Il design
+
+L'interfaccia è costruita su un piccolo design system in `Sources/DesignSystem`:
+
+- **Violetto e bianco, più un colore per tipo di sessione.** Una scala di violetto
+  (`Violet` in `Theme.swift`) porta gli accenti dell'app e le unità del percorso; un **rosa
+  tenue** è riservato agli errori. Ogni *tipo* di sessione ha poi il suo colore, sempre
+  lo stesso ovunque compaia (nodo del percorso, anello delle sessioni, pulsante, barra di
+  avanzamento, carta in *Allenati*):
+
+  | Lettura | Ascolto | Scrittura | Parlato | Ripasso |
+  |---|---|---|---|---|
+  | azzurro `#56A4EB` | acqua `#45BDCB` | pesca `#F2A86E` | menta `#66C89A` | viola `#8B6EF3` |
+
+  I quattro colori hanno la stessa luminosità e la stessa morbidezza del viola, cambia
+  solo la tinta; e le loro ombre piegano verso il viola, come un pittore scalda o
+  raffredda un'ombra verso la luce principale. È questo che li tiene insieme invece di
+  farli sembrare una scatola di pastelli. "Giusto" non ha un colore suo: è una pillola
+  viola piena con la spunta bianca. Le lingue sono targhette `UZ` / `IT` invece delle
+  bandiere.
+- **Sfondo "aurora"** (`AuroraBackground`): una tela bianco-lavanda con aloni lilla che
+  si muovono lentamente. Di notte gli stessi aloni brillano su un indaco profondo.
+- **Vetro** (`.glass`, `.glassCapsule`, `GlassPane`): pannelli smerigliati con il bordo
+  luminoso in alto e un'ombra viola che li fa galleggiare.
+- **Componenti riutilizzabili** (in `Glass.swift`): pulsante principale a pillola in
+  gradiente viola (`.primary`), pulsanti a pillola in vetro (`.glass`), pulsanti rotondi in vetro (`GlassCircleButton`), campo di ricerca,
+  menu a tendina, selettore a pillole, toggle e checkbox in vetro, toast e finestra
+  modale (`GlassDialog`).
+- **Sfere lucide** (`OrbIcon`) al posto delle icone piatte, con **archi di progresso**
+  (`ArcRing`) intorno; ciò che è completato diventa **perla** (bianco e lavanda).
+- Le abilità si riconoscono dall'**icona** (libro, cuffie, matita, microfono, frecce)
+  *e* dal colore; l'anello intorno a un nodo è diviso in cinque archi, uno per sessione,
+  ciascuno del colore della sua.
+- **La serie si festeggia** (`StreakCelebrationView`): la prima volta al giorno che
+  finisci qualcosa — lezione, allenamento, flashcard, chiamata, chat — prima di chiudere
+  si accende una fiamma disegnata a mano (non un'emoji: una goccia con una seconda
+  lingua di fuoco, che oscilla davvero, con qualche scintilla che sale), il numero
+  rotola dal vecchio al nuovo, e nella settimana il giorno di oggi si riempie e si
+  spunta. Ogni battuta ha il suo tempo; con *Riduci movimento* compare tutto e basta.
+  La fiamma nell'intestazione resta grigia finché quel giorno non hai fatto niente.
 
 ## Saltare avanti: i test di verifica
 
@@ -288,12 +368,20 @@ nulla: puoi riprovare o seguire il percorso normale.
 Tab **Chiama**: quattro pulsanti, **A1 A2 B1 B2**. Scegli il livello, il telefono squilla,
 rispondi e si parla.
 
-- **Le domande non sono un copione fisso.** Vengono composte al momento a partire dal
-  **capitolo a cui sei arrivata** in quel livello: se sei a «Cibo e bevande» ti chiede che
-  cosa mangi a colazione, se sei a «Raccontare il passato» ti chiede un ricordo d'infanzia.
-  Ogni chiamata mescola domande nuove, un paio di ripassi dai capitoli precedenti, un
-  aggancio a metà conversazione («E perché?», «Fammi un esempio») e una chiusura: **due
-  chiamate uguali praticamente non capitano** (un test lo verifica su dodici chiamate).
+- **È una conversazione, non un questionario.** Con l'assistente (vedi sotto) ogni
+  domanda dopo il saluto nasce da quello che hai appena detto, e resta sullo stesso
+  argomento finché ha senso.
+- **Anche offline tiene il filo.** Le domande partono dal **capitolo a cui sei arrivata**
+  in quel livello, e sono organizzate in *fili*: una domanda del capitolo e le due scritte
+  apposta per seguirla, qualunque cosa tu abbia risposto («Chi c'è nella tua famiglia?» →
+  «Con chi vai più d'accordo?» → «Dove abita la maggior parte di loro?»). Quando si passa
+  a un altro filo Anorcha lo dice («Adesso cambiamo un attimo argomento») invece di
+  saltare. Prima le domande venivano mescolate con un paio di capitoli vecchi e un
+  «Perché?» a caso, ed era così che una chiamata sulla famiglia finiva sui biglietti
+  dell'autobus. Le domande di approfondimento stanno in `content/questions.py`
+  (`FOLLOWUPS`); i fili cambiano a ogni chiamata, quindi **due chiamate uguali
+  praticamente non capitano** (un test lo verifica su dodici chiamate, un altro che
+  ogni domanda segua davvero quella prima).
 - **Rispondi tu, come vuoi.** Nessun suggerimento, nessuna scelta multipla: microfono
   (o tastiera, se preferisci scrivere) e dici quello che ti viene in mente. Puoi sempre
   dire «Non so rispondere» e passare oltre.
@@ -315,48 +403,66 @@ Il correttore è **prudente per scelta**: se non può giustificare una correzion
 segnala una parola che il corso semplicemente non insegna (*deyman* non diventa *yeyman*
 solo perché differiscono di una lettera: un cambio di iniziale non è un refuso).
 
-### Con una chiave IA (facoltativo)
+### L'assistente IA
 
-In *Profilo → Impostazioni → Assistente IA* puoi scegliere fra tre opzioni:
+**Non c'è niente da configurare.** La chiave Gemini è compilata dentro l'app
+(`Secrets.swift`, tenuta fuori da git) e nell'app non compare da nessuna parte: niente
+servizio da scegliere, niente chiave da incollare, niente «Prova la chiave». È una
+chiave **dedicata**, creata nel progetto Firebase dell'app (`uzbelia-76044`) e
+limitata alla sola API Gemini. Una chiave incollata a mano in una versione precedente
+continua a funzionare, ma non viene più chiesta.
 
-| | |
+Con l'assistente la videochiamata diventa **una conversazione scritta sul momento**:
+
+- a ogni turno il modello riceve **tutta la trascrizione**, da entrambe le parti (anche
+  le sue reazioni e i passaggi di argomento), e deve scrivere *prima* che cosa ha capito
+  della tua risposta e su quale argomento si trova — due campi che nessuno vede, ma un
+  modello che ha appena scritto «ha due fratelli, uno fa il medico» poi non ti chiede del
+  tempo;
+- **tiene il filo**: reagisce a un dettaglio concreto di quello che hai detto, la domanda
+  dopo nasce da lì, resta sullo stesso argomento per due o tre scambi e si sposta solo
+  verso qualcosa di vicino, passando da un tuo dettaglio. Non chiede mai una cosa a cui
+  hai già risposto. Se non ha sentito niente o la risposta non si capisce, **te lo
+  richiede più semplice** invece di cambiare argomento; se salti, ne chiede una più facile
+  sullo stesso tema;
+- la risposta arriva dal riconoscimento vocale, quindi il modello è istruito a leggerla
+  «con generosità», come farebbe un'amica;
+- il saluto finale cita qualcosa che le hai raccontato;
+- il modello riceve anche un *briefing* su di te: capitolo, lezioni, vocabolario appena
+  studiato, capitoli già fatti, le parole che sbagli più spesso, i giorni di fila, l'ora
+  del giorno e un «angolo» estratto a sorte per la chiamata;
+- se una richiesta fallisce viene **riprovata una volta**; se fallisce ancora, quel turno
+  usa la domanda del filo offline e la chiamata prosegue. Solo due turni falliti di fila
+  spengono l'assistente per il resto della chiamata.
+
+Verificato con la chiave vera, simulando una chiamata sulla famiglia: saluto → «chi
+c'è a casa?» → due fratelli e una sorella → come si chiama → Jasur lavora a Tashkent →
+che lavoro fa → il plov della domenica → chi lo cucina; e a una risposta vuota ha
+richiesto la stessa cosa invece di andare avanti.
+
+**Il limite da sapere.** Sul piano gratuito di Google questa chiave ha **20 richieste
+al giorno per tutto il progetto** (cioè per entrambi i telefoni insieme), e funziona solo
+`gemini-3.6-flash` (gli altri modelli rispondono 404). Una videochiamata ne usa circa
+nove, una per turno più il rapporto finale. Per non sprecarle l'app le **razionsa**
+(`AIBudget` in `AIClient.swift`):
+
+| Uso | Può chiedere finché, oggi, da questo telefono… |
 |---|---|
-| **Nessuna** (default) | tutto offline: domande dal corso, correzione con regole e corpus |
-| **Gemini (gratis)** | chiave da `aistudio.google.com/apikey`, ha un piano gratuito |
-| **Claude (a pagamento)** | chiave da `console.anthropic.com`, richiede credito prepagato |
+| conversazione (videochiamata, chat di scrittura) | sempre, finché Google dice di sì |
+| correzioni (rapporto della chiamata, testo breve) | meno di 16 richieste |
+| extra (significato di una parola, frasi nuove, seconda opinione, trascrizione) | meno di 5 richieste |
 
-Con una chiave la videochiamata diventa **una conversazione scritta sul momento**:
+Quando Google risponde «quota del giorno finita», l'app se lo segna fino all'ora che
+Google indica e **non riprova più**: la chiamata prosegue subito offline invece di farti
+aspettare risposte che non possono arrivare.
 
-- ogni turno è generato da quello che hai appena risposto — Anorcha reagisce a un
-  dettaglio che hai detto e la domanda dopo nasce da lì, invece di leggere una scaletta;
-- **tiene il filo**: resta sullo stesso argomento per due o tre scambi prima di spostarsi,
-  non richiede mai una cosa a cui hai già risposto, e torna su quello che le hai detto
-  prima. Le dici che hai preso il tè con tua sorella e ti chiede dov'è; le dici che si
-  chiama Malika e lavora a Tashkent e ti chiede che lavoro fa;
-- il modello riceve un *briefing* su di te: capitolo in corso, lezioni dentro al
-  capitolo, vocabolario appena studiato, capitoli già fatti, le parole che sbagli più
-  spesso, i giorni di fila e l'ora del giorno;
-- **due chiamate non si somigliano mai**: a ogni chiamata viene estratto a sorte un
-  «angolo» fra dodici (parti da un ricordo, confronta due cose, mettila in una
-  situazione…), il vocabolario viene rimescolato, e le ultime 60 domande già fatte
-  vengono passate al modello come lista da evitare;
-- la correzione finale è argomentata invece che basata su regole.
-
-L'interfaccia è identica e compare ✨. C'è un pulsante **Prova la chiave** che fa una
-richiesta vera e ti dice subito se funziona o qual è l'errore.
-
-Se la chiamata al modello fallisce (chiave sbagliata, quota finita, niente rete), la
-videochiamata **non si interrompe**: ricade sul generatore e sul correttore offline, e
-smette di riprovare per non bruciare quota.
+Per togliere il limite basta **attivare la fatturazione** sul progetto Google Cloud
+(`console.cloud.google.com/billing`, progetto *uzbelia-76044*): con Gemini Flash una
+videochiamata costa una frazione di centesimo. È una cosa che solo il titolare
+dell'account può fare, perché chiede un metodo di pagamento.
 
 La chiave serve anche agli **esercizi**, per far accettare le traduzioni alternative:
 vedi più sotto.
-
-> Stato delle verifiche: il percorso offline è provato end-to-end. Del percorso IA ho
-> potuto verificare che la richiesta a Gemini è formata correttamente — l'ho eseguita con
-> una chiave finta e Google ha risposto rifiutando **solo la chiave** (400 «API key not
-> valid»), il che dimostra che endpoint, header e corpo sono giusti. Non ho potuto provare
-> una risposta completa perché non ho una chiave vera.
 
 ## «Ora non posso»
 
@@ -503,8 +609,7 @@ valgono le vie di prima. Con loro, l'app pesa circa 200 MB in più.
 
 **L'audio viene messo in cache su disco**, per voce e per velocità: un corso ripete di
 continuo le stesse parole, quindi dopo il primo passaggio su un capitolo non esce quasi
-più niente dal telefono. In *Profilo → Voce* vedi quanto è grande la cache e puoi
-svuotarla.
+più niente dal telefono.
 
 Se la rete cade o un servizio smette di rispondere, si torna **da sola** alla voce turca
 di iOS: l'audio non smette mai di funzionare, peggiora e basta. E l'avviso «pronuncia
@@ -513,22 +618,29 @@ approssimata» compare solo quando lo è davvero.
 ## Tocca una parola per il significato
 
 Dentro un esercizio, un tocco su una parola apre sotto una piccola carta con **che cosa
-vuol dire quella parola** — e, quando la riga è un'espressione che il corso insegna
-intera, anche **che cosa vuol dire tutta l'espressione**, perché `ertaga ko'rishguncha`
-non è «domani fino-a-vederci».
+vuol dire quella parola** — **mai la traduzione della frase intera**. Quando la parola fa
+parte di un'espressione fissa che il corso insegna come unità (`xayrli tong`, `ertaga
+ko'rishguncha`), l'espressione si illumina nella riga e la carta dice che cosa vuol dire
+lei, perché `xayrli tong` non è «mattino propizio».
+
+Le parole flesse che il corso non elenca da sole vengono ricondotte alla **forma base**,
+e la carta lo dice: `bordim` → *forma base: bormoq* · andare; `kitoblarim` → `kitob`;
+`parliamo` → `parlare`. La forma base è accettata solo se le desinenze la spiegano per
+intero (`Glossary.base`), così un'ipotesi non passa mai per un dato certo.
 
 Da dove esce il significato, dal più economico al più caro:
 
 | | |
 |---|---|
-| **Il corso** | se la parola è insegnata da sola, o la frase è una voce sua, è istantaneo e offline |
+| **Il corso** | la parola insegnata da sola, l'espressione fissa che la contiene, o la sua forma base: istantaneo e offline |
 | **La tua cronologia** | ogni significato già cercato è tenuto per sempre: una parola si cerca una volta sola nella vita dell'app |
 | **L'assistente** | con una chiave, gliela chiede — ed è quasi sempre lui, per il motivo qui sotto |
 
 Il corso insegna da sola solo una parola su cinque (**22%** in uzbeko, 35% in italiano):
-tutte le altre compaiono soltanto dentro le frasi. Senza chiave quindi il tocco funziona
-in una minoranza dei casi; con la chiave funziona quasi sempre, e ogni risultato resta
-sul telefono.
+tutte le altre compaiono soltanto dentro le frasi. La lettura della forma base ne
+recupera una buona parte anche senza chiave; con la chiave funziona quasi sempre — e
+anche all'assistente si chiede la parola o l'espressione, mai la frase — e ogni
+risultato resta sul telefono.
 
 Si può spegnere da *Profilo → «Tocca una parola per il significato»*: su una domanda
 come «Che cosa significa…?» il suggerimento ti dà in mano la risposta, e potresti non
@@ -559,11 +671,12 @@ prolungato.
 ## Gamification
 
 - **Cuori e gemme illimitati** (è un regalo, non un negozio): ∞ nell'intestazione,
-  gli errori non ti fermano mai. C'è comunque un interruttore in *Profilo →
-  Impostazioni* se un giorno volessi rimettere il limite dei 5 cuori.
+  gli errori non ti fermano mai. Non c'è un interruttore: sono illimitati e basta.
 - **XP** per sessione, con bonus per precisione e per gli esercizi di pronuncia
 - **Obiettivo giornaliero** configurabile (20/50/100/150 XP) con barra di avanzamento
-- **Serie (streak)** giornaliera, con *salva-serie* che copre un giorno saltato
+- **Serie (streak)** giornaliera, con *salva-serie* che copre un giorno saltato. Conta
+  qualsiasi cosa dia XP — anche un allenamento, un mazzo di flashcard o una chiamata — e
+  quando cresce si festeggia (vedi [Il design](#il-design))
 - **Corone**: fino a 3 per tappa, in base alle sessioni completate
 - **Promemoria giornaliero** opzionale (notifica locale all'ora che scegli, testo bilingue
   che ricorda la serie in corso)
@@ -575,6 +688,14 @@ prolungato.
   senza cuori.
 - **Allenati → Ripassa un capitolo**: l'elenco di tutte le unità che hai iniziato, con
   la percentuale di avanzamento, per riallenarne una qualsiasi quando vuoi.
+- **Allenati → Esercitati con le flashcard**: un mazzo di 20 carte con le parole che hai
+  già incontrato — prima quelle in scadenza, poi quelle ancora deboli, poi le altre,
+  ognuna delle tre fasce mescolata. Tocchi la carta e si gira (il lato nella lingua che
+  impari si sente da solo); la scorri a destra se la sapevi, a sinistra se no, oppure
+  usi i tre pulsanti sotto. Si può partire dall'uzbeko o dall'italiano. Ogni carta
+  aggiorna la stessa memoria delle lezioni (vedi SRS), quindi cambia anche quello che
+  ti chiede il *Ripasso misto*. Alla fine: quante ne sapevi, e un pulsante per ripassare
+  solo quelle da rivedere.
 - **Ripasso misto**, **I tuoi errori** e **Allena un'abilità** restano disponibili come
   allenamento libero.
 
@@ -599,7 +720,7 @@ Questo è l'unico punto in cui la piattaforma pone un limite reale, ed è meglio
   comprensibile e utile, ma **approssimata**. Lo stesso vale per il punteggio di
   pronuncia, che viene leggermente “ammorbidito” quando usa un riconoscitore sostitutivo.
 
-L'app lo dichiara apertamente: sotto il microfono e in *Profilo → Impostazioni → Voce usata*.
+L'app lo dichiara apertamente sotto il microfono.
 Se un giorno Apple aggiungerà una voce uzbeka, verrà usata automaticamente senza modifiche.
 
 ---
@@ -770,44 +891,44 @@ file, `uzbelia-phrases.json`, accanto al primo.
 
 ---
 
-## Modificare o ampliare il corso
+## Modificare o ampliare i corsi
 
-Il contenuto si scrive in `content/a1.py … b2.py`, in un formato compatto:
+Ogni corso è una cartella `content/courses/<codice>/` (il formato è descritto in
+`content/courses/FORMAT.md`):
+
+| File | Contenuto |
+|---|---|
+| `course.py` | nome, alfabeto, traslitterazione sì/no |
+| `a1.py` … `b2.py` | unità, note di grammatica, lezioni, dialoghi |
+| `extra_<livello>*.py` | lezioni di lessico in più |
+| `drills/<unità>.py` | le frasi di esercizio, una dozzina per lezione |
+| `questions.py` | domande e approfondimenti delle videochiamate |
+| `phrases.py` | le battute che l'app stessa dice nella lingua (reazioni, aperture della chat) |
+
+Ogni coppia è `("inglese", "lingua")`, oppure `("inglese", "lingua", "traslitterazione")`
+per gli alfabeti non latini:
 
 ```python
-# content/a1.py — le lezioni narrative
-("a1u1l1", ("Saluti", "Salomlashish"),
- [("ciao", "salom"), ("grazie", "rahmat")],          # vocaboli
- [("Ciao, come stai?", "Salom, qalaysan?")]),        # frasi
-
-# content/extra_a1.py — i pacchetti di lessico, che diventano lezioni in più
-"a1u4": [
-  ("Frutta e verdura", "Meva va sabzavot",
-   [("pera", "nok"), ("melagrana", "anor")],
-   [("Compro tre chili di uva.", "Uch kilo uzum sotib olaman.")]),
-]
+("a1u1l1", ("Greetings", "Salomlashish"),
+ [("hello", "salom"), ("thank you", "rahmat")],             # vocaboli
+ [("Hello, how are you?", "Salom, qalaysan?")]),            # frasi
 ```
 
-Le domande delle videochiamate stanno in `content/questions.py`: otto per ogni unità,
-più aperture, rilanci e chiusure per livello.
-
-Poi si ricompila e si valida in un comando:
+Il corso di uzbeko è il **master**: un corso nuovo nasce traducendo e adattando
+all'altra cultura il suo lato inglese (nomi, città, piatti, feste, moneta), con le
+note di grammatica riscritte per la lingua nuova. Poi:
 
 ```bash
-python3 content/build.py
+python3 content/build.py            # tutti i corsi
+python3 content/build.py th         # solo il thai
 ```
 
-Il compilatore rifiuta il contenuto se trova lati vuoti, caratteri cirillici finiti per
-sbaglio nel testo uzbeko, apostrofi tipografici, id duplicati o lezioni troppo povere.
-Dopo la ricompilazione, i **70 test** Xcode rigenerano sessioni su tutte le unità in
-entrambe le direzioni e verificano che ogni domanda sia risolvibile: risposta sempre
-presente tra le opzioni, nessun doppione, word bank sempre in grado di ricostruire la
-frase, nessun distrattore segnaposto, e nessuna domanda con due risposte giuste (parole
-che condividono una traduzione, come *bog'* = giardino/parco, non finiscono mai nella
-stessa domanda). Gli altri test coprono le bande CEFR del lessico, il correttore di
-risposte, la ripetizione dilazionata, le cinque sessioni con focus diversi, i test di
-sblocco, le videochiamate (domande sempre diverse e legate al capitolo giusto, e un correttore
-che non inventa errori) e il tempo di costruzione di una sessione sul corpus completo.
+Il compilatore scrive `Resources/Curriculum/<codice>-a1.json` … e rifiuta il corso se
+trova lati vuoti, id duplicati, lezioni troppo povere, frasi nell'alfabeto sbagliato,
+traslitterazioni mancanti, o un lessico sotto la banda CEFR del livello. Un corso
+compare nell'app non appena il suo `a1.json` è nel bundle; per aggiungere una lingua
+nuova serve anche il suo caso in `Language` (`Sources/Models/Curriculum.swift`), con
+voce, alfabeto e riconoscimento.
 
 ---
 
