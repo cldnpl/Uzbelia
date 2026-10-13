@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lingora</title>
+<meta name="description" content="Lingora teaches the languages the big apps skip, from A1 to B2: Uzbek, Thai, Persian, Tagalog, Malay, Cantonese, Punjabi, Tamil and more.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap">
+<style>
+/* Layout: the app's own lavender glass world. A rotating greeting in the course's own script is the hero;
+   a playable lesson on a phone sits beside it; the rest reads top to bottom, one idea per band. */
+:root {
+  --bg: #F4F1FC;
+  --bg-band: #ECE6FF;
+  --card: #FFFFFF;
+  --stroke: #E3DFF2;
+  --ink: #1F1A3D;
+  --ink-soft: #625C85;
+  --ink-faint: #8F89AE;
+  --brand: #7155E3;
+  --brand-deep: #5B43C7;
+  --brand-soft: #E0D8FF;
+  --orb-hi: #B49CFF;
+  --orb-lo: #6A4EDB;
+  --heart: #D9708C;
+  --heart-soft: #FBEAF0;
+  --phone: #1F1A3D;
+  --shadow: rgba(91, 67, 199, .14);
+  --font-display: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif;
+  --font-body: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif;
+  --font-script: system-ui, "Noto Sans", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E0C1E; --bg-band: #17152C; --card: #1C1A36; --stroke: #2F2B4F;
+    --ink: #F3F1FF; --ink-soft: #ADA7CF; --ink-faint: #7C76A1;
+    --brand: #A28CFF; --brand-deep: #BBA9FF; --brand-soft: #2E2670;
+    --orb-hi: #B9A6FF; --orb-lo: #6A4EDB;
+    --heart: #F08DA6; --heart-soft: #3A2030; --phone: #000000;
+    --shadow: rgba(0, 0, 0, .45);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E0C1E; --bg-band: #17152C; --card: #1C1A36; --stroke: #2F2B4F;
+  --ink: #F3F1FF; --ink-soft: #ADA7CF; --ink-faint: #7C76A1;
+  --brand: #A28CFF; --brand-deep: #BBA9FF; --brand-soft: #2E2670;
+  --orb-hi: #B9A6FF; --orb-lo: #6A4EDB;
+  --heart: #F08DA6; --heart-soft: #3A2030; --phone: #000000;
+  --shadow: rgba(0, 0, 0, .45);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.55;
+  font-weight: 500;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1120px; margin-inline: auto; padding-inline: 20px; }
+h1, h2, h3 { font-family: var(--font-display); margin: 0; text-wrap: balance; letter-spacing: -0.02em; }
+h2 { font-size: clamp(30px, 4.2vw, 44px); font-weight: 800; line-height: 1.1; }
+h3 { font-size: 20px; font-weight: 700; line-height: 1.25; }
+p { margin: 0; }
+.lede { color: var(--ink-soft); font-size: 18px; max-width: 58ch; }
+.eyebrow { font-size: 13px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--brand); }
+a { color: var(--brand-deep); }
+:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; border-radius: 8px; }
+
+/* ---------- nav ---------- */
+.nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 18px; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 800; font-size: 22px; color: var(--ink); text-decoration: none; }
+.brand svg { width: 34px; height: 34px; }
+.nav-links { display: flex; gap: 22px; font-weight: 700; font-size: 15px; }
+.nav-links a { color: var(--ink-soft); text-decoration: none; }
+.nav-links a:hover { color: var(--brand-deep); }
+@media (max-width: 720px) { .nav-links { display: none; } }
+
+/* ---------- store badge ---------- */
+.store {
+  display: inline-flex; align-items: center; gap: 12px;
+  background: var(--ink); color: var(--bg);
+  border-radius: 16px; padding: 10px 20px 10px 16px;
+}
+.store svg { width: 24px; height: 24px; fill: currentColor; flex: none; }
+.store small { display: block; font-size: 12px; font-weight: 600; opacity: .75; line-height: 1.2; }
+.store strong { display: block; font-size: 18px; font-weight: 800; line-height: 1.2; }
+
+/* ---------- hero ---------- */
+.hero { display: grid; grid-template-columns: 1.15fr .85fr; gap: 48px; align-items: center; padding-block: 36px 72px; }
+.hero-text { display: grid; gap: 22px; min-width: 0; }
+.hero h1 { font-size: clamp(40px, 6vw, 68px); font-weight: 900; line-height: 1.02; }
+.greet {
+  display: block; min-height: 1.25em; margin-top: 6px;
+  font-family: var(--font-script);
+  font-weight: 800;
+  background: linear-gradient(90deg, var(--orb-hi), var(--brand) 55%, var(--brand-deep));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  transition: opacity .35s ease, transform .35s ease;
+}
+.greet.out { opacity: 0; transform: translateY(10px); }
+.greet-meta { font-size: 15px; font-weight: 700; color: var(--ink-faint); min-height: 1.5em; }
+.greet-meta b { color: var(--ink-soft); }
+.hero-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 18px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--brand-soft); color: var(--brand-deep);
+  font-weight: 800; font-size: 14px; border-radius: 999px; padding: 6px 12px; justify-self: start;
+}
+
+/* ---------- phone demo ---------- */
+.phone {
+  justify-self: center; width: min(340px, 100%);
+  background: var(--phone); border-radius: 48px; padding: 12px;
+  box-shadow: 0 40px 80px -30px var(--shadow), 0 0 0 1px var(--stroke);
+}
+.screen {
+  background: linear-gradient(180deg, var(--bg-band), var(--bg));
+  border-radius: 38px; padding: 22px 18px 20px; display: grid; gap: 16px; min-height: 560px;
+  align-content: start;
+}
+.island { width: 96px; height: 26px; border-radius: 99px; background: var(--phone); margin: -10px auto 4px; }
+.topbar { display: flex; align-items: center; gap: 12px; }
+.bar { flex: 1; height: 12px; border-radius: 99px; background: var(--stroke); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--orb-hi), var(--brand)); transition: width .4s ease; }
+.hearts { display: flex; align-items: center; gap: 4px; color: var(--heart); font-weight: 900; font-variant-numeric: tabular-nums; }
+.hearts svg { width: 20px; height: 20px; fill: currentColor; }
+.hearts.hit { animation: shake .4s; }
+@keyframes shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+.q-kind { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--brand); }
+.q-title { font-family: var(--font-display); font-size: 20px; font-weight: 800; line-height: 1.25; }
+.prompt {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--card); border: 1px solid var(--stroke); border-radius: 20px; padding: 14px 16px;
+}
+.prompt svg { width: 46px; height: 46px; flex: none; }
+.prompt .word { font-family: var(--font-script); font-size: 26px; font-weight: 800; line-height: 1.2; }
+.prompt .roman { color: var(--ink-faint); font-size: 14px; font-weight: 700; }
+.options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.opt {
+  font: inherit; font-weight: 700; font-size: 16px; color: var(--ink);
+  background: var(--card); border: 2px solid var(--stroke); border-bottom-width: 4px;
+  border-radius: 16px; padding: 12px 8px; cursor: pointer; min-height: 54px;
+  transition: transform .1s ease, border-color .15s ease, background .15s ease;
+}
+.opt:hover:not(:disabled) { border-color: var(--brand); }
+.opt:active:not(:disabled) { transform: translateY(2px); }
+.opt:disabled { cursor: default; }
+.opt.right { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-deep); }
+.opt.wrong { border-color: var(--heart); background: var(--heart-soft); color: var(--heart); }
+.feedback {
+  border-radius: 18px; padding: 12px 14px; font-weight: 700; font-size: 15px; min-height: 76px;
+  display: grid; gap: 8px; align-content: center;
+  background: var(--card); border: 1px dashed var(--stroke); color: var(--ink-faint);
+}
+.feedback.good { border-style: solid; border-color: var(--brand); background: var(--brand-soft); color: var(--brand-deep); }
+.feedback.bad { border-style: solid; border-color: var(--heart); background: var(--heart-soft); color: var(--heart); }
+.next {
+  font: inherit; font-weight: 800; font-size: 15px; color: #fff; justify-self: start;
+  background: var(--brand); border: 0; border-radius: 12px; padding: 8px 16px; cursor: pointer;
+}
+
+/* ---------- bands ---------- */
+.band { padding-block: 84px; }
+.band.tint { background: var(--bg-band); }
+.head { display: grid; gap: 14px; margin-bottom: 40px; }
+
+/* ---------- courses ---------- */
+.courses { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.course {
+  background: var(--card); border: 1px solid var(--stroke); border-radius: 22px;
+  padding: 18px 18px 16px; display: grid; gap: 4px; align-content: start;
+}
+.course .endo { font-family: var(--font-script); font-size: 26px; font-weight: 800; line-height: 1.3; color: var(--brand-deep); overflow-wrap: anywhere; }
+.course .name { font-weight: 800; }
+.course .note { font-size: 13px; color: var(--ink-faint); font-weight: 700; }
+.soon { margin-top: 28px; display: grid; gap: 12px; }
+.soon-label { font-weight: 800; color: var(--ink-soft); }
+.soon-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.soon-list span {
+  border: 1px solid var(--stroke); background: var(--card); border-radius: 999px;
+  padding: 5px 12px; font-size: 15px; font-weight: 700; color: var(--ink-soft);
+}
+.soon-list span i { font-style: normal; font-family: var(--font-script); color: var(--ink-faint); margin-left: 6px; }
+@media (max-width: 900px) { .courses { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---------- five sessions ---------- */
+.sessions { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; counter-reset: s; }
+.session { display: grid; gap: 10px; align-content: start; padding-top: 16px; border-top: 3px solid var(--brand-soft); }
+.session:last-child { border-top-color: var(--brand); }
+.session .n {
+  width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--brand); color: #fff; font-weight: 900; font-variant-numeric: tabular-nums;
+}
+.session p { color: var(--ink-soft); font-size: 15px; }
+.session .qs { font-size: 13px; font-weight: 800; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.rule { margin-top: 32px; color: var(--ink-soft); max-width: 62ch; }
+.rule b { color: var(--ink); }
+@media (max-width: 900px) { .sessions { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 16px; } }
+
+/* ---------- call ---------- */
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+.split > * { min-width: 0; }
+.points { display: grid; gap: 18px; margin-top: 28px; }
+.point { display: grid; grid-template-columns: 28px 1fr; gap: 12px; }
+.point svg { width: 24px; height: 24px; color: var(--brand); margin-top: 2px; }
+.point p { color: var(--ink-soft); }
+.point b { color: var(--ink); }
+.call {
+  background: var(--card); border: 1px solid var(--stroke); border-radius: 30px; padding: 22px;
+  display: grid; gap: 14px; box-shadow: 0 30px 60px -36px var(--shadow);
+}
+.call-head { display: flex; align-items: center; gap: 12px; }
+.call-head svg { width: 48px; height: 48px; }
+.call-head .who { font-weight: 800; }
+.call-head .live { font-size: 13px; font-weight: 700; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.bubble { border-radius: 18px; padding: 10px 14px; max-width: 88%; }
+.bubble small { display: block; font-size: 13px; color: var(--ink-faint); font-weight: 600; }
+.bubble.them { background: var(--bg-band); justify-self: start; border-bottom-left-radius: 6px; }
+.bubble.me { background: var(--brand); color: #fff; justify-self: end; border-bottom-right-radius: 6px; }
+.bubble.me small { color: rgba(255,255,255,.8); }
+.fix { border-top: 1px solid var(--stroke); padding-top: 14px; display: grid; gap: 6px; }
+.fix .label { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--brand); }
+.fix .line { font-weight: 700; }
+.fix s { color: var(--heart); text-decoration-thickness: 2px; }
+.fix ins { text-decoration: none; color: var(--brand-deep); background: var(--brand-soft); border-radius: 6px; padding: 0 4px; }
+.fix p { color: var(--ink-soft); font-size: 15px; }
+@media (max-width: 900px) { .split { grid-template-columns: 1fr; gap: 36px; } }
+
+/* ---------- more ---------- */
+.more { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; }
+.more article { display: grid; gap: 10px; align-content: start; }
+.more p { color: var(--ink-soft); font-size: 16px; }
+.more .ex { font-family: var(--font-script); color: var(--brand-deep); font-weight: 800; }
+@media (max-width: 900px) { .more { grid-template-columns: 1fr; gap: 28px; } }
+
+/* ---------- vocabulary chart ---------- */
+.vocab { display: grid; gap: 16px; max-width: 820px; }
+.vrow { display: grid; grid-template-columns: 44px 1fr; gap: 14px; align-items: center; }
+.vrow .lvl { font-weight: 900; font-size: 18px; color: var(--brand-deep); }
+.track { display: flex; align-items: center; gap: 12px; height: 44px; }
+.fill { height: 100%; border-radius: 12px; background: linear-gradient(90deg, var(--orb-hi), var(--brand)); }
+.count { font-weight: 900; font-size: 18px; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.band-range { font-size: 13px; font-weight: 700; color: var(--ink-faint); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.vnote { color: var(--ink-faint); font-size: 14px; margin-top: 8px; }
+
+/* ---------- pricing ---------- */
+.plans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+.plan {
+  background: var(--card); border: 1px solid var(--stroke); border-radius: 26px; padding: 26px;
+  display: grid; gap: 14px; align-content: start;
+}
+.plan.best { border: 2px solid var(--brand); box-shadow: 0 30px 60px -36px var(--shadow); }
+.plan-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.price { font-family: var(--font-display); font-size: 40px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+.price small { font-size: 16px; font-weight: 700; color: var(--ink-faint); }
+.plan ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.plan li { display: grid; grid-template-columns: 20px 1fr; gap: 10px; color: var(--ink-soft); font-size: 16px; }
+.plan li svg { width: 18px; height: 18px; margin-top: 4px; color: var(--brand); }
+.plan li.heart svg { color: var(--heart); }
+@media (max-width: 900px) { .plans { grid-template-columns: 1fr; } }
+
+/* ---------- closing ---------- */
+.closing { text-align: center; display: grid; justify-items: center; gap: 20px; padding-block: 96px 72px; }
+.closing svg.mascot { width: 140px; height: 140px; }
+.closing p { color: var(--ink-soft); max-width: 46ch; }
+footer { border-top: 1px solid var(--stroke); padding-block: 28px; color: var(--ink-faint); font-size: 14px; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; gap: 40px; padding-block: 16px 56px; }
+  .band { padding-block: 64px; }
+}
+@media (max-width: 480px) {
+  .sessions { grid-template-columns: 1fr; }
+  .courses { gap: 10px; }
+  .course { padding: 14px; }
+  .course .endo { font-size: 22px; }
+  .screen { min-height: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .greet, .bar i, .opt { transition: none; }
+  .hearts.hit { animation: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- Anorcha, the pomegranate: one symbol, reused at every size -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <radialGradient id="orb" cx="35%" cy="30%" r="75%">
+      <stop offset="0" stop-color="#C7B6FF"/>
+      <stop offset=".55" stop-color="#8B6EF3"/>
+      <stop offset="1" stop-color="#5B43C7"/>
+    </radialGradient>
+    <symbol id="anorcha" viewBox="0 0 200 200">
+      <path d="M78 52 L86 30 L96 46 Z M92 46 L100 18 L110 46 Z M104 46 L114 30 L122 52 Z" fill="#6A4EDB"/>
+      <circle cx="100" cy="112" r="68" fill="url(#orb)"/>
+      <ellipse cx="82" cy="72" rx="26" ry="13" fill="#fff" opacity=".45"/>
+      <path d="M68 108 q10 -12 20 0" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round"/>
+      <path d="M112 108 q10 -12 20 0" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round"/>
+      <ellipse cx="64" cy="126" rx="11" ry="6" fill="#fff" opacity=".22"/>
+      <ellipse cx="136" cy="126" rx="11" ry="6" fill="#fff" opacity=".22"/>
+      <path d="M88 124 h24 a12 12 0 0 1 -24 0 Z" fill="#fff"/>
+    </symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.7 4.5c2.1 0 3.6 1.2 4.3 2.4h2c.7-1.2 2.2-2.4 4.3-2.4 3.7 0 5.8 3.9 4.3 7.3C19.5 16.4 12 21 12 21z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-apple" viewBox="0 0 24 24"><path d="M16.4 12.7c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.8 1.2 1.8 2.6 3.1 2.6 1.2-.1 1.7-.8 3.2-.8s1.9.8 3.2.8c1.3 0 2.2-1.2 3-2.5.9-1.4 1.3-2.8 1.3-2.8s-2.6-1-2.6-4.2zM13.9 5c.7-.8 1.1-1.9 1-3-1 0-2.2.7-2.9 1.5-.6.7-1.2 1.8-1 2.9 1.1.1 2.2-.6 2.9-1.4z"/></symbol>
+  </defs>
+</svg>
+
+<header class="wrap nav">
+  <a class="brand" href="#top" aria-label="Lingora">
+    <svg aria-hidden="true"><use href="#anorcha"/></svg>
+    Lingora
+  </a>
+  <nav class="nav-links" aria-label="Sections">
+    <a href="#courses">Courses</a>
+    <a href="#how">How it works</a>
+    <a href="#call">Calls</a>
+    <a href="#pricing">Pricing</a>
+  </nav>
+</header>
+
+<main id="top">
+  <section class="wrap hero">
+    <div class="hero-text">
+      <span class="chip">A1 → B2 · for iPhone</span>
+      <h1>
+        Learn to say
+        <span class="greet" id="greet" lang="uz">Salom</span>
+      </h1>
+      <p class="greet-meta" id="greetMeta" aria-live="polite"><b>Uzbek</b> · hello</p>
+      <p class="lede">Lingora teaches the languages people ask for and the big apps leave out. Thai, Persian, Tagalog, Malay, Cantonese, Punjabi, Tamil and Uzbek, with real courses from your first word to B2.</p>
+      <div class="hero-cta">
+        <span class="store" role="img" aria-label="Coming soon on the App Store">
+          <svg aria-hidden="true"><use href="#i-apple"/></svg>
+          <span><small>Coming soon on the</small><strong>App Store</strong></span>
+        </span>
+        <span class="chip">Free to start</span>
+      </div>
+    </div>
+
+    <div class="phone" aria-label="Try a Lingora exercise">
+      <div class="screen">
+        <div class="island" aria-hidden="true"></div>
+        <div class="topbar">
+          <div class="bar" aria-hidden="true"><i id="progress"></i></div>
+          <span class="hearts" id="hearts" aria-label="Hearts left">
+            <svg aria-hidden="true"><use href="#i-heart"/></svg><span id="heartCount">5</span>
+          </span>
+        </div>
+        <div>
+          <div class="q-kind" id="qKind">Reading · Thai</div>
+          <div class="q-title">What does this mean?</div>
+        </div>
+        <div class="prompt">
+          <svg aria-hidden="true"><use href="#anorcha"/></svg>
+          <div>
+            <div class="word" id="qWord" lang="th">ขอบคุณ</div>
+            <div class="roman" id="qRoman">khàawp khun</div>
+          </div>
+        </div>
+        <div class="options" id="options"></div>
+        <div class="feedback" id="feedback" aria-live="polite">Tap an answer. A wrong one costs a heart.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band tint" id="courses">
+    <div class="wrap">
+      <div class="head">
+        <span class="eyebrow">Courses</span>
+        <h2>Eight courses ready now. Fifteen more on the way.</h2>
+        <p class="lede">Every course is taught from English and written for that language: its own grammar notes, its own sentences, its own script. Languages written in another alphabet always show a romanisation under every line.</p>
+      </div>
+      <div class="courses">
+        <div class="course"><span class="endo" lang="uz">O'zbekcha</span><span class="name">Uzbek</span><span class="note">Complete, A1 to B2</span></div>
+        <div class="course"><span class="endo" lang="th">ภาษาไทย</span><span class="name">Thai</span><span class="note">Thai script + romanisation</span></div>
+        <div class="course"><span class="endo" lang="fa" dir="rtl">فارسی</span><span class="name">Persian</span><span class="note">Right to left + romanisation</span></div>
+        <div class="course"><span class="endo" lang="tl">Tagalog</span><span class="name">Tagalog</span><span class="note">Latin alphabet</span></div>
+        <div class="course"><span class="endo" lang="ms">Bahasa Melayu</span><span class="name">Malay</span><span class="note">Latin alphabet</span></div>
+        <div class="course"><span class="endo" lang="yue">廣東話</span><span class="name">Cantonese</span><span class="note">Characters + romanisation</span></div>
+        <div class="course"><span class="endo" lang="pa">ਪੰਜਾਬੀ</span><span class="name">Punjabi</span><span class="note">Gurmukhi, text only for now</span></div>
+        <div class="course"><span class="endo" lang="ta">தமிழ்</span><span class="name">Tamil</span><span class="note">Tamil script + romanisation</span></div>
+      </div>
+      <div class="soon">
+        <span class="soon-label">Coming soon</span>
+        <div class="soon-list">
+          <span>Telugu<i lang="te">తెలుగు</i></span>
+          <span>Malayalam<i lang="ml">മലയാളം</i></span>
+          <span>Kannada<i lang="kn">ಕನ್ನಡ</i></span>
+          <span>Kurmanji<i lang="kmr">Kurmancî</i></span>
+          <span>Sorani<i lang="ckb" dir="rtl">کوردی</i></span>
+          <span>Mongolian<i lang="mn">Монгол хэл</i></span>
+          <span>Khmer<i lang="km">ភាសាខ្មែរ</i></span>
+          <span>Lao<i lang="lo">ພາສາລາວ</i></span>
+          <span>Kazakh<i lang="kk">Қазақша</i></span>
+          <span>Kyrgyz<i lang="ky">Кыргызча</i></span>
+          <span>Azerbaijani<i lang="az">Azərbaycanca</i></span>
+          <span>Georgian<i lang="ka">ქართული</i></span>
+          <span>Armenian<i lang="hy">Հայերեն</i></span>
+          <span>Urdu<i lang="ur" dir="rtl">اردو</i></span>
+          <span>Bengali<i lang="bn">বাংলা</i></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="how">
+    <div class="wrap">
+      <div class="head">
+        <span class="eyebrow">How a lesson works</span>
+        <h2>One lesson, five rounds, each one a different skill.</h2>
+        <p class="lede">A lesson isn't done after the first try. You come back to it five times, and every round trains something else. From the second round on, the sentences change too: you get the ones you've seen least.</p>
+      </div>
+      <div class="sessions">
+        <div class="session"><span class="n">1</span><h3>Reading</h3><p>Match pairs, pick the meaning, fill the gap, build the sentence from tiles.</p><span class="qs">11 questions</span></div>
+        <div class="session"><span class="n">2</span><h3>Listening</h3><p>Audio only. Pick what you heard, rebuild it, then write it down as a dictation.</p><span class="qs">10 questions</span></div>
+        <div class="session"><span class="n">3</span><h3>Writing</h3><p>Eight sentences on the keyboard and one short text of your own, corrected line by line.</p><span class="qs">9 questions</span></div>
+        <div class="session"><span class="n">4</span><h3>Speaking</h3><p>Read aloud, then listen to a native voice and repeat after it.</p><span class="qs">9 questions</span></div>
+        <div class="session"><span class="n">5</span><h3>Review</h3><p>Everything mixed, no hints, more of your own words. Then the path moves on.</p><span class="qs">11 questions</span></div>
+      </div>
+      <p class="rule"><b>The label is a promise.</b> A round called Listening has only listening in it. Can't talk right now? Tap it, and the speaking round turns into a review and says so.</p>
+    </div>
+  </section>
+
+  <section class="band tint" id="call">
+    <div class="wrap split">
+      <div>
+        <div class="head" style="margin-bottom:0">
+          <span class="eyebrow">Calls with Anorcha</span>
+          <h2>Pick a level. The phone rings. You talk.</h2>
+          <p class="lede">Anorcha is a pomegranate (<i lang="uz">anor</i> in Uzbek) and your conversation partner. A call is a real back-and-forth: each question follows from what you just said.</p>
+        </div>
+        <div class="points">
+          <div class="point"><svg aria-hidden="true"><use href="#i-check"/></svg><p><b>Answer however you like.</b> Speak or type. No multiple choice, no hints. "I don't know" is always an option.</p></div>
+          <div class="point"><svg aria-hidden="true"><use href="#i-check"/></svg><p><b>No red marks mid-sentence.</b> The corrections wait for the recap at the end, answer by answer.</p></div>
+          <div class="point"><svg aria-hidden="true"><use href="#i-check"/></svg><p><b>It only corrects what it can explain.</b> Spelling, grammar, a more natural way to say it, and why.</p></div>
+        </div>
+      </div>
+      <div class="call" aria-label="Example call recap">
+        <div class="call-head">
+          <svg aria-hidden="true"><use href="#anorcha"/></svg>
+          <div><div class="who">Anorcha</div><div class="live">A1 call · 04:12</div></div>
+        </div>
+        <div class="bubble them"><span lang="uz">Sizda nechta kitob bor?</span><small>How many books do you have?</small></div>
+        <div class="bubble me"><span lang="uz">Menda uchta kitoblar bor.</span><small>You</small></div>
+        <div class="fix">
+          <span class="label">Recap</span>
+          <div class="line" lang="uz">Menda uchta <s>kitoblar</s> <ins>kitob</ins> bor.</div>
+          <p>After a number the noun stays singular: <span lang="uz">uchta kitob</span>, three book.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="head">
+        <span class="eyebrow">In every unit</span>
+        <h2>More than flashcards and taps.</h2>
+      </div>
+      <div class="more">
+        <article>
+          <h3>Write to Anorcha</h3>
+          <p>One chapter per unit is a chat. Anorcha writes in your new language, you answer in your own words. Four messages at A1, six at B2, and a full report at the end.</p>
+        </article>
+        <article>
+          <h3>Grammar written for that language</h3>
+          <p>Notes explain each language on its own terms. Thai doesn't conjugate. Persian links words with the <span class="ex">ezafe</span>. Uzbek says "I am" with an ending: <span class="ex" lang="uz">-man</span>.</p>
+        </article>
+        <article>
+          <h3>Start at your level</h3>
+          <p>Already know some? A placement test finds where you are, and a checkpoint test lets you skip a unit you already know.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="band tint" id="levels">
+    <div class="wrap">
+      <div class="head">
+        <span class="eyebrow">A1 → B2</span>
+        <h2>The words you'll know at the end of each level.</h2>
+        <p class="lede">Each level teaches as many words as the European framework asks for. The count is checked every time the course is built, so it's a promise, not a guess.</p>
+      </div>
+      <div class="vocab" role="img" aria-label="Words taught by level in the Uzbek course: A1 814, A2 1,599, B1 3,191, B2 5,172.">
+        <div class="vrow"><span class="lvl">A1</span><div><div class="track"><div class="fill" style="width:12.9%"></div><span class="count">814</span></div><div class="band-range">CEFR band 500–1,000</div></div></div>
+        <div class="vrow"><span class="lvl">A2</span><div><div class="track"><div class="fill" style="width:25.3%"></div><span class="count">1,599</span></div><div class="band-range">CEFR band 1,000–2,000</div></div></div>
+        <div class="vrow"><span class="lvl">B1</span><div><div class="track"><div class="fill" style="width:50.6%"></div><span class="count">3,191</span></div><div class="band-range">CEFR band 2,000–5,000</div></div></div>
+        <div class="vrow"><span class="lvl">B2</span><div><div class="track"><div class="fill" style="width:80%"></div><span class="count">5,172</span></div><div class="band-range">CEFR band 4,000–8,000</div></div></div>
+      </div>
+      <p class="vnote">Figures from the Uzbek course: 32 units, 339 lessons, 77 grammar notes.</p>
+    </div>
+  </section>
+
+  <section class="band" id="pricing">
+    <div class="wrap">
+      <div class="head">
+        <span class="eyebrow">Pricing</span>
+        <h2>Free to learn. Plus if you don't want to wait.</h2>
+        <p class="lede">Every lesson, call and writing chapter is free. Lingora Plus removes the heart limit and adds flashcards.</p>
+      </div>
+      <div class="plans">
+        <div class="plan">
+          <div class="plan-top"><h3>Free</h3></div>
+          <div class="price">€0</div>
+          <ul>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Every lesson in every course</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Calls and writing chapters with Anorcha</li>
+            <li class="heart"><svg aria-hidden="true" fill="currentColor"><use href="#i-heart"/></svg>5 hearts, one back every two hours</li>
+          </ul>
+        </div>
+        <div class="plan">
+          <div class="plan-top"><h3>Plus Monthly</h3></div>
+          <div class="price">€4.99 <small>/ month</small></div>
+          <ul>
+            <li class="heart"><svg aria-hidden="true" fill="currentColor"><use href="#i-heart"/></svg>Unlimited hearts</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Flashcards for every word you've learned</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Cancel anytime in Settings</li>
+          </ul>
+        </div>
+        <div class="plan best">
+          <div class="plan-top"><h3>Plus Forever</h3><span class="chip">Best value</span></div>
+          <div class="price">€49.99 <small>once</small></div>
+          <ul>
+            <li class="heart"><svg aria-hidden="true" fill="currentColor"><use href="#i-heart"/></svg>Unlimited hearts</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Flashcards for every word you've learned</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Pay once, yours for good</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap closing">
+    <svg class="mascot" aria-hidden="true"><use href="#anorcha"/></svg>
+    <h2>Anorcha is ready when you are.</h2>
+    <p>Five minutes a day, a streak to keep, and a language your friends, family or partner will be glad to hear you speak.</p>
+    <span class="store" role="img" aria-label="Coming soon on the App Store">
+      <svg aria-hidden="true"><use href="#i-apple"/></svg>
+      <span><small>Coming soon on the</small><strong>App Store</strong></span>
+    </span>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 Lingora</span>
+    <span>For iPhone · iOS 17 or later</span>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---- rotating greeting ----
+  const greetings = [
+    { w: 'Salom', lang: 'uz', name: 'Uzbek', gloss: 'hello' },
+    { w: 'สวัสดี', lang: 'th', name: 'Thai', gloss: 'sawàtdii · hello' },
+    { w: 'سلام', lang: 'fa', name: 'Persian', gloss: 'salâm · hello', rtl: true },
+    { w: 'Kumusta', lang: 'tl', name: 'Tagalog', gloss: 'how are you' },
+    { w: 'Apa khabar', lang: 'ms', name: 'Malay', gloss: 'how are you' },
+    { w: '你好', lang: 'yue', name: 'Cantonese', gloss: 'néih hóu · hello' },
+    { w: 'ਸਤ ਸ੍ਰੀ ਅਕਾਲ', lang: 'pa', name: 'Punjabi', gloss: 'sat srī akāl · hello' },
+    { w: 'வணக்கம்', lang: 'ta', name: 'Tamil', gloss: 'vaṇakkam · hello' },
+  ];
+  const greet = document.getElementById('greet');
+  const meta = document.getElementById('greetMeta');
+  let gi = 0;
+  function showGreeting(g) {
+    greet.textContent = g.w;
+    greet.lang = g.lang;
+    greet.dir = g.rtl ? 'rtl' : 'ltr';
+    greet.style.textAlign = 'left';
+    meta.innerHTML = '<b>' + g.name + '</b> · ' + g.gloss;
+  }
+  if (!reduce) {
+    setInterval(() => {
+      gi = (gi + 1) % greetings.length;
+      greet.classList.add('out');
+      setTimeout(() => { showGreeting(greetings[gi]); greet.classList.remove('out'); }, 350);
+    }, 2600);
+  }
+
+  // ---- playable exercise ----
+  const questions = [
+    { kind: 'Reading · Thai', word: 'ขอบคุณ', lang: 'th', roman: 'khàawp khun', answer: 'Thank you', options: ['Hello', 'Thank you', 'Sorry', 'Goodbye'] },
+    { kind: 'Reading · Uzbek', word: 'Xayr', lang: 'uz', roman: '', answer: 'Goodbye', options: ['Please', 'Yes', 'Goodbye', 'Good morning'] },
+    { kind: 'Reading · Tamil', word: 'வணக்கம்', lang: 'ta', roman: 'vaṇakkam', answer: 'Hello', options: ['Water', 'Hello', 'Friend', 'Thank you'] },
+    { kind: 'Reading · Persian', word: 'ممنون', lang: 'fa', roman: 'mamnun', answer: 'Thanks', options: ['Book', 'Tomorrow', 'Yes', 'Thanks'], rtl: true },
+  ];
+  const $ = id => document.getElementById(id);
+  const opts = $('options'), fb = $('feedback'), heartsEl = $('hearts'), heartCount = $('heartCount'), progress = $('progress');
+  let qi = 0, hearts = 5, done = 0;
+
+  function render() {
+    const q = questions[qi];
+    $('qKind').textContent = q.kind;
+    $('qWord').textContent = q.word;
+    $('qWord').lang = q.lang;
+    $('qWord').dir = q.rtl ? 'rtl' : 'ltr';
+    $('qRoman').textContent = q.roman;
+    $('qRoman').hidden = !q.roman;
+    opts.innerHTML = '';
+    q.options.forEach(o => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'opt'; b.textContent = o;
+      b.addEventListener('click', () => choose(b, o));
+      opts.appendChild(b);
+    });
+    fb.className = 'feedback';
+    fb.textContent = 'Tap an answer. A wrong one costs a heart.';
+  }
+
+  function choose(btn, o) {
+    const q = questions[qi];
+    opts.querySelectorAll('button').forEach(b => {
+      b.disabled = true;
+      if (b.textContent === q.answer) b.classList.add('right');
+    });
+    if (o === q.answer) {
+      fb.className = 'feedback good';
+      fb.textContent = 'Nice! ' + q.word + ' means “' + q.answer + '”.';
+    } else {
+      btn.classList.add('wrong');
+      hearts = Math.max(0, hearts - 1);
+      heartCount.textContent = hearts;
+      heartsEl.classList.remove('hit'); void heartsEl.offsetWidth; heartsEl.classList.add('hit');
+      fb.className = 'feedback bad';
+      fb.textContent = 'Not quite. It means “' + q.answer + '”. It comes back at the end.';
+    }
+    done = Math.min(questions.length, done + 1);
+    progress.style.width = (done / questions.length * 100) + '%';
+    const next = document.createElement('button');
+    next.type = 'button'; next.className = 'next';
+    const last = qi === questions.length - 1;
+    next.textContent = last ? 'Start again' : 'Continue';
+    next.addEventListener('click', () => {
+      if (last) { qi = 0; done = 0; hearts = 5; heartCount.textContent = 5; progress.style.width = '0%'; }
+      else qi += 1;
+      render();
+    });
+    fb.appendChild(next);
+    next.focus({ preventScroll: true });
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
